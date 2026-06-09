@@ -1,0 +1,94 @@
+version: '1.2'
+customer_risk_levels:
+- code: conservative
+  name: 保守型
+  loss_pct: 1
+  loss_key: loss_1pct
+- code: prudent
+  name: 稳健型
+  loss_pct: 3
+  loss_key: loss_3pct
+- code: balanced
+  name: 平衡型
+  loss_pct: 6
+  loss_key: loss_6pct
+- code: growth
+  name: 成长型
+  loss_pct: 10
+  loss_key: loss_10pct
+- code: aggressive
+  name: 进取型
+  loss_pct: 15
+  loss_key: loss_15pct
+risk_loss_default:
+  投资规划:
+    conservative: loss_1pct
+    prudent: loss_3pct
+    balanced: loss_6pct
+    growth: loss_10pct
+    aggressive: loss_15pct
+  综合规划:
+    conservative: loss_1pct
+    prudent: loss_3pct
+    balanced: loss_6pct
+    growth: loss_10pct
+    aggressive: loss_15pct
+portfolio_map:
+  投资规划:
+    loss_1pct:
+      label: 本金1%的损失
+      target_model: 投资规划P1
+      ret: 10.0
+      vol: 20.0
+      customer_risk: conservative
+    loss_3pct:
+      label: 本金3%的损失
+      target_model: 投资规划P2
+      ret: 10.0
+      vol: 15.0
+      customer_risk: prudent
+    loss_6pct:
+      label: 本金6%的损失
+      target_model: 投资规划P3
+      ret: 20.0
+      vol: 23.0
+      customer_risk: balanced
+    loss_10pct:
+      label: 本金10%的损失
+      target_model: 投资规划P4
+      ret: 5.0
+      vol: 8.0
+      customer_risk: growth
+    loss_15pct:
+      label: 本金15%的损失
+      target_model: 投资规划P5
+      ret: 12.0
+      vol: 18.0
+      customer_risk: aggressive
+  综合规划:
+    loss_1pct:
+      label: 本金1%的损失
+      target_model: 综合规划P1
+      customer_risk: conservative
+    loss_3pct:
+      label: 本金3%的损失
+      target_model: 综合规划P2
+      customer_risk: prudent
+    loss_6pct:
+      label: 本金6%的损失
+      target_model: 综合规划P3
+      customer_risk: balanced
+    loss_10pct:
+      label: 本金10%的损失
+      target_model: 综合规划P4
+      customer_risk: growth
+    loss_15pct:
+      label: 本金15%的损失
+      target_model: 综合规划P5
+      customer_risk: aggressive
+risk_customer_map:
+  conservative: 保守型(最大可亏1%)
+  prudent: 稳健型(最大可亏3%)
+  balanced: 平衡型(最大可亏6%)
+  growth: 成长型(最大可亏10%)
+  aggressive: 进取型(最大可亏15%)

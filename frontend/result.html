@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能配置方案 - 四笔钱智能投顾</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="page-header">
+      <h1>智能配置方案</h1>
+      <p id="subtitle">--</p>
+    </div>
+
+    <div id="navBar" class="nav-bar"></div>
+
+    <div id="loading" class="loading">加载中...</div>
+    <div id="content" style="display:none">
+
+      <h3 style="margin-bottom:12px">四笔钱大类汇总</h3>
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th>大类</th>
+            <th>当前占比</th>
+            <th>目标占比</th>
+            <th>调整金额</th>
+            <th>最终占比</th>
+            <th>模型区间</th>
+          </tr>
+        </thead>
+        <tbody id="summaryBody"></tbody>
+      </table>
+
+      <h3 style="margin:16px 0 12px">底层产品明细</h3>
+      <div class="edit-hint">支持人工二次调整：修改增减仓后按回车或点击其他区域确认，四笔钱占比与区间校验将联动更新</div>
+      <table class="detail-table editable-detail-table">
+        <thead>
+          <tr>
+            <th>大类</th>
+            <th>产品</th>
+            <th>当前持仓</th>
+            <th>目标金额</th>
+            <th>增减仓</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="detailBody"></tbody>
+      </table>
+
+      <div id="validationNotes" style="font-size:13px;color:#8c8c8c;margin-bottom:16px"></div>
+
+      <div class="ai-section" id="aiSection">
+        <h3>AI 配置解读</h3>
+        <div class="ai-block">
+          <h4>配置逻辑</h4>
+          <p id="allocationLogic">--</p>
+        </div>
+        <div class="ai-block">
+          <h4>超配低配原因</h4>
+          <p id="overUnderReason">--</p>
+        </div>
+        <div class="ai-block">
+          <h4>客户适配逻辑</h4>
+          <p id="customerFit">--</p>
+        </div>
+        <div class="ai-block">
+          <h4>理财经理摘要</h4>
+          <p id="managerSummary">--</p>
+        </div>
+        <div class="ai-block">
+          <h4>客户沟通话术</h4>
+          <p id="clientScript">--</p>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-large" id="btnAftercare">生成投后陪伴方案 →</button>
+      <button class="btn btn-secondary btn-large" onclick="location.href='index.html'">返回客户资产首页</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/common.js"></script>
+  <script src="js/plan_editor.js"></script>
+  <script>
+    let planData = null;
+
+    renderNav('result');
+
+    function refreshPlanView(data) {
+      planData = data;
+      const rb = data.rebalance;
+      const ex = data.explanation;
+
+      const cat = (planData && planData.product_category) || getProductCategory();
+      document.getElementById('subtitle').textContent =
+        `客户 ${rb.customer_id} | ${cat} | ${riskProfileLabel(rb)} | 总资产 ${formatMoney(rb.total_assets)} | 模式 ${PlanEditor.modeLabel(rb.mode)}`;
+
+      document.getElementById('summaryBody').innerHTML = PlanEditor.renderSummaryRows(rb);
+      document.getElementById('detailBody').innerHTML = PlanEditor.renderEditableDetailRows(rb);
+      document.getElementById('validationNotes').textContent =
+        PlanEditor.renderValidationNotes(rb.validation_notes);
+      PlanEditor.updateExplanation(ex);
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+    }
+
+    function onPlanUpdated(data) {
+      refreshPlanView(data);
+      saveResult(data);
+      showToast('方案已联动更新');
+    }
+
+    PlanEditor.bindDetailEditor(
+      document.querySelector('.editable-detail-table'),
+      () => (planData ? { rb: planData.rebalance } : null),
+      onPlanUpdated
+    );
+
+    const cached = loadResult();
+    if (cached) {
+      if (cached.product_category) {
+        sessionStorage.setItem(PRODUCT_CATEGORY_KEY, cached.product_category);
+      }
+      refreshPlanView(cached);
+      if (location.hash === '#explain') {
+        document.getElementById('aiSection').scrollIntoView({ behavior: 'smooth' });
+      }
+    } else {
+      document.getElementById('loading').textContent = '暂无配置方案，请先从首页发起配仓';
+    }
+
+    document.getElementById('btnAftercare').onclick = () => {
+      window.location.href = 'aftercare.html';
+    };
+  </script>
+</body>
+</html>

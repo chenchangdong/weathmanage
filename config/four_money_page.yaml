@@ -1,0 +1,159 @@
+# 客户资产首页 — 页面展示配置
+version: "1.0"
+
+page:
+  title: 客户资产配置
+  subtitle: 财富投配智能体
+
+# 顶部总资产卡片
+header_card:
+  show_total_assets: true
+  show_idle_cash: true
+  show_health_badge: true
+  idle_cash_label: 可用闲置资金
+  total_assets_label: 总资产
+
+# 配置健康度三色标签阈值（偏差 = |当前占比 - 目标占比|）
+health_thresholds:
+  green:
+    max_deviation: 0.05    # 偏差 ≤ 5% 为健康
+    label: 配置健康
+    color: "#52c41a"
+  yellow:
+    max_deviation: 0.12    # 5% < 偏差 ≤ 12% 为预警
+    label: 需关注
+    color: "#faad14"
+  red:
+    max_deviation: 1.0     # 偏差 > 12% 为告警
+    label: 需优化
+    color: "#ff4d4f"
+
+# 四大卡片配置
+category_cards:
+  spend:
+    title: 要花的钱
+    subtitle: 随时可取
+    fields:
+      - key: current_amount
+        label: 当前持仓
+      - key: target_amount
+        label: 目标配置额
+      - key: deviation
+        label: 配比偏差
+    actions:
+      - id: single_optimize
+        label: 一键单类智能优化
+        type: primary
+      - id: manual_tweak
+        label: 人工微调
+        type: link
+    product_display:
+      default_collapsed: true
+      summary_label: 底层产品汇总
+
+  preserve:
+    title: 保值的钱
+    subtitle: 稳健增值
+    fields:
+      - key: current_amount
+        label: 当前持仓
+      - key: target_amount
+        label: 目标配置额
+      - key: deviation
+        label: 配比偏差
+    actions:
+      - id: single_optimize
+        label: 一键单类智能优化
+        type: primary
+      - id: manual_tweak
+        label: 人工微调
+        type: link
+    product_display:
+      default_collapsed: true
+      summary_label: 底层产品汇总
+
+  grow:
+    title: 生钱的钱
+    subtitle: 追求收益
+    fields:
+      - key: current_amount
+        label: 当前持仓
+      - key: target_amount
+        label: 目标配置额
+      - key: deviation
+        label: 配比偏差
+    actions:
+      - id: single_optimize
+        label: 一键单类智能优化
+        type: primary
+      - id: manual_tweak
+        label: 人工微调
+        type: link
+    product_display:
+      default_collapsed: true
+      summary_label: 底层产品汇总
+
+  protect:
+    title: 保障的钱
+    subtitle: 风险兜底
+    fields:
+      - key: current_amount
+        label: 当前持仓
+      - key: target_amount
+        label: 目标配置额
+      - key: deviation
+        label: 配比偏差
+    actions:
+      - id: single_optimize
+        label: 一键单类智能优化
+        type: primary
+      - id: manual_tweak
+        label: 人工微调
+        type: link
+    product_display:
+      default_collapsed: true
+      summary_label: 底层产品汇总
+
+# 页面底部全局按钮
+global_actions:
+  - id: full_optimize
+    label: 全账户一键智能最优配置
+    type: primary_large
+    icon: magic
+  - id: generate_explanation
+    label: 生成配置解读
+    type: secondary_large
+    icon: document
+
+# 智能配置结果页
+result_page:
+  title: 智能配置方案
+  category_summary_columns:
+    - key: category_name
+      label: 四笔钱大类
+    - key: target_ratio
+      label: 目标占比
+    - key: adjust_amount
+      label: 调整金额
+    - key: final_ratio
+      label: 最终占比
+    - key: in_band
+      label: 是否落在模型区间
+  product_detail_columns:
+    - key: product_name
+      label: 产品名称
+    - key: current_amount
+      label: 当前持仓
+    - key: target_amount
+      label: 目标金额
+    - key: delta_amount
+      label: 增减仓金额
+  ai_section:
+    title: AI 配置解读
+    subsections:
+      - key: allocation_logic
+        label: 配置逻辑
+      - key: over_under_reason
+        label: 超配低配原因
+      - key: customer_fit
+        label: 客户适配逻辑

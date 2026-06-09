@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资产配置模型建立</title>
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <div class="admin-wrap admin-wrap--wide">
+    <div class="admin-header">
+      <h1>资产配置模型建立</h1>
+    </div>
+    <div class="admin-nav">
+      <a href="model_config.html" class="active">资产配置模型建立</a>
+      <a href="portfolio_mapping.html">资产配置模型指派</a>
+      <a href="../index.html">返回业务前台</a>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">模型列表</div>
+      <div class="table-scroll">
+        <table class="data-table model-list-table">
+          <thead id="modelListHead"></thead>
+          <tbody id="modelListBody">
+            <tr><td colspan="19">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="deleteModal" class="admin-modal" style="display:none">
+    <div class="admin-modal-box">
+      <h3>确认删除</h3>
+      <p id="deleteModalText">确定要删除该模型吗？</p>
+      <p id="deleteModalWarn" class="modal-warn" style="display:none"></p>
+      <div class="admin-modal-actions">
+        <button type="button" class="btn-outline" id="deleteModalCancel">取消</button>
+        <button type="button" class="btn-danger" id="deleteModalConfirm">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const COL_COUNT = 19;
+    const ASSET_COLS = [
+      { key: 'cash', label: '现金类' },
+      { key: 'fixed_income', label: '固收类' },
+      { key: 'equity', label: '权益类' },
+      { key: 'alternative', label: '另类及其他' },
+      { key: 'insurance', label: '保障类' },
+    ];
+    const LIMIT_KEYS = ['lower', 'benchmark', 'upper'];
+    const LIMIT_LABELS = ['下限', '基准', '上限'];
+
+    let pendingDeleteCode = '';
+    let allModels = [];
+    let sortKey = 'name';
+    let sortDir = 'asc';
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+
+    function detailUrl(code, mode) {
+      return `model_config_detail.html?code=${encodeURIComponent(code)}&mode=${mode}`;
+    }
+
+    function fmtPct(v) {
+      if (v == null || v === '') return '—';
+      const n = Number(v);
+      return Number.isFinite(n) ? `${n}%` : '—';
+    }
+
+    function assetLimitCells(assetLimit) {
+      return ASSET_COLS.map(col => {
+        const lim = (assetLimit || {})[col.key] || [0, 0, 0];
+        return LIMIT_KEYS.map((_, i) =>
+          `<td class="col-limit">${fmtPct(lim[i])}</td>`
+        ).join('');
+      }).join('');
+    }
+
+    function buildTableHead() {
+      const groupRow = [
+        '<th class="col-actions col-sticky" rowspan="2">操作</th>',
+        '<th class="sortable-th col-sticky col-sticky-2" data-sort="name" rowspan="2">模型名称<span class="sort-indicator"></span></th>',
+        '<th class="sortable-th" data-sort="return" rowspan="2">预期年化收益率<span class="sort-indicator"></span></th>',
+        '<th class="sortable-th" data-sort="vol" rowspan="2">预期波动风险<span class="sort-indicator"></span></th>',
+        ...ASSET_COLS.map(col =>
+          `<th colspan="3" class="col-asset-group">${col.label}</th>`
+        ),
+      ].join('');
+      const subRow = ASSET_COLS.map(() =>
+        LIMIT_LABELS.map(l => `<th class="col-limit">${l}</th>`).join('')
+      ).join('');
+      document.getElementById('modelListHead').innerHTML =
+        `<tr>${groupRow}</tr><tr>${subRow}</tr>`;
+      document.querySelectorAll('.sortable-th').forEach(th => {
+        th.onclick = () => {
+          const key = th.dataset.sort;
+          if (sortKey === key) {
+            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            sortKey = key;
+            sortDir = 'asc';
+          }
+          renderList(allModels);
+        };
+      });
+    }
+
+    function sortModels(models) {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      return [...models].sort((a, b) => {
+        if (sortKey === 'name') {
+          const na = (a.model_name || a.model_code || '').toString();
+          const nb = (b.model_name || b.model_code || '').toString();
+          return na.localeCompare(nb, 'zh-CN') * dir;
+        }
+        const va = Number(a[sortKey === 'return' ? 'expect_annual_return' : 'expect_volatility']) || 0;
+        const vb = Number(b[sortKey === 'return' ? 'expect_annual_return' : 'expect_volatility']) || 0;
+        return (va - vb) * dir;
+      });
+    }
+
+    function updateSortIndicators() {
+      document.querySelectorAll('.sortable-th').forEach(th => {
+        const key = th.dataset.sort;
+        const indicator = th.querySelector('.sort-indicator');
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (key === sortKey) {
+          th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+          if (indicator) indicator.textContent = sortDir === 'asc' ? ' ▲' : ' ▼';
+        } else if (indicator) {
+          indicator.textContent = '';
+        }
+      });
+    }
+
+    function renderList(models) {
+      const tbody = document.getElementById('modelListBody');
+      if (!models.length) {
+        tbody.innerHTML = `<tr><td colspan="${COL_COUNT}">暂无模型</td></tr>`;
+        return;
+      }
+      const sorted = sortModels(models);
+      tbody.innerHTML = sorted.map(m => `
+          <tr>
+            <td class="col-actions col-sticky">
+              <button type="button" class="btn-icon" title="查看" data-action="view" data-code="${esc(m.model_code)}">查看</button>
+              <button type="button" class="btn-icon" title="编辑" data-action="edit" data-code="${esc(m.model_code)}">编辑</button>
+              <button type="button" class="btn-icon btn-icon-danger" title="删除" data-action="delete" data-code="${esc(m.model_code)}">删除</button>
+            </td>
+            <td class="col-name col-sticky col-sticky-2">${esc(m.model_name || m.model_code)}</td>
+            <td>${m.expect_annual_return != null && m.expect_annual_return !== '' ? esc(m.expect_annual_return) + '%' : '—'}</td>
+            <td>${m.expect_volatility != null && m.expect_volatility !== '' ? esc(m.expect_volatility) + '%' : '—'}</td>
+            ${assetLimitCells(m.asset_limit)}
+          </tr>
+        `).join('');
+
+      tbody.querySelectorAll('[data-action]').forEach(btn => {
+        btn.onclick = () => {
+          const code = btn.dataset.code;
+          const action = btn.dataset.action;
+          if (action === 'view') location.href = detailUrl(code, 'view');
+          else if (action === 'edit') location.href = detailUrl(code, 'edit');
+          else if (action === 'delete') openDeleteModal(code);
+        };
+      });
+      updateSortIndicators();
+    }
+
+    async function loadList() {
+      const tbody = document.getElementById('modelListBody');
+      try {
+        const res = await fetch('/api/model/list');
+        const json = await res.json();
+        allModels = json.data.models || [];
+        renderList(allModels);
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="${COL_COUNT}">加载失败</td></tr>`;
+      }
+    }
+
+    async function openDeleteModal(code) {
+      pendingDeleteCode = code;
+      const modal = document.getElementById('deleteModal');
+      const warn = document.getElementById('deleteModalWarn');
+      const confirmBtn = document.getElementById('deleteModalConfirm');
+      document.getElementById('deleteModalText').textContent =
+        `确定要删除模型「${code}」吗？此操作不可恢复。`;
+      warn.style.display = 'none';
+      warn.textContent = '';
+      confirmBtn.disabled = false;
+
+      try {
+        const res = await fetch('/api/model/delete-check?model_code=' + encodeURIComponent(code));
+        const json = await res.json();
+        const data = json.data || {};
+        if (!data.deletable && (data.mapping_refs || []).length) {
+          const refs = data.mapping_refs.map(r =>
+            `${r.product_category} · ${r.loss_label || r.loss_key}`
+          ).join('；');
+          warn.style.display = 'block';
+          warn.textContent = `不可删除：该模型已被风险映射引用（${refs}）。请先在页面B解除映射。`;
+          confirmBtn.disabled = true;
+        }
+      } catch (e) {
+        warn.style.display = 'block';
+        warn.textContent = '无法校验风险映射，请稍后重试';
+        confirmBtn.disabled = true;
+      }
+      modal.style.display = 'flex';
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').style.display = 'none';
+      pendingDeleteCode = '';
+    }
+
+    document.getElementById('deleteModalCancel').onclick = closeDeleteModal;
+    document.getElementById('deleteModalConfirm').onclick = async () => {
+      if (!pendingDeleteCode) return;
+      const res = await fetch('/api/model/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_code: pendingDeleteCode }),
+      });
+      const json = await res.json();
+      closeDeleteModal();
+      if (res.ok) {
+        toast('删除成功');
+        loadList();
+      } else {
+        toast(json.detail || '删除失败');
+      }
+    };
+
+    buildTableHead();
+    loadList();
+  </script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+"""Build compact grounding context for advisor chat."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from core.asset_service import AssetOverviewService, overview_to_dict
+from core.config_loader import get_demo_customer, get_risk_level_name
+
+
+def build_customer_context(customer_id: str) -> dict[str, Any]:
+    customer = get_demo_customer(customer_id)
+    if not customer:
+        return {"customer_id": customer_id, "error": "客户不存在"}
+    risk = customer.get("risk_profile", "")
+    return {
+        "customer_id": customer_id,
+        "name": customer.get("name"),
+        "age": customer.get("age"),
+        "occupation": customer.get("occupation"),
+        "risk_profile": risk,
+        "risk_profile_name": get_risk_level_name(risk),
+        "product_category": customer.get("product_category", "投资规划"),
+        "invest_horizon_years": customer.get("invest_horizon_years"),
+        "notes": customer.get("notes", ""),
+    }
+
+
+def build_overview_context(customer_id: str, overview: dict[str, Any] | None) -> dict[str, Any]:
+    if overview:
+        return _compact_overview(overview)
+    try:
+        svc = AssetOverviewService()
+        data = overview_to_dict(svc.build_overview(customer_id))
+        return _compact_overview(data)
+    except ValueError:
+        return {"available": False}
+
+
+def _compact_overview(data: dict[str, Any]) -> dict[str, Any]:
+    mapping = data.get("allocation_mapping") or {}
+    categories = []
+    for c in data.get("categories") or []:
+        categories.append({
+            "category": c.get("category"),
+            "category_name": c.get("category_name"),
+            "current_ratio": c.get("current_ratio"),
+            "target_ratio": c.get("target_ratio"),
+            "deviation_pct": c.get("deviation_pct"),
+            "band": c.get("band"),
+            "in_band": c.get("in_band"),
+            "current_amount": c.get("current_amount"),
+        })
+    return {
+        "available": True,
+        "total_assets": data.get("total_assets"),
+        "idle_cash": data.get("idle_cash"),
+        "health": data.get("health"),
+        "model_code": mapping.get("model_code"),
+        "categories": categories,
+    }
+
+
+def build_plan_context(plan: dict[str, Any] | None) -> dict[str, Any]:
+    if not plan:
+        return {"available": False}
+    rb = plan.get("rebalance") or plan
+    ex = plan.get("explanation") or {}
+    categories = []
+    for s in rb.get("category_summary") or []:
+        categories.append({
+            "category_name": s.get("category_name"),
+            "current_ratio": s.get("current_ratio"),
+            "final_ratio": s.get("final_ratio"),
+            "target_ratio": s.get("target_ratio"),
+            "adjust_amount": s.get("adjust_amount"),
+            "in_band": s.get("in_band"),
+            "band": s.get("band"),
+        })
+    products = []
+    for d in rb.get("product_deltas") or []:
+        if (d.get("current_amount") or 0) <= 0 and abs(d.get("delta_amount") or 0) < 1:
+            continue
+        products.append({
+            "product_name": d.get("product_name"),
+            "category": d.get("category"),
+            "current_amount": d.get("current_amount"),
+            "target_amount": d.get("target_amount"),
+            "delta_amount": d.get("delta_amount"),
+            "action": d.get("action"),
+            "limit_hit": d.get("limit_hit"),
+        })
+    return {
+        "available": True,
+        "mode": rb.get("mode"),
+        "total_assets": rb.get("total_assets"),
+        "idle_cash": rb.get("idle_cash"),
+        "validation_notes": rb.get("validation_notes"),
+        "categories": categories,
+        "products": products[:20],
+        "rule_explanation": {
+            "allocation_logic": ex.get("allocation_logic"),
+            "over_under_reason": ex.get("over_under_reason"),
+        } if ex else None,
+    }
+
+
+def build_chat_grounding(
+    customer_id: str,
+    overview: dict[str, Any] | None = None,
+    plan: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "customer": build_customer_context(customer_id),
+        "asset_overview": build_overview_context(customer_id, overview),
+        "allocation_plan": build_plan_context(plan),
+    }

@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能资配 - 四笔钱智能投顾</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container container-smart-allocation">
+    <div class="page-header">
+      <h1>智能资配</h1>
+      <p id="pageSubtitle">人人都是专业财富顾问</p>
+    </div>
+
+    <div id="navBar" class="nav-bar"></div>
+
+    <div class="customer-select">
+      <label for="customerSelect">选择客户：</label>
+      <select id="customerSelect"></select>
+      <label for="planningTypeSelect">规划类型：</label>
+      <select id="planningTypeSelect"></select>
+    </div>
+    <div id="mappingBanner" class="mapping-banner" style="display:none"></div>
+    <div id="planBanner" class="plan-banner" style="display:none"></div>
+
+    <div id="loading" class="loading">加载中...</div>
+
+    <div id="content" style="display:none">
+      <div class="total-card" id="totalCard">
+        <div class="label">总资产</div>
+        <div class="amount" id="totalAssets">--</div>
+        <div class="meta">
+          <div class="idle-cash-group" id="idleCashGroup">
+            <span id="idleCash">闲置资金 --</span>
+            <span id="configuredIdle" class="idle-cash-extra" style="display:none">本次已配置闲置资金 --</span>
+            <span id="remainingIdle" class="idle-cash-extra" style="display:none">剩余可配置闲置资金 --</span>
+          </div>
+          <span class="health-badge" id="healthBadge">
+            <span class="health-dot"></span>
+            <span id="healthLabel">--</span>
+          </span>
+        </div>
+      </div>
+
+      <div id="validationNotes" class="validation-notes validation-notes-main" style="display:none"></div>
+
+      <div class="category-grid" id="categoryGrid"></div>
+
+      <div id="planSection" style="display:none">
+        <div id="planEditHint" class="plan-edit-hint" style="display:none">
+          可在上方四笔钱卡片「本类产品调仓明细」中修改增减仓，或点击「选择产品」新增未持仓产品（可删除）；已有持仓产品请通过卖出至 0 表示不再持有；输入完成后按回车或点击其他区域确认，方案将联动更新
+        </div>
+        <h3 class="section-title">底层产品明细</h3>
+        <table class="detail-table">
+          <thead>
+            <tr>
+              <th>大类</th>
+              <th>产品</th>
+              <th>当前持仓</th>
+              <th>目标金额</th>
+              <th>增减仓</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="detailBody"></tbody>
+        </table>
+
+        <div class="ai-section" id="aiSection">
+          <h3>AI 配置解读</h3>
+          <div class="ai-block">
+            <h4>配置逻辑</h4>
+            <p id="allocationLogic">--</p>
+          </div>
+          <div class="ai-block">
+            <h4>超配低配原因</h4>
+            <p id="overUnderReason">--</p>
+          </div>
+          <div class="ai-block">
+            <h4>客户适配逻辑</h4>
+            <p id="customerFit">--</p>
+          </div>
+          <div class="ai-block">
+            <h4>理财经理摘要</h4>
+            <p id="managerSummary">--</p>
+          </div>
+          <div class="ai-block">
+            <h4>客户沟通话术</h4>
+            <p id="clientScript">--</p>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-large" id="btnAftercare">生成投后陪伴方案 →</button>
+        <button class="btn btn-secondary btn-large" id="btnBackOverview">返回资产检视</button>
+      </div>
+
+      <div class="global-actions" id="globalActions">
+        <button class="btn btn-primary btn-large" id="btnFullOptimize">全账户一键智能最优配置</button>
+        <button class="btn btn-secondary btn-large" id="btnGenerateExplain">生成配置解读</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="productPickerModal">
+    <div class="modal modal-product-picker">
+      <h3>选择产品 — <span id="pickerCategoryName"></span></h3>
+      <div class="product-picker-tabs" id="productPickerTabs">
+        <button type="button" class="product-picker-tab active" data-picker-tab="manual">手工选择产品</button>
+        <button type="button" class="product-picker-tab" data-picker-tab="ai">AI 智能选品</button>
+      </div>
+      <div id="productPickerHint" class="product-picker-hint"></div>
+      <div id="productPickerManualPanel" class="product-picker-panel">
+        <div id="productPickerList" class="product-picker-list"></div>
+      </div>
+      <div id="productPickerAiPanel" class="product-picker-panel" style="display:none">
+        <div id="productPickerAiMeta" class="product-picker-ai-meta"></div>
+        <div id="productPickerAiList" class="product-picker-list"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="productPickerConfirm" disabled>确认</button>
+        <button type="button" class="btn btn-secondary" id="productPickerCancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="tweakModal">
+    <div class="modal">
+      <h3>人工微调 — <span id="tweakCategoryName"></span></h3>
+      <div class="form-group">
+        <label>大类目标金额（元）</label>
+        <input type="number" id="tweakAmount" min="0" step="1000">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="tweakConfirm">确认并重算</button>
+        <button class="btn btn-secondary" id="tweakCancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="advisorChatBackdrop" class="advisor-chat-backdrop" aria-hidden="true"></div>
+  <div id="advisorChatPanel" class="advisor-chat-panel" role="dialog" aria-label="智能投顾顾问">
+    <header class="advisor-chat-header">
+      <button type="button" class="advisor-chat-back" id="advisorChatClose" aria-label="返回">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="advisor-chat-header-center">
+        <div class="advisor-chat-orb" aria-hidden="true"></div>
+        <div id="advisorChatStatus" class="advisor-chat-status offline">
+          <span class="advisor-chat-status-label">连接状态检测中…</span>
+        </div>
+      </div>
+      <button type="button" class="advisor-chat-clear" id="advisorChatClear" title="清空对话" aria-label="清空对话">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+      </button>
+    </header>
+    <div id="advisorChatMessages" class="advisor-chat-messages"></div>
+    <footer class="advisor-chat-footer">
+      <div class="advisor-chat-input-wrap">
+        <button type="button" class="advisor-chat-input-icon" tabindex="-1" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+        </button>
+        <input type="text" id="advisorChatInput" placeholder="欢迎向智能顾问提问~" autocomplete="off" maxlength="500" />
+        <button type="button" class="advisor-chat-send" id="advisorChatSend" disabled aria-label="发送">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+      <p class="advisor-chat-disclaimer">以上内容由 AI 生成，仅供参考，不构成投资建议</p>
+    </footer>
+  </div>
+  <button type="button" id="advisorChatToggle" class="advisor-chat-fab" title="智能投顾顾问">
+    <span class="advisor-chat-fab-icon" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/><path d="M7 9h10v2H7zm0-3h10v2H7zm0 6h7v2H7z"/></svg>
+    </span>
+    <span class="advisor-chat-fab-label">智能顾问</span>
+  </button>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/common.js"></script>
+  <script src="js/plan_editor.js"></script>
+  <script src="js/advisor_chat.js?v=20260609d"></script>
+  <script>
+    let overviewData = null;
+    let planData = null;
+    let viewMode = 'overview';
+    let tweakCategory = null;
+
+    renderNav('smart_allocation');
+    initCustomerSelect(onCustomerChange);
+    PlanEditor.loadPageConstraints();
+
+    function onCustomerChange() {
+      planData = null;
+      viewMode = 'overview';
+      hidePlanSection();
+      loadOverview();
+    }
+
+    async function loadOverview() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('content').style.display = 'none';
+      try {
+        const cid = getCustomerId();
+        const cat = encodeURIComponent(getProductCategory());
+        const res = await apiGet(`/api/asset/overview?customer_id=${cid}&product_category=${cat}`);
+        overviewData = res.data;
+        renderOverview(overviewData);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+      } catch (e) {
+        document.getElementById('loading').textContent = '加载失败: ' + e.message;
+      }
+    }
+
+    function renderMappingBanner(data) {
+      const m = data.allocation_mapping;
+      const banner = document.getElementById('mappingBanner');
+      if (m) {
+        banner.style.display = 'block';
+        banner.innerHTML = renderMappingBannerHtml(data);
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    function updateIdleCashDisplay(rb, showPlanStats) {
+      PlanEditor.updateIdleCashPanel(rb, { showPlanStats, fromSummary: false });
+    }
+
+    function renderOverview(data) {
+      renderMappingBanner(data);
+      document.getElementById('planBanner').style.display = 'none';
+      document.getElementById('pageSubtitle').textContent = '人人都是专业财富顾问';
+
+      document.getElementById('totalAssets').textContent = formatMoney(data.total_assets);
+      updateIdleCashDisplay({ idle_cash: data.idle_cash, category_summary: [], product_deltas: [] }, false);
+      const badge = document.getElementById('healthBadge');
+      badge.style.color = data.health.color;
+      document.getElementById('healthLabel').textContent = data.health.label;
+
+      const validationEl = document.getElementById('validationNotes');
+      validationEl.textContent = '';
+      validationEl.style.display = 'none';
+
+      const grid = document.getElementById('categoryGrid');
+      grid.innerHTML = data.categories.map(cat => `
+        <div class="category-card ${cat.category}">
+          <div class="card-title">
+            <span>${cat.category_name}</span>
+            <span class="card-title-meta ${cat.in_band ? 'deviation-ok' : 'deviation-warn'}" title="当前占比（模型区间）">
+              <span class="card-title-ratio">${formatPct(cat.current_ratio)}</span>
+              <span class="card-title-band">(${formatBandRange(cat.band)})</span>
+            </span>
+          </div>
+          <div class="field"><span>当前持仓</span><span class="value">${formatMoney(cat.current_amount)}</span></div>
+          <div class="field"><span>目标配置额</span><span class="value">${formatMoney(cat.target_amount)}</span></div>
+          <div class="field"><span>配比偏差</span><span class="value ${cat.in_band ? 'deviation-ok' : 'deviation-warn'}">${cat.deviation_pct}</span></div>
+          <div class="product-summary" onclick="toggleProducts('${cat.category}')">
+            ▶ ${cat.product_summary.count}只产品 · 合计 ${formatMoney(cat.product_summary.total)}
+          </div>
+          <div class="product-detail" id="products-${cat.category}">
+            ${cat.products.map(p => `<div class="product-row"><span>${p.name}</span><span>${formatMoney(p.amount)}</span></div>`).join('')}
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-primary" onclick="singleOptimize('${cat.category}')">一键单类智能优化</button>
+            <button class="btn btn-link" onclick="openTweak('${cat.category}', '${cat.category_name}', ${cat.target_amount})">人工微调</button>
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('globalActions').style.display = 'block';
+    }
+
+    function onPlanUpdated(data, editedCode) {
+      if (editedCode && planData) {
+        data.rebalance.product_deltas = PlanEditor.mergeProductDeltas(
+          planData.rebalance.product_deltas,
+          data.rebalance.product_deltas,
+          editedCode
+        );
+      }
+      planData = data;
+      if (editedCode) {
+        PlanEditor.applyPlanLinkage(planData, editedCode);
+      } else {
+        refreshPlanView(data);
+      }
+      saveResult(planData);
+      showToast('方案已联动更新');
+    }
+
+    function refreshPlanView(data) {
+      const rb = data.rebalance;
+      const ex = data.explanation;
+      const isManual = rb.mode === 'manual_product_edit';
+      if (!isManual) PlanEditor.resetManualState();
+      PlanEditor.cacheProductLimitsFromDeltas(rb.product_deltas);
+
+      document.getElementById('planBanner').style.display = 'block';
+      document.getElementById('planBanner').innerHTML = `
+        <strong>${isManual ? '配置方案已更新' : '配置方案已生成'}</strong>
+        · 客户 ${rb.customer_id} · ${riskProfileLabel(rb)}
+        · 总资产 ${formatMoney(rb.total_assets)}
+        · 模式 ${PlanEditor.modeLabel(rb.mode)}`;
+      document.getElementById('pageSubtitle').textContent = '人人都是专业财富顾问';
+      document.getElementById('totalAssets').textContent = formatMoney(rb.total_assets);
+      updateIdleCashDisplay(rb, true);
+      document.getElementById('planEditHint').style.display = 'block';
+      document.getElementById('categoryGrid').innerHTML = PlanEditor.renderPlanCards(rb, { smartAllocation: true });
+      document.getElementById('detailBody').innerHTML = PlanEditor.renderReadonlyDetailRows(rb);
+      PlanEditor.updateValidationNotes(rb);
+      PlanEditor.updateExplanation(ex);
+    }
+
+    function renderPlan(data, scrollToExplain) {
+      planData = data;
+      viewMode = 'plan';
+      refreshPlanView(data);
+      document.getElementById('planSection').style.display = 'block';
+      document.getElementById('globalActions').style.display = 'none';
+      saveResult(data);
+      if (scrollToExplain) {
+        setTimeout(() => {
+          document.getElementById('aiSection').scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    }
+
+    const planGrid = document.getElementById('categoryGrid');
+    PlanEditor.bindDetailEditor(
+      planGrid,
+      () => (planData ? { rb: planData.rebalance } : null),
+      onPlanUpdated
+    );
+    PlanEditor.bindPlanGrid(
+      planGrid,
+      () => (planData ? { rb: planData.rebalance } : null),
+      onPlanUpdated
+    );
+    PlanEditor.initProductPicker(
+      () => (planData ? { rb: planData.rebalance } : null)
+    );
+
+    function hidePlanSection() {
+      document.getElementById('planSection').style.display = 'none';
+      document.getElementById('planBanner').style.display = 'none';
+      document.getElementById('planEditHint').style.display = 'none';
+      const validationEl = document.getElementById('validationNotes');
+      validationEl.textContent = '';
+      validationEl.style.display = 'none';
+      document.getElementById('globalActions').style.display = 'block';
+    }
+
+    function toggleProducts(id) {
+      PlanEditor.toggleProducts(id);
+    }
+
+    async function runRebalance(payload, scrollToExplain) {
+      showToast('智能配仓计算中...');
+      try {
+        const res = await apiPost('/api/allocation/auto_rebalance', {
+          customer_id: getCustomerId(),
+          product_category: getProductCategory(),
+          ...payload,
+        });
+        renderPlan(res.data, scrollToExplain);
+        showToast('配置方案已生成');
+      } catch (e) {
+        showToast('配仓失败: ' + e.message);
+      }
+    }
+
+    async function singleOptimize(category) {
+      await runRebalance({ mode: 'smart_one_click', target_category: category });
+    }
+
+    function openTweak(category, name, amount) {
+      tweakCategory = category;
+      document.getElementById('tweakCategoryName').textContent = name;
+      document.getElementById('tweakAmount').value = Math.round(amount);
+      document.getElementById('tweakModal').classList.add('open');
+    }
+
+    document.getElementById('tweakCancel').onclick = () => {
+      document.getElementById('tweakModal').classList.remove('open');
+    };
+
+    document.getElementById('tweakConfirm').onclick = async () => {
+      const amount = parseFloat(document.getElementById('tweakAmount').value);
+      if (isNaN(amount) || amount < 0) { showToast('请输入有效金额'); return; }
+      document.getElementById('tweakModal').classList.remove('open');
+      await runRebalance({
+        mode: 'manual_tweak',
+        manual_overrides: { [tweakCategory]: amount },
+        locked_categories: [tweakCategory],
+      });
+    };
+
+    document.getElementById('btnFullOptimize').onclick = async () => {
+      await runRebalance({ mode: 'smart_one_click' });
+    };
+
+    document.getElementById('btnGenerateExplain').onclick = async () => {
+      await runRebalance({ mode: 'smart_one_click' }, true);
+    };
+
+    document.getElementById('btnBackOverview').onclick = () => {
+      viewMode = 'overview';
+      hidePlanSection();
+      if (overviewData) renderOverview(overviewData);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    document.getElementById('btnAftercare').onclick = () => {
+      window.location.href = 'aftercare.html';
+    };
+
+    AdvisorChat.init();
+  </script>
+</body>
+</html>

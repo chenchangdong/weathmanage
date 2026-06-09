@@ -1,0 +1,30 @@
+# 四笔钱 ↔ 底层资产类型绑定（固定不变）
+# 产品层：product_constraint.yaml 中 asset_type → 本文件 four_money_rule → category_code_map → 四笔钱
+version: "1.0"
+
+four_money_rule:
+  need_spend:
+    asset_type: ["cash"]
+  keep_value:
+    asset_type: ["fixed_income"]
+  grow_asset:
+    asset_type: ["equity", "alternative"]
+    # 生钱的钱阈值合并规则（权益+另类 → 生钱的钱）：
+    # 基准 = 权益基准 + 另类基准；下限 = 权益下限；上限 = 权益上限 + 另类基准（>100% 封顶为 100%）
+    threshold_aggregate: grow_equity_alt
+  secure_money:
+    asset_type: ["insurance"]
+
+asset_alias:
+  cash: "现金类"
+  fixed_income: "固收类"
+  equity: "权益类"
+  alternative: "另类及其他"
+  insurance: "保障类"
+
+# 四笔钱 YAML key → 引擎/产品 category code
+category_code_map:
+  need_spend: spend
+  keep_value: preserve
+  grow_asset: grow
+  secure_money: protect

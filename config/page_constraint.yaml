@@ -1,0 +1,65 @@
+# 前端按钮权限与微调规则
+version: "1.0"
+
+# 操作模式
+modes:
+  default: smart_one_click    # 默认智能一键模式
+  available:
+    - smart_one_click
+    - manual_tweak
+
+# 按钮权限（可按角色扩展）
+permissions:
+  advisor:
+    can_full_optimize: true
+    can_single_optimize: true
+    can_manual_tweak: true
+    can_generate_explanation: true
+    can_export_aftercare: true
+  viewer:
+    can_full_optimize: false
+    can_single_optimize: false
+    can_manual_tweak: false
+    can_generate_explanation: true
+    can_export_aftercare: false
+
+# 人工微调规则
+manual_tweak:
+  enabled: true
+  trigger: click_card_manual_tweak   # 点击卡片【人工微调】才弹窗
+  hidden_by_default: true            # 原有零散调仓输入框默认隐藏
+  dialog_title: 人工微调配置
+  fields:
+    - key: category_amount
+      label: 大类目标金额
+      type: currency
+      editable: true
+    - key: product_amounts
+      label: 底层产品金额
+      type: product_list
+      editable: true
+  realtime_recalc: true                # 修改后实时重算剩余三类
+  locked_categories: []                # 锁定不可微调的大类（空=均可调）
+
+# 单类优化约束
+single_category_optimize:
+  allowed_categories: [spend, preserve, grow, protect]
+  freeze_other_categories: true        # 优化单类时冻结其他三类
+
+# 全账户优化约束
+full_account_optimize:
+  include_idle_cash: true              # 闲置资金纳入总配置
+  min_total_assets: 10000              # 最低可优化资产门槛
+  max_single_product_ratio: 0.40       # 单产品不超过总资产40%
+
+# 产品金额上下限校验（product_constraint.yaml 中的 min_amount / max_amount）
+# 默认关闭：一键智能配置、手工调仓、单类智能优化均不校验产品上下限
+# 开启后：上述流程恢复对产品 min/max 的 clamp、spill 与 limit_hit 标记
+product_limit_validation:
+  enabled: true
+
+# 结果页约束
+result_page:
+  require_in_band: false               # 是否强制所有大类落在区间
+  show_validation_warnings: true
+  allow_export_pdf: true

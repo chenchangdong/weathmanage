@@ -1,0 +1,29 @@
+# 大模型 API 配置（运行时读取，API Key 从环境变量注入）
+version: "1.0"
+
+provider: openai_compatible
+
+# 环境变量名（二选一，优先 LLM_API_KEY）
+api_key_env: LLM_API_KEY
+api_key_fallback_env: OPENAI_API_KEY
+
+# OpenAI 兼容端点（通义/DeepSeek/OpenAI 等可改 base_url 与 model）
+base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1/"
+# 推理模型（如 qwen3-*-plus）响应慢，建议 timeout ≥ 90；追求速度可改为 qwen-plus
+model: "qwen3.7-plus"
+temperature: 0.35
+max_tokens: 1200
+timeout_seconds: 300
+# 通义推理模型：开启后返回 reasoning_content（思考过程）
+enable_thinking: true
+thinking_budget: 1280
+
+chat:
+  max_history_turns: 6
+  max_reply_tokens: 900
+  thinking_budget: 1024
+  disclaimer: "以上内容由 AI 生成，仅供参考，不构成投资建议；具体调仓以系统验算结果为准。"
+
+scenes:
+  advisor_chat:
+    enabled: true

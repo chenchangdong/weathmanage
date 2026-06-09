@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>投后陪伴 - 四笔钱智能投顾</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="page-header">
+      <h1>投后陪伴</h1>
+      <p>配置落地自动带出 · 回访周期 · 回撤预警 · 沟通话术</p>
+    </div>
+
+    <div id="navBar" class="nav-bar"></div>
+
+    <div class="customer-select">
+      <label for="customerSelect">选择客户：</label>
+      <select id="customerSelect"></select>
+      <label for="planningTypeSelect">规划类型：</label>
+      <select id="planningTypeSelect"></select>
+    </div>
+
+    <div id="loading" class="loading">加载中...</div>
+    <div id="content" style="display:none">
+
+      <div class="aftercare-card">
+        <h3>📅 回访周期</h3>
+        <div id="visitSchedule"></div>
+      </div>
+
+      <div class="aftercare-card">
+        <h3>📉 回撤预警阈值</h3>
+        <div id="drawdownThresholds"></div>
+      </div>
+
+      <div class="aftercare-card">
+        <h3>⚡ 再平衡触发条件</h3>
+        <div id="rebalanceTriggers"></div>
+      </div>
+
+      <div class="aftercare-card">
+        <h3>💬 客户经理沟通话术</h3>
+        <div id="scripts"></div>
+        <button class="btn btn-primary" style="margin-top:12px" id="btnExport">一键导出话术</button>
+      </div>
+
+      <button class="btn btn-secondary btn-large" style="margin-top:16px" onclick="location.href='index.html'">返回客户资产首页</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/common.js"></script>
+  <script>
+    renderNav('aftercare');
+    initCustomerSelect(loadAftercare);
+
+    let planData = null;
+
+    async function loadAftercare() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('content').style.display = 'none';
+
+      const cached = loadResult();
+      const summary = cached ? cached.rebalance.category_summary : null;
+
+      try {
+        const res = await apiPost('/api/aftercare/build_plan', {
+          customer_id: getCustomerId(),
+          rebalance_summary: summary,
+        });
+        planData = res.data;
+        renderPlan(planData);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+      } catch (e) {
+        document.getElementById('loading').textContent = '加载失败: ' + e.message;
+      }
+    }
+
+    function renderPlan(plan) {
+      const vs = plan.visit_schedule;
+      document.getElementById('visitSchedule').innerHTML = `
+        <p>首次回访：<strong>${vs.initial_visit}</strong>（配置落地后 ${vs.initial_days} 天）</p>
+        <p>常规回访：<strong>${vs.next_regular_visit}</strong>（每 ${vs.regular_interval_days} 天）</p>
+        <p>全面检视：<strong>${vs.next_review}</strong>（每 ${vs.review_interval_days} 天）</p>
+      `;
+
+      const dt = plan.drawdown_thresholds;
+      document.getElementById('drawdownThresholds').innerHTML = `
+        <p>预警阈值：<strong style="color:#faad14">${dt.warning_pct}</strong></p>
+        <p>严重阈值：<strong style="color:#ff4d4f">${dt.critical_pct}</strong></p>
+      `;
+
+      const rt = plan.rebalance_triggers;
+      document.getElementById('rebalanceTriggers').innerHTML = `
+        <p>单类偏差超 <strong>${(rt.category_deviation_threshold * 100).toFixed(0)}%</strong> 建议再平衡</p>
+        <p>闲置资金占比超 <strong>${(rt.idle_cash_ratio_threshold * 100).toFixed(0)}%</strong> 提醒配置</p>
+      `;
+
+      document.getElementById('scripts').innerHTML = plan.communication_scripts.map(s => `
+        <div style="margin-bottom:16px">
+          <strong>${s.title}</strong>
+          <div class="script-box">${s.content}</div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('btnExport').onclick = () => {
+      if (!planData) return;
+      let text = `# 投后陪伴方案 - ${planData.customer_name}\n\n`;
+      text += `## 回访周期\n`;
+      const vs = planData.visit_schedule;
+      text += `- 首次回访: ${vs.initial_visit}\n- 常规回访: ${vs.next_regular_visit}\n- 全面检视: ${vs.next_review}\n\n`;
+      text += `## 沟通话术\n\n`;
+      planData.communication_scripts.forEach(s => {
+        text += `### ${s.title}\n${s.content}\n\n`;
+      });
+
+      const blob = new Blob([text], { type: 'text/markdown' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `aftercare_${planData.customer_id}.md`;
+      a.click();
+      showToast('话术已导出');
+    };
+
+    loadAftercare();
+  </script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+# 客户画像定义 — 五档风险等级
+version: "1.1"
+
+risk_levels:
+  conservative:
+    name: 保守型
+    loss_pct: 1
+    score_range: [0, 20]
+    description: 风险承受能力低，最大可承受本金亏损约1%
+  prudent:
+    name: 稳健型
+    loss_pct: 3
+    score_range: [21, 40]
+    description: 追求稳健，最大可承受本金亏损约3%
+  balanced:
+    name: 平衡型
+    loss_pct: 6
+    score_range: [41, 60]
+    description: 风险收益均衡，最大可承受本金亏损约6%
+  growth:
+    name: 成长型
+    loss_pct: 10
+    score_range: [61, 80]
+    description: 接受适度波动，最大可承受本金亏损约10%
+  aggressive:
+    name: 进取型
+    loss_pct: 15
+    score_range: [81, 100]
+    description: 追求长期高收益，最大可承受本金亏损约15%
+
+# 演示客户数据（demo_test 及 API 默认读取）
+demo_customers:
+  - customer_id: C20250602001
+    name: 张女士
+    age: 42
+    occupation: 企业中层管理
+    annual_income: 350000
+    product_category: 投资规划
+    risk_profile: balanced
+    risk_score: 55
+    invest_experience: 5
+    invest_horizon_years: 10
+    family_dependents: 2
+    notes: 有子女教育规划，希望资产稳健增值
+
+  - customer_id: C20250602002
+    name: 李先生
+    age: 58
+    occupation: 退休教师
+    annual_income: 120000
+    product_category: 投资规划
+    risk_profile: conservative
+    risk_score: 18
+    invest_experience: 3
+    invest_horizon_years: 5
+    family_dependents: 0
+    notes: 临近退休，注重本金安全
+
+  - customer_id: C20250602003
+    name: 王先生
+    age: 32
+    occupation: 互联网工程师
+    annual_income: 800000
+    product_category: 投资规划
+    risk_profile: aggressive
+    risk_score: 88
+    invest_experience: 8
+    invest_horizon_years: 20
+    family_dependents: 1
+    notes: 年轻高收入，可承受较大波动
+
+  - customer_id: C20250602004
+    name: 赵女士
+    age: 45
+    occupation: 事业单位
+    annual_income: 200000
+    product_category: 投资规划
+    risk_profile: prudent
+    risk_score: 35
+    invest_experience: 4
+    invest_horizon_years: 8
+    family_dependents: 1
+    notes: 偏好稳健增值
+
+  - customer_id: C20250602005
+    name: 陈先生
+    age: 36
+    occupation: 私企负责人
+    annual_income: 500000
+    product_category: 投资规划
+    risk_profile: growth
+    risk_score: 72
+    invest_experience: 6
+    invest_horizon_years: 12
+    family_dependents: 2
+    notes: 有一定风险承受能力，追求成长
+
+  # 纯投资客户（不持有保障类产品，适配投资模型保障类基准为 0）
+  - customer_id: C20250602006
+    name: 刘女士
+    age: 40
+    occupation: 外企财务
+    annual_income: 280000
+    product_category: 投资规划
+    risk_profile: balanced
+    risk_score: 52
+    invest_experience: 4
+    invest_horizon_years: 8
+    family_dependents: 1
+    notes: 仅持有现金、固收、权益类产品，无保单持仓
+
+  - customer_id: C20250602007
+    name: 周先生
+    age: 50
+    occupation: 国企职员
+    annual_income: 180000
+    product_category: 投资规划
+    risk_profile: prudent
+    risk_score: 32
+    invest_experience: 5
+    invest_horizon_years: 6
+    family_dependents: 1
+    notes: 稳健型纯投资客户，未配置重疾险或意外险
+
+  - customer_id: C20250602008
+    name: 孙女士
+    age: 34
+    occupation: 科技公司产品总监
+    annual_income: 600000
+    product_category: 投资规划
+    risk_profile: growth
+    risk_score: 68
+    invest_experience: 7
+    invest_horizon_years: 15
+    family_dependents: 0
+    notes: 成长型纯投资客户，资产集中于基金与理财

@@ -1,0 +1,11 @@
+# 规划类型 → 前台卡片视图
+version: "1.0"
+
+view_profiles:
+  综合规划:
+    view_mode: four_money
+    card_keys: [spend, preserve, grow, protect]
+  投资规划:
+    view_mode: asset_type
+    card_keys: [cash, fixed_income, equity, alternative]
+    excluded_asset_types: [insurance]

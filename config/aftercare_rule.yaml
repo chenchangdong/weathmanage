@@ -1,0 +1,76 @@
+# 投后陪伴规则 — 配置落地后自动生成
+version: "1.0"
+
+# 回访周期（按风险画像）
+visit_schedule:
+  conservative:
+    initial_days: 7
+    regular_interval_days: 30
+    review_interval_days: 90
+  balanced:
+    initial_days: 7
+    regular_interval_days: 45
+    review_interval_days: 120
+  aggressive:
+    initial_days: 14
+    regular_interval_days: 60
+    review_interval_days: 180
+
+# 回撤预警阈值
+drawdown_alerts:
+  conservative:
+    warning_threshold: -0.03    # -3% 预警
+    critical_threshold: -0.05   # -5% 严重
+  balanced:
+    warning_threshold: -0.05
+    critical_threshold: -0.10
+  aggressive:
+    warning_threshold: -0.08
+    critical_threshold: -0.15
+
+# 再平衡触发条件
+rebalance_triggers:
+  category_deviation_threshold: 0.08   # 单类偏差超8%建议再平衡
+  market_volatility_spike: 0.15        # 市场波动率飙升阈值
+  idle_cash_ratio_threshold: 0.20      # 闲置资金占比超20%提醒配置
+
+# 客户经理沟通话术模板
+communication_templates:
+  initial_visit:
+    title: 配置落地回访
+    template: |
+      {customer_name}您好，我是您的理财经理{advisor_name}。
+      根据您{age}岁、{risk_profile_name}的风险偏好，我们已完成四笔钱资产配置：
+      · 要花的钱 {spend_ratio}% — 保障日常流动性
+      · 保值的钱 {preserve_ratio}% — 稳健对抗通胀
+      · 生钱的钱 {grow_ratio}% — 追求长期增值
+      · 保障的钱 {protect_ratio}% — 兜底家庭风险
+      如有疑问欢迎随时联系，下次回访安排在{next_visit_date}。
+
+  deviation_alert:
+    title: 配比偏差提醒
+    template: |
+      {customer_name}您好，监测到您的{category_name}当前配比偏差达{deviation_pct}%，
+      已超出建议区间。建议{action_suggestion}。
+      详情可登录查看或联系我为您解读。
+
+  drawdown_alert:
+    title: 回撤预警
+    template: |
+      {customer_name}您好，您的{category_name}近期回撤{drawdown_pct}%，
+      已触发{alert_level}预警。根据您的{invest_horizon}年投资期限，
+      {comfort_message}。如需调整配置请告知。
+
+  rebalance_suggest:
+    title: 再平衡建议
+    template: |
+      {customer_name}您好，基于最新持仓分析，建议对{category_name}进行再平衡，
+      预计调整金额约{adjust_amount}元。调整后可使配置更贴合您的目标模型。
+
+# 导出格式
+export:
+  formats: [text, markdown]
+  include_sections:
+    - visit_schedule
+    - drawdown_thresholds
+    - communication_scripts

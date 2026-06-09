@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资产配置模型详情</title>
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <div class="admin-wrap">
+    <div class="admin-header detail-header">
+      <a href="model_config.html" class="back-link">← 返回列表</a>
+      <h1 id="pageTitle">资产配置模型详情</h1>
+    </div>
+    <div class="admin-nav">
+      <a href="model_config.html" class="active">资产配置模型建立</a>
+      <a href="portfolio_mapping.html">资产配置模型指派</a>
+      <a href="../index.html">返回业务前台</a>
+    </div>
+
+    <div class="panel">
+      <div class="form-row">
+        <label>资产配置模型名称</label>
+        <input type="text" id="modelCode" class="model-name-input" maxlength="32">
+      </div>
+      <div class="form-row">
+        <label>预期年化收益率</label>
+        <input type="number" id="expectReturn" step="0.01"> %
+      </div>
+      <div class="form-row">
+        <label>预期波动风险</label>
+        <input type="number" id="expectVol" step="0.01"> %
+      </div>
+
+      <div class="asset-grid" id="assetGrid"></div>
+
+      <button type="button" class="btn-orange" id="btnBacktest">回测历史数据</button>
+
+      <div class="threshold-preview" id="thresholdPreview" style="display:none">
+        <strong>四笔钱聚合阈值预览</strong>
+        <table id="thresholdTable"></table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">补充信息</div>
+      <div class="form-row" style="align-items:flex-start">
+        <label>说明（限500字）</label>
+        <textarea id="modelNote" rows="4" maxlength="500" style="max-width:100%"></textarea>
+      </div>
+    </div>
+
+    <div class="actions" id="editActions">
+      <button type="button" class="btn-blue" id="btnSave">保存</button>
+      <button type="button" class="btn-outline" id="btnCancel">取消</button>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const ASSET_TYPES = [
+      { key: 'cash', name: '现金类' },
+      { key: 'fixed_income', name: '固收类' },
+      { key: 'equity', name: '权益类' },
+      { key: 'alternative', name: '另类及其他' },
+      { key: 'insurance', name: '保障类' },
+    ];
+    const SUB_LABELS = ['下限', '基准', '上限'];
+
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('mode') === 'edit' ? 'edit' : 'view';
+    let savedCode = params.get('code') || '';
+    const readonly = mode === 'view';
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    function setReadonly(on) {
+      document.getElementById('modelCode').readOnly = on;
+      document.getElementById('expectReturn').readOnly = on;
+      document.getElementById('expectVol').readOnly = on;
+      document.getElementById('modelNote').readOnly = on;
+      document.querySelectorAll('.asset-val').forEach(el => { el.readOnly = on; });
+      document.getElementById('editActions').style.display = on ? 'none' : 'block';
+      document.getElementById('btnBacktest').style.display = on ? 'none' : 'inline-block';
+      if (on) {
+        document.getElementById('modelCode').classList.add('readonly-field');
+        document.getElementById('pageTitle').textContent = '查看资产配置模型';
+      } else {
+        document.getElementById('modelCode').classList.remove('readonly-field');
+        document.getElementById('pageTitle').textContent = '编辑资产配置模型';
+      }
+    }
+
+    function renderAssetGrid() {
+      const grid = document.getElementById('assetGrid');
+      grid.innerHTML = ASSET_TYPES.map(a => `
+        <div class="asset-col" data-asset="${a.key}">
+          <h4>${a.name}</h4>
+          ${SUB_LABELS.map((s, i) => `
+            <div class="sub">${s}</div>
+            <input type="number" step="0.01" data-idx="${i}" class="asset-val">
+          `).join('')}
+        </div>
+      `).join('');
+    }
+
+    function fillForm(m) {
+      savedCode = m.model_code;
+      document.getElementById('modelCode').value = m.model_name || m.model_code;
+      document.getElementById('expectReturn').value = m.expect_annual_return;
+      document.getElementById('expectVol').value = m.expect_volatility;
+      ASSET_TYPES.forEach(a => {
+        const col = document.querySelector(`.asset-col[data-asset="${a.key}"]`);
+        const limits = (m.asset_limit || {})[a.key] || [0, 0, 0];
+        col.querySelectorAll('.asset-val').forEach((inp, i) => {
+          inp.value = limits[i] != null ? limits[i] : 0;
+        });
+      });
+      showThresholdPreview(m.four_money_threshold);
+      bindAssetInputListeners();
+    }
+
+    const FM_PREVIEW_META = [
+      { key: 'spend', name: '要花的钱' },
+      { key: 'preserve', name: '保值的钱' },
+      { key: 'grow', name: '生钱的钱' },
+      { key: 'protect', name: '保障的钱' },
+    ];
+
+    function collectAssetLimits() {
+      const asset_limit = {};
+      ASSET_TYPES.forEach(a => {
+        const col = document.querySelector(`.asset-col[data-asset="${a.key}"]`);
+        asset_limit[a.key] = Array.from(col.querySelectorAll('.asset-val')).map(inp => parseFloat(inp.value) || 0);
+      });
+      return asset_limit;
+    }
+
+    /** 与后端 four_money_mapping 聚合规则一致 */
+    function calcFourMoneyFromLimits(limits) {
+      const g = (k, i) => (limits[k] || [0, 0, 0])[i] || 0;
+      const spend = { lo: g('cash', 0), mid: g('cash', 1), hi: g('cash', 2) };
+      const preserve = { lo: g('fixed_income', 0), mid: g('fixed_income', 1), hi: g('fixed_income', 2) };
+      const grow = {
+        lo: g('equity', 0),
+        mid: g('equity', 1) + g('alternative', 1),
+        hi: Math.min(g('equity', 2) + g('alternative', 1), 100),
+      };
+      const protect = { lo: g('insurance', 0), mid: g('insurance', 1), hi: g('insurance', 2) };
+      const map = { spend, preserve, grow, protect };
+      const sum = FM_PREVIEW_META.reduce((s, m) => s + map[m.key].mid, 0);
+      return { map, sum: Math.round(sum * 10000) / 10000 };
+    }
+
+    function showThresholdPreview(th) {
+      const box = document.getElementById('thresholdPreview');
+      const tbl = document.getElementById('thresholdTable');
+      box.style.display = 'block';
+      let rows = '';
+      let sum = 0;
+      if (th && th.thresholds) {
+        rows = Object.entries(th.thresholds).map(([k, v]) => {
+          sum += Number(v.benchmark_pct) || 0;
+          return `<tr><td>${v.category_name}</td><td>${v.lower_pct}%</td><td>${v.benchmark_pct}%</td><td>${v.upper_pct}%</td></tr>`;
+        }).join('');
+        sum = Math.round(sum * 10000) / 10000;
+      } else {
+        const { map, sum: s } = calcFourMoneyFromLimits(collectAssetLimits());
+        sum = s;
+        rows = FM_PREVIEW_META.map(m => {
+          const v = map[m.key];
+          return `<tr><td>${m.name}</td><td>${v.lo}%</td><td>${v.mid}%</td><td>${v.hi}%</td></tr>`;
+        }).join('');
+      }
+      const ok = Math.abs(sum - 100) <= 0.01;
+      const sumClass = ok ? '' : 'benchmark-sum-error';
+      rows += `<tr class="benchmark-sum-row ${sumClass}"><td><strong>基准合计</strong></td><td></td><td><strong>${sum}%</strong></td><td>${ok ? '' : '须为 100%'}</td></tr>`;
+      tbl.innerHTML = '<tr><th>四笔钱</th><th>下限</th><th>基准</th><th>上限</th></tr>' + rows;
+      box.classList.toggle('benchmark-invalid', !ok);
+    }
+
+    function bindAssetInputListeners() {
+      document.querySelectorAll('.asset-val').forEach(inp => {
+        inp.oninput = () => showThresholdPreview(null);
+      });
+    }
+
+    function validateBenchmarkSum() {
+      const { sum } = calcFourMoneyFromLimits(collectAssetLimits());
+      if (Math.abs(sum - 100) > 0.01) {
+        toast(`四笔钱基准值之和为 ${sum}%，须等于 100%`);
+        return false;
+      }
+      return true;
+    }
+
+    function collectCurrentModel(newCode) {
+      const asset_limit = collectAssetLimits();
+      return {
+        model_name: newCode,
+        expect_annual_return: parseFloat(document.getElementById('expectReturn').value) || 0,
+        expect_volatility: parseFloat(document.getElementById('expectVol').value) || 0,
+        asset_limit,
+      };
+    }
+
+    async function loadDetail(code) {
+      const res = await fetch('/api/model/detail?model_code=' + encodeURIComponent(code));
+      const json = await res.json();
+      if (!res.ok) {
+        toast(json.detail || '加载失败');
+        setTimeout(() => { location.href = 'model_config.html'; }, 1500);
+        return;
+      }
+      fillForm(json.data);
+    }
+
+    document.getElementById('btnSave').onclick = async () => {
+      const oldCode = savedCode;
+      const newCode = (document.getElementById('modelCode').value || '').trim();
+      if (!newCode) {
+        toast('资产配置模型名称不能为空');
+        return;
+      }
+      if (!validateBenchmarkSum()) return;
+
+      const listRes = await fetch('/api/model/list');
+      const listJson = await listRes.json();
+      const model_list = {};
+      const code_renames = [];
+
+      for (const m of listJson.data.models || []) {
+        const code = m.model_code;
+        if (code === oldCode) continue;
+        const detailRes = await fetch('/api/model/detail?model_code=' + encodeURIComponent(code));
+        const detail = (await detailRes.json()).data;
+        model_list[code] = {
+          model_name: detail.model_name || code,
+          expect_annual_return: detail.expect_annual_return,
+          expect_volatility: detail.expect_volatility,
+          asset_limit: detail.asset_limit,
+        };
+      }
+
+      if (newCode !== oldCode) {
+        if (model_list[newCode]) {
+          toast('模型名称已存在：' + newCode);
+          return;
+        }
+        code_renames.push({ from: oldCode, to: newCode });
+      }
+      model_list[newCode] = collectCurrentModel(newCode);
+
+      const res = await fetch('/api/model/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_list, code_renames }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        toast(code_renames.length ? '保存成功，已同步更新风险映射' : '保存成功');
+        if (newCode !== oldCode) {
+          location.href = `model_config_detail.html?code=${encodeURIComponent(newCode)}&mode=edit`;
+        } else {
+          loadDetail(newCode);
+        }
+      } else {
+        toast(json.detail || '保存失败');
+      }
+    };
+
+    document.getElementById('btnCancel').onclick = () => {
+      location.href = 'model_config.html';
+    };
+    document.getElementById('btnBacktest').onclick = () => toast('回测功能待接入历史行情数据');
+
+    renderAssetGrid();
+    setReadonly(readonly);
+    if (savedCode) loadDetail(savedCode);
+    else {
+      toast('缺少模型参数');
+      setTimeout(() => { location.href = 'model_config.html'; }, 1200);
+    }
+  </script>
+</body>
+</html>

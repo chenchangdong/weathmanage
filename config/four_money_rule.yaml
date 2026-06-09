@@ -1,0 +1,69 @@
+# 四笔钱大类定义与配仓求解器参数
+# 目标占比/区间已由 portfolio_mapping + model_config + four_money_mapping 链路驱动
+version: "1.1"
+
+categories:
+  spend:
+    code: spend
+    name: 要花的钱
+    icon: wallet
+    description: 随时可取用的活钱，应对日常开支
+    priority: 1
+  preserve:
+    code: preserve
+    name: 保值的钱
+    icon: shield
+    description: 稳健增值，对抗通胀
+    priority: 2
+  grow:
+    code: grow
+    name: 生钱的钱
+    icon: trend
+    description: 追求长期超额收益
+    priority: 3
+  protect:
+    code: protect
+    name: 保障的钱
+    icon: umbrella
+    description: 保险保障，兜底风险
+    priority: 4
+
+# 求解器参数（作用于 AutoRebalanceEngine 一键/单类配仓）
+solver:
+  # 【类内分摊模式 — 与 consolidate 二选一】
+  # 仅当 consolidate_category_rebalance=false 时生效。
+  # true：将大类目标按各类产品当前持仓占比分摊到每只产品（多只产品可能同时买卖）。
+  # false：将大类目标在同类候选产品间均分（候选产品指所有产品列表而非持仓产品，实际不可能这么分）。
+  prefer_existing_holdings: true
+
+  # 【大类层 — 最小资金异动】
+  # true：某大类当前占比已在模型区间内时，保持该大类目标=当前持仓，不主动调整。
+  #       低于/高于区间时，向区间内靠拢（具体落点见 fallback_strategy）。
+  # false：各大类目标直接取模型理想占比，并裁剪到区间上下限（异动可能更大）。
+  minimize_cash_movement: true
+
+  # 【类内分摊模式 — 与 prefer_existing 二选一，本项优先】
+  # true：类内集中调仓。仅 rebalance_priority 最高的一只产品承接大类增减，其余产品维持现仓；
+  #       若触达产品 min_amount/max_amount，差额按优先级 spill 到其他产品。
+  # false：走 prefer_existing_holdings / 均分逻辑（见上）。
+  # 注：智能配仓仅在「当前有持仓」的产品间分配与 spill，0 持仓候选不参与、不展示。
+  consolidate_category_rebalance: true
+
+  # 【类内产品层 — 低于下限时是否清仓】
+  # false（默认）：目标金额不低于 min_amount，触下限后保留最低持有额。
+  # true：理想目标低于 min_amount 时清仓为 0（hold-or-exit）；减仓时可一直减到 0。
+  liquidate_below_min: true
+
+  # 【全账户配仓 — 产品触顶冻结重算】最大迭代轮数（大类触顶后冻结可落地额并重算其余类）。
+  max_iterations: 10
+
+  # 【预留】收敛阈值，当前引擎未使用。
+  convergence_threshold: 0.001
+
+  # 【大类层 — 越界回退策略】仅 minimize_cash_movement=true 且大类占比越界时生效（全账户配仓）。
+  # 单类优化：超配固定减至 benchmark（模型基准）；低配仍用本项策略。
+  # benchmark：取资产配置模型基准值（target），并裁剪到区间上下限内。
+  # band_midpoint：取模型区间中点（折中，可能与基准值不同）。
+  # band_low：取下限（保守，少加仓/多减仓）。
+  # band_high：取上限（积极，多加仓/少减仓）。
+  fallback_strategy: band_midpoint

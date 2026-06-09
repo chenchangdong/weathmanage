@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资产配置模型指派</title>
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <div class="admin-wrap">
+    <div class="admin-header">
+      <h1>资产配置模型指派</h1>
+    </div>
+    <div class="admin-nav">
+      <a href="model_config.html">资产配置模型建立</a>
+      <a href="portfolio_mapping.html" class="active">资产配置模型指派</a>
+      <a href="../index.html">返回业务前台</a>
+    </div>
+
+    <div class="panel">
+      <div class="filter-bar">
+        <label>请选择对应的投资组合名称：</label>
+        <select id="filterCategory">
+          <option value="">全部</option>
+          <option value="投资规划">投资规划</option>
+          <option value="综合规划">综合规划</option>
+        </select>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>序号</th>
+            <th>投资组合名称</th>
+            <th>投资组合偏好</th>
+            <th>投资期限</th>
+            <th>适用资产配置模型名称</th>
+            <th>预期年化收益率</th>
+            <th>预期波动风险</th>
+            <th>客户风险标签</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn-blue" id="btnSave">保存</button>
+      <button type="button" class="btn-outline" id="btnCancel">取消</button>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    let tableRows = [];
+    let modelOptions = [];
+    let riskCustomerMap = {};
+    let riskOptions = [];
+    let customerRiskLevels = [];
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    function renderTable(rows) {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = rows.map((r, i) => `
+        <tr data-idx="${i}">
+          <td>${r.row_id}</td>
+          <td>${r.product_category}</td>
+          <td>${r.loss_label}</td>
+          <td>${r.invest_term || '--'}</td>
+          <td>
+            <select class="model-select">
+              ${modelOptions.map(m => `<option value="${m}" ${m === r.target_model ? 'selected' : ''}>${m}</option>`).join('')}
+            </select>
+          </td>
+          <td class="cell-ret">${r.ret != null && r.ret !== '' ? r.ret + '%' : '—'}</td>
+          <td class="cell-vol">${r.vol != null && r.vol !== '' ? r.vol + '%' : '—'}</td>
+          <td>
+            <select class="risk-select">
+              ${(r.risk_options || riskOptions).map(o =>
+                `<option value="${o.code}" ${o.code === r.customer_risk ? 'selected' : ''}>${o.name}</option>`
+              ).join('')}
+            </select>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.model-select').forEach((sel, i) => {
+        sel.addEventListener('change', () => updateRowFromModel(i, sel.value));
+      });
+    }
+
+    async function updateRowFromModel(rowIdx, modelCode) {
+      try {
+        const res = await fetch('/api/model/detail?model_code=' + modelCode);
+        const d = (await res.json()).data;
+        const tr = document.querySelector(`tr[data-idx="${rowIdx}"]`);
+        const ret = d.expect_annual_return;
+        const vol = d.expect_volatility;
+        tr.querySelector('.cell-ret').textContent = ret != null && ret !== '' ? ret + '%' : '—';
+        tr.querySelector('.cell-vol').textContent = vol != null && vol !== '' ? vol + '%' : '—';
+        tableRows[rowIdx].target_model = modelCode;
+        tableRows[rowIdx].ret = ret;
+        tableRows[rowIdx].vol = vol;
+      } catch (e) {
+        toast('加载模型失败');
+      }
+    }
+
+    async function loadData() {
+      const cat = document.getElementById('filterCategory').value;
+      const url = '/api/portfolio/map' + (cat ? '?product_category=' + encodeURIComponent(cat) : '');
+      const res = await fetch(url);
+      const json = await res.json();
+      tableRows = json.data.rows;
+      modelOptions = json.data.model_list;
+      riskCustomerMap = json.data.risk_customer_map;
+      customerRiskLevels = json.data.customer_risk_levels || [];
+      riskOptions = customerRiskLevels.map(l => ({ code: l.code, name: l.name }));
+      renderTable(tableRows);
+    }
+
+    function parseMetricCell(text) {
+      const t = (text || '').trim();
+      if (!t || t === '—') return null;
+      const n = parseFloat(t.replace('%', ''));
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function syncDomToTableRows() {
+      document.querySelectorAll('#tableBody tr').forEach((tr, i) => {
+        if (!tableRows[i]) return;
+        tableRows[i].target_model = tr.querySelector('.model-select').value;
+        tableRows[i].customer_risk = tr.querySelector('.risk-select').value;
+        tableRows[i].ret = parseMetricCell(tr.querySelector('.cell-ret').textContent);
+        tableRows[i].vol = parseMetricCell(tr.querySelector('.cell-vol').textContent);
+      });
+    }
+
+    function buildPortfolioMapFromRows(rows) {
+      const portfolio_map = {};
+      const risk_loss_default = {};
+      rows.forEach(r => {
+        const cat = r.product_category;
+        const loss_key = r.loss_key;
+        if (!portfolio_map[cat]) portfolio_map[cat] = {};
+        if (!risk_loss_default[cat]) risk_loss_default[cat] = {};
+        const entry = {
+          label: r.loss_label,
+          target_model: r.target_model,
+          customer_risk: r.customer_risk,
+        };
+        if (r.ret != null) entry.ret = r.ret;
+        if (r.vol != null) entry.vol = r.vol;
+        portfolio_map[cat][loss_key] = entry;
+        risk_loss_default[cat][r.customer_risk] = loss_key;
+      });
+      return { portfolio_map, risk_loss_default };
+    }
+
+    document.getElementById('filterCategory').onchange = loadData;
+
+    document.getElementById('btnSave').onclick = async () => {
+      syncDomToTableRows();
+      let rowsToSave = tableRows;
+      const cat = document.getElementById('filterCategory').value;
+      if (cat) {
+        const fullRes = await fetch('/api/portfolio/map');
+        const fullRows = (await fullRes.json()).data.rows || [];
+        rowsToSave = fullRows.map(fr => {
+          const edited = tableRows.find(
+            r => r.product_category === fr.product_category && r.loss_key === fr.loss_key
+          );
+          return edited ? { ...fr, ...edited } : fr;
+        });
+      }
+      const built = buildPortfolioMapFromRows(rowsToSave);
+      const res = await fetch('/api/portfolio/map/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portfolio_map: built.portfolio_map,
+          risk_loss_default: built.risk_loss_default,
+          risk_customer_map: riskCustomerMap,
+        }),
+      });
+      const json = await res.json();
+      toast(res.ok ? '保存成功' : (json.detail || '保存失败'));
+      if (res.ok) loadData();
+    };
+
+    document.getElementById('btnCancel').onclick = loadData;
+    loadData();
+  </script>
+</body>
+</html>
