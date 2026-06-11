@@ -22,12 +22,15 @@
       <select id="planningTypeSelect"></select>
     </div>
     <div id="mappingBanner" class="mapping-banner" style="display:none"></div>
-    <div id="planBanner" class="plan-banner" style="display:none"></div>
 
     <div id="loading" class="loading">加载中...</div>
 
     <div id="content" style="display:none">
       <div class="total-card" id="totalCard">
+        <div class="total-card-health-status" id="healthStatus">
+          <span class="health-dot"></span>
+          <span id="healthLabel">--</span>
+        </div>
         <div class="label">总资产</div>
         <div class="amount" id="totalAssets">--</div>
         <div class="meta">
@@ -36,14 +39,12 @@
             <span id="configuredIdle" class="idle-cash-extra" style="display:none">本次已配置闲置资金 --</span>
             <span id="remainingIdle" class="idle-cash-extra" style="display:none">剩余可配置闲置资金 --</span>
           </div>
-          <span class="health-badge" id="healthBadge">
-            <span class="health-dot"></span>
-            <span id="healthLabel">--</span>
-          </span>
+          <button type="button" class="btn btn-ai-health-diagnose" id="btnAiHealthDiagnose">AI财富健康诊断</button>
         </div>
+        <div id="aiHealthDiagnosePanel" class="ai-health-diagnose-panel" style="display:none"></div>
       </div>
 
-      <div id="validationNotes" class="validation-notes validation-notes-main" style="display:none"></div>
+      <div id="planBanner" class="plan-banner" style="display:none"></div>
 
       <div class="category-grid" id="categoryGrid"></div>
 
@@ -67,7 +68,12 @@
         </table>
 
         <div class="ai-section" id="aiSection">
-          <h3>AI 配置解读</h3>
+          <div class="explain-section-header">
+            <h3 class="explain-section-title">配置解读</h3>
+            <button type="button" class="btn btn-ai-explain" id="btnAiPlanExplain">AI深度解读</button>
+          </div>
+          <div id="aiExplainPanel" class="ai-explain-panel" style="display:none"></div>
+          <div class="ai-explain-rule-blocks">
           <div class="ai-block">
             <h4>配置逻辑</h4>
             <p id="allocationLogic">--</p>
@@ -88,6 +94,7 @@
             <h4>客户沟通话术</h4>
             <p id="clientScript">--</p>
           </div>
+          </div>
         </div>
 
         <button class="btn btn-primary btn-large" id="btnAftercare">生成投后陪伴方案 →</button>
@@ -96,6 +103,7 @@
 
       <div class="global-actions" id="globalActions">
         <button class="btn btn-primary btn-large" id="btnFullOptimize">全账户一键智能最优配置</button>
+        <button class="btn btn-primary btn-large" id="btnManualConfig">手工配置</button>
         <button class="btn btn-secondary btn-large" id="btnGenerateExplain">生成配置解读</button>
       </div>
     </div>
@@ -229,18 +237,15 @@
 
     function renderOverview(data) {
       renderMappingBanner(data);
-      document.getElementById('planBanner').style.display = 'none';
+      PlanEditor.hidePlanBanner();
       document.getElementById('pageSubtitle').textContent = '人人都是专业财富顾问';
 
       document.getElementById('totalAssets').textContent = formatMoney(data.total_assets);
       updateIdleCashDisplay({ idle_cash: data.idle_cash, category_summary: [], product_deltas: [] }, false);
-      const badge = document.getElementById('healthBadge');
-      badge.style.color = data.health.color;
+      const status = document.getElementById('healthStatus');
+      status.style.color = data.health.color;
       document.getElementById('healthLabel').textContent = data.health.label;
-
-      const validationEl = document.getElementById('validationNotes');
-      validationEl.textContent = '';
-      validationEl.style.display = 'none';
+      AdvisorChat.resetHealthDiagnosePanel();
 
       const grid = document.getElementById('categoryGrid');
       grid.innerHTML = data.categories.map(cat => `
@@ -296,19 +301,13 @@
       if (!isManual) PlanEditor.resetManualState();
       PlanEditor.cacheProductLimitsFromDeltas(rb.product_deltas);
 
-      document.getElementById('planBanner').style.display = 'block';
-      document.getElementById('planBanner').innerHTML = `
-        <strong>${isManual ? '配置方案已更新' : '配置方案已生成'}</strong>
-        · 客户 ${rb.customer_id} · ${riskProfileLabel(rb)}
-        · 总资产 ${formatMoney(rb.total_assets)}
-        · 模式 ${PlanEditor.modeLabel(rb.mode)}`;
+      PlanEditor.updatePlanBanner(rb);
       document.getElementById('pageSubtitle').textContent = '人人都是专业财富顾问';
       document.getElementById('totalAssets').textContent = formatMoney(rb.total_assets);
       updateIdleCashDisplay(rb, true);
       document.getElementById('planEditHint').style.display = 'block';
       document.getElementById('categoryGrid').innerHTML = PlanEditor.renderPlanCards(rb, { smartAllocation: true });
       document.getElementById('detailBody').innerHTML = PlanEditor.renderReadonlyDetailRows(rb);
-      PlanEditor.updateValidationNotes(rb);
       PlanEditor.updateExplanation(ex);
     }
 
@@ -343,11 +342,8 @@
 
     function hidePlanSection() {
       document.getElementById('planSection').style.display = 'none';
-      document.getElementById('planBanner').style.display = 'none';
+      PlanEditor.hidePlanBanner();
       document.getElementById('planEditHint').style.display = 'none';
-      const validationEl = document.getElementById('validationNotes');
-      validationEl.textContent = '';
-      validationEl.style.display = 'none';
       document.getElementById('globalActions').style.display = 'block';
     }
 
@@ -400,6 +396,25 @@
       await runRebalance({ mode: 'smart_one_click' });
     };
 
+    document.getElementById('btnManualConfig').onclick = async () => {
+      if (!overviewData) {
+        showToast('请先选择客户');
+        return;
+      }
+      showToast('进入手工配置…');
+      try {
+        const data = await PlanEditor.beginManualConfig(
+          getCustomerId(),
+          getProductCategory(),
+          overviewData
+        );
+        renderPlan(data);
+        showToast('已进入手工配置模式');
+      } catch (e) {
+        showToast('进入失败: ' + e.message);
+      }
+    };
+
     document.getElementById('btnGenerateExplain').onclick = async () => {
       await runRebalance({ mode: 'smart_one_click' }, true);
     };
@@ -413,6 +428,27 @@
 
     document.getElementById('btnAftercare').onclick = () => {
       window.location.href = 'aftercare.html';
+    };
+
+    document.getElementById('btnAiPlanExplain').onclick = async () => {
+      if (!planData) {
+        showToast('请先生成配置方案');
+        return;
+      }
+      const btn = document.getElementById('btnAiPlanExplain');
+      const panel = document.getElementById('aiExplainPanel');
+      btn.disabled = true;
+      btn.textContent = '解读中…';
+      try {
+        await AdvisorChat.explainPlanInPanel(panel, {
+          customerId: planData.rebalance.customer_id || getCustomerId(),
+          overview: overviewData,
+          plan: planData,
+        });
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'AI深度解读';
+      }
     };
 
     AdvisorChat.init();

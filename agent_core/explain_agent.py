@@ -83,7 +83,7 @@ class ExplainAgent:
         labels = {
             "smart_one_click": "智能一键",
             "manual_tweak": "人工微调",
-            "manual_product_edit": "人工二次调整",
+            "manual_product_edit": "人工配置",
         }
         return labels.get(mode, mode)
 

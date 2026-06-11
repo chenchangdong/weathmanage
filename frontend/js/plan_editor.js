@@ -4,7 +4,7 @@ const PlanEditor = {
   _pending: false,
   _lastEditedCode: null,
   _manualAddedCodes: new Set(),
-  /** 新增产品草稿校验失败时锁定 code -> 'idle' | 'max_over' | 'min' */
+  /** 新增产品草稿校验失败时锁定 code -> 'idle' | 'max_over' | 'min' | 'zero_delta' */
   _manualValidationBlocked: new Map(),
   _pickerCategory: null,
   _pickerSelectedCode: null,
@@ -32,7 +32,7 @@ const PlanEditor = {
     const labels = {
       smart_one_click: '智能一键',
       manual_tweak: '人工微调',
-      manual_product_edit: '人工二次调整',
+      manual_product_edit: '人工配置',
     };
     return labels[mode] || mode;
   },
@@ -53,6 +53,29 @@ const PlanEditor = {
     this._manualValidationBlocked = new Map();
     this._categoryCandidatesCache = {};
     this._productLimits = {};
+  },
+
+  holdingsFromOverview(overview) {
+    const map = {};
+    (overview?.categories || []).forEach(cat => {
+      (cat.products || []).forEach(p => {
+        const amount = Number(p.amount) || 0;
+        if (p.code && amount > 0.01) map[p.code] = amount;
+      });
+    });
+    return map;
+  },
+
+  async beginManualConfig(customerId, productCategory, overview) {
+    this.resetManualState();
+    const holdings = this.holdingsFromOverview(overview);
+    const res = await apiPost('/api/allocation/manual_adjust', {
+      customer_id: customerId,
+      product_category: productCategory,
+      product_targets: holdings,
+      baseline_product_targets: holdings,
+    });
+    return res.data;
   },
 
   getProductLimits(d) {
@@ -103,7 +126,16 @@ const PlanEditor = {
       return '不满足起购金额！';
     }
     if (side === 'liquidate') return '类内调仓清仓！';
+    if (side === 'zero_delta') return '添加产品无追加金额！请调整或删除该产品';
     return '';
+  },
+
+  zeroDeltaDraftMessage() {
+    return '添加产品无追加金额！请调整或删除该产品';
+  },
+
+  isZeroDeltaNewDraft(d) {
+    return this.isNewManualDraftProduct(d) && Math.abs(d.delta_amount) < 0.01;
   },
 
   /** 超过上限 / 不满足起购：强校验（已有产品失焦恢复，新增产品草稿锁定） */
@@ -136,15 +168,26 @@ const PlanEditor = {
     }
   },
 
+  getActiveManualDraftBlockers(rb) {
+    const reasons = new Map(this._manualValidationBlocked);
+    (rb.product_deltas || []).forEach(d => {
+      if (this.isZeroDeltaNewDraft(d)) {
+        reasons.set(d.product_code, 'zero_delta');
+      }
+    });
+    return reasons;
+  },
+
   blockingEditGate(rb, editingCode) {
-    const blockers = this.getBlockingInvalidManualProducts(rb);
+    const reasonMap = this.getActiveManualDraftBlockers(rb);
+    const blockers = [...reasonMap.keys()];
     if (!blockers.length) return { ok: true };
     if (blockers.includes(editingCode)) return { ok: true };
 
     const parts = blockers.map((code) => {
       const d = rb.product_deltas.find((x) => x.product_code === code);
       if (!d) return null;
-      const reason = this.getValidationBlockReason(code);
+      const reason = reasonMap.get(code);
       if (reason === 'idle') {
         return `新增产品「${d.product_name}」：${this.idleCashInsufficientMessage()}`;
       }
@@ -155,6 +198,9 @@ const PlanEditor = {
       if (reason === 'min') {
         const { min } = this.getProductLimits(d);
         return `新增产品「${d.product_name}」不满足起购金额${formatMoney(min)}`;
+      }
+      if (reason === 'zero_delta') {
+        return `新增产品「${d.product_name}」：${this.zeroDeltaDraftMessage()}`;
       }
       return `新增产品「${d.product_name}」未通过校验`;
     }).filter(Boolean);
@@ -200,8 +246,13 @@ const PlanEditor = {
   revalidateAllProductLimits(rb) {
     (rb.product_deltas || []).forEach(d => {
       const side = this.evaluateProductLimit(d);
-      d.limit_hit = !!side;
-      d.limit_side = side || '';
+      if (d.limit_side === 'zero_delta') {
+        d.limit_hit = true;
+        d.limit_side = 'zero_delta';
+      } else {
+        d.limit_hit = !!side;
+        d.limit_side = side || '';
+      }
     });
   },
 
@@ -214,14 +265,20 @@ const PlanEditor = {
     const grid = document.getElementById('categoryGrid');
     if (!grid) return;
     this._manualValidationBlocked.forEach((reason, code) => {
-      if (reason !== 'idle') return;
       const row = grid.querySelector(`.product-edit-row[data-product-code="${code}"]`);
-      if (row) this._setRowIdleError(row, true);
+      if (!row) return;
+      const item = (rb.product_deltas || []).find(d => d.product_code === code);
+      if (reason === 'idle') {
+        this._setRowIdleError(row, true);
+      } else if (item) {
+        this._setRowIdleError(row, false);
+        this._syncProductLimitState(row, item);
+      }
     });
   },
 
   validateCanAddProduct(rb, picked) {
-    if (this.getBlockingInvalidManualProducts(rb).length) {
+    if (this.getActiveManualDraftBlockers(rb).size) {
       return {
         ok: false,
         message: this.blockingEditGate(rb, '').message,
@@ -479,28 +536,14 @@ const PlanEditor = {
   applyPlanLinkage(data, editedCode) {
     const rb = data.rebalance;
     const ex = data.explanation;
-    const isManual = rb.mode === 'manual_product_edit';
 
-    const banner = document.getElementById('planBanner');
-    if (banner) {
-      banner.style.display = 'block';
-      banner.innerHTML = `
-        <strong>${isManual ? '配置方案已更新' : '配置方案已生成'}</strong>
-        · 客户 ${rb.customer_id} · ${riskProfileLabel(rb)}
-        · 总资产 ${formatMoney(rb.total_assets)}
-        · 模式 ${this.modeLabel(rb.mode)}`;
-    }
+    this.updatePlanBanner(rb);
 
     this.updatePlanCardSummaries(rb);
     this.updateIdleCashPanel(rb, { showPlanStats: true, fromSummary: false });
 
     const detailBody = document.getElementById('detailBody');
     if (detailBody) detailBody.innerHTML = this.renderReadonlyDetailRows(rb);
-
-    const validationNotes = document.getElementById('validationNotes');
-    if (validationNotes) {
-      this.updateValidationNotes(rb);
-    }
 
     this.updateExplanation(ex);
 
@@ -881,7 +924,7 @@ const PlanEditor = {
     this.refreshCategoryPlanRows(rb, category);
     this.refreshDetailTable(rb);
     this.closeProductPicker();
-    showToast(`已添加 ${picked.name}，请填写不低于起购金额 ${formatMoney(picked.min_amount || 0)} 的增减仓`);
+    showToast(`已添加 ${picked.name}，请填写增减仓金额`);
     return true;
   },
 
@@ -1106,6 +1149,16 @@ const PlanEditor = {
     this._syncTargetDisplay(row, item.target_amount);
     this._syncActionDisplay(row, item.action);
 
+    if (this.isZeroDeltaNewDraft(item)) {
+      showToast(this.zeroDeltaDraftMessage());
+      item.limit_hit = true;
+      item.limit_side = 'zero_delta';
+      this.setValidationBlock(code, 'zero_delta');
+      this._syncProductLimitState(row, item);
+      return;
+    }
+    this.clearValidationBlock(code, 'zero_delta');
+
     const limitSide = this.evaluateProductLimit(item);
     if (this.isBlockingLimitViolation(limitSide)) {
       showToast(this.limitSideMessage(limitSide, item));
@@ -1126,6 +1179,7 @@ const PlanEditor = {
     if (prevBlock === 'max_over' || prevBlock === 'min') {
       this.clearValidationBlock(code, prevBlock);
     }
+    this.clearValidationBlock(code, 'zero_delta');
     this._syncProductLimitState(row, item);
 
     this._afterEditValidate(ctx, onUpdated, row, el, committed, item);
@@ -1159,9 +1213,10 @@ const PlanEditor = {
 
   async _submit(ctx, onUpdated) {
     if (this._pending) return;
-    if (this.getBlockingInvalidManualProducts(ctx.rb).length) return;
+    if (this.getActiveManualDraftBlockers(ctx.rb).size) return;
     if (!this.isIdleCashSufficient(this.calcIdleCashUsageFromDeltas(ctx.rb))) return;
     const edited = ctx.rb.product_deltas.find(d => d.product_code === this._lastEditedCode);
+    if (edited && this.isZeroDeltaNewDraft(edited)) return;
     if (edited && this.isBlockingLimitViolation(this.evaluateProductLimit(edited))) return;
 
     this._pending = true;
@@ -1224,13 +1279,36 @@ const PlanEditor = {
     return '校验备注：' + (notes || []).join('；');
   },
 
-  updateValidationNotes(rb) {
-    const el = document.getElementById('validationNotes');
-    if (!el) return;
-    const text = this.renderValidationNotes(rb.validation_notes);
-    el.textContent = text;
-    if (el.classList.contains('validation-notes-main')) {
-      el.style.display = text ? 'block' : 'none';
+  updatePlanBanner(rb) {
+    const el = document.getElementById('planBanner');
+    if (!el || !rb) return;
+    const isManual = rb.mode === 'manual_product_edit';
+    const title = isManual ? '配置方案已更新' : '配置方案已生成';
+    const notes = (rb.validation_notes || []).filter(Boolean);
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div class="plan-banner-main">
+        <strong>${title}</strong>
+        · 客户 ${rb.customer_id} · ${riskProfileLabel(rb)}
+        · 总资产 ${formatMoney(rb.total_assets)}
+        · 模式 ${this.modeLabel(rb.mode)}
+      </div>`;
+    if (notes.length) {
+      const notesEl = document.createElement('div');
+      notesEl.className = 'plan-banner-notes';
+      notesEl.textContent = this.renderValidationNotes(notes);
+      el.appendChild(notesEl);
     }
+  },
+
+  hidePlanBanner() {
+    const el = document.getElementById('planBanner');
+    if (!el) return;
+    el.style.display = 'none';
+    el.innerHTML = '';
+  },
+
+  updateValidationNotes(rb) {
+    this.updatePlanBanner(rb);
   },
 };
