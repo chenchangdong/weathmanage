@@ -111,8 +111,8 @@ class AllocationConfigService:
             "loss_label": entry.get("label", loss_key),
             "model_code": model_code,
             "model_name": model.get("model_name", model_code),
-            "expect_annual_return": entry.get("ret", model.get("expect_annual_return")),
-            "expect_volatility": entry.get("vol", model.get("expect_volatility")),
+            "expect_annual_return": model.get("expect_annual_return"),
+            "expect_volatility": model.get("expect_volatility"),
             "customer_risk": entry.get("customer_risk", risk_label),
         }
 
@@ -335,8 +335,8 @@ class AllocationConfigService:
                     "loss_key": loss_key,
                     "loss_label": entry.get("label", loss_key),
                     "target_model": model_code,
-                    "ret": entry.get("ret", model.get("expect_annual_return")),
-                    "vol": entry.get("vol", model.get("expect_volatility")),
+                    "ret": model.get("expect_annual_return"),
+                    "vol": model.get("expect_volatility"),
                     "customer_risk": entry.get("customer_risk", ""),
                     "invest_term": entry.get("invest_term", "--"),
                     "model_options": list(model_list.keys()),

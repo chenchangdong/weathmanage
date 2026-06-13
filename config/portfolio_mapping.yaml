@@ -38,32 +38,22 @@ portfolio_map:
     loss_1pct:
       label: 本金1%的损失
       target_model: 投资规划P1
-      ret: 10.0
-      vol: 20.0
       customer_risk: conservative
     loss_3pct:
       label: 本金3%的损失
       target_model: 投资规划P2
-      ret: 10.0
-      vol: 15.0
       customer_risk: prudent
     loss_6pct:
       label: 本金6%的损失
       target_model: 投资规划P3
-      ret: 20.0
-      vol: 23.0
       customer_risk: balanced
     loss_10pct:
       label: 本金10%的损失
       target_model: 投资规划P4
-      ret: 5.0
-      vol: 8.0
       customer_risk: growth
     loss_15pct:
       label: 本金15%的损失
       target_model: 投资规划P5
-      ret: 12.0
-      vol: 18.0
       customer_risk: aggressive
   综合规划:
     loss_1pct:

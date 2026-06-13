@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资产诊断 - 四笔钱智能投顾</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="page-wealth-journey">
+  <div class="container container-diagnosis">
+    <div class="page-header page-header-compact">
+      <h1>资产诊断</h1>
+      <p id="diagnosisSubtitle">结构化诊断 · 为智能资配做铺垫</p>
+    </div>
+
+    <div id="navBar" class="nav-bar"></div>
+
+    <div class="journey-step-bar">
+      <a href="wealth_inventory.html" class="journey-step link">① 财富盘点</a>
+      <span class="journey-step-arrow">→</span>
+      <span class="journey-step active">② 资产诊断</span>
+      <span class="journey-step-arrow">→</span>
+      <a href="#" class="journey-step link" id="linkSmartAllocStep">③ 智能资配</a>
+    </div>
+
+    <div id="loading" class="loading">加载诊断数据…</div>
+    <div id="emptyState" class="diagnosis-empty" style="display:none">
+      <p>请从<a href="wealth_inventory.html">财富盘点</a>选择客户进入诊断。</p>
+    </div>
+
+    <div id="content" style="display:none">
+      <!-- 顶部指标区（参照资产诊断模板） -->
+      <section class="diagnosis-metrics-card">
+        <div class="diagnosis-metrics-top">
+          <div class="diagnosis-customer-block">
+            <h2 id="customerName">--</h2>
+            <p id="customerMeta" class="diagnosis-customer-meta">--</p>
+          </div>
+          <div class="diagnosis-metric-group">
+            <div class="diagnosis-metric">
+              <span class="diagnosis-metric-label">总资产</span>
+              <span class="diagnosis-metric-value" id="metricTotal">--</span>
+              <span class="diagnosis-metric-sub" id="metricDate">--</span>
+            </div>
+          </div>
+        </div>
+        <div class="diagnosis-metrics-grid">
+          <div class="diagnosis-metric-panel">
+            <div class="diagnosis-panel-title">收益指标</div>
+            <div class="diagnosis-panel-row">
+              <span>年化收益</span>
+              <strong id="metricAnnual">--</strong>
+            </div>
+            <div class="diagnosis-panel-row">
+              <span>本月收益</span>
+              <strong id="metricMonth">--</strong>
+            </div>
+            <div class="diagnosis-panel-row muted">
+              <span>模型预期年化</span>
+              <span id="metricExpectRet">--</span>
+            </div>
+          </div>
+          <div class="diagnosis-metric-panel">
+            <div class="diagnosis-panel-title">风险指标（近1年）</div>
+            <div class="diagnosis-panel-row">
+              <span>最大回撤/浮亏</span>
+              <strong id="metricLoss">--</strong>
+            </div>
+            <div class="diagnosis-panel-row">
+              <span>年化波动率</span>
+              <strong id="metricVol">--</strong>
+            </div>
+            <div class="diagnosis-panel-row muted">
+              <span>模型预期波动 / 本金损失阈值</span>
+              <span id="metricExpectRisk">--</span>
+            </div>
+          </div>
+          <div class="diagnosis-metric-panel">
+            <div class="diagnosis-panel-title">模型基准</div>
+            <div class="diagnosis-panel-row">
+              <span>配置模型</span>
+              <strong id="metricModel">--</strong>
+            </div>
+            <div class="diagnosis-panel-row">
+              <span>规划类型</span>
+              <strong>投资规划</strong>
+            </div>
+            <div class="diagnosis-panel-row">
+              <span>健康标志</span>
+              <span id="metricFlags" class="diagnosis-inline-flags">--</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="diagnosis-layout">
+        <aside class="diagnosis-sidebar">
+          <div class="diagnosis-nav-item active">综合评分</div>
+          <div class="diagnosis-nav-item">资产评价</div>
+          <div class="diagnosis-nav-item">持仓评价</div>
+          <div class="diagnosis-nav-item">收益评价</div>
+          <div class="diagnosis-nav-item">风险评价</div>
+          <div class="diagnosis-nav-item">行为评价</div>
+        </aside>
+
+        <main class="diagnosis-main">
+          <section class="diagnosis-section">
+            <h3 class="diagnosis-section-title">综合评分</h3>
+            <div class="diagnosis-score-row">
+              <div class="diagnosis-score-badge" id="compositeScore">--</div>
+              <div class="diagnosis-score-detail">
+                <p id="beatInvestors" class="diagnosis-beat">--</p>
+                <p id="diagnosisConclusion" class="diagnosis-conclusion">--</p>
+              </div>
+              <div class="diagnosis-radar-wrap" id="radarWrap"></div>
+            </div>
+          </section>
+
+          <section class="diagnosis-section">
+            <h3 class="diagnosis-section-title">四笔钱配置对比</h3>
+            <p class="diagnosis-section-desc">当前占比 vs 模型目标占比（投资规划资产类型阈值，保障类不计入）</p>
+            <div id="fourMoneyCompare" class="fm-compare-list"></div>
+          </section>
+
+          <section class="diagnosis-section">
+            <h3 class="diagnosis-section-title">诊断结论</h3>
+            <ul id="conclusionList" class="diagnosis-conclusion-list"></ul>
+          </section>
+        </main>
+      </div>
+
+      <div class="diagnosis-actions">
+        <a href="wealth_inventory.html" class="btn btn-primary btn-large">← 返回财富盘点</a>
+        <button type="button" class="btn btn-primary btn-large" id="btnSmartAllocation">智能资配 →</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="flagTooltip" class="flag-tooltip" style="display:none" role="tooltip"></div>
+  <div id="toast" class="toast"></div>
+
+  <script src="js/common.js"></script>
+  <script src="js/wealth_journey.js"></script>
+  <script src="js/advisor_chat.js?v=20260613b"></script>
+  <script>
+    renderNav('asset_diagnosis');
+    AdvisorChat.init({ bindHealthDiagnose: false });
+
+    const customerId = getSelectedCustomerId();
+
+    const linkSmartAllocStep = document.getElementById('linkSmartAllocStep');
+    if (linkSmartAllocStep) {
+      linkSmartAllocStep.onclick = (e) => {
+        e.preventDefault();
+        if (!customerId) {
+          showToast('请先选择客户');
+          return;
+        }
+        sessionStorage.setItem(PRODUCT_CATEGORY_KEY, '投资规划');
+        navigateWithCustomer('smart_allocation.html', customerId);
+      };
+    }
+
+    document.getElementById('btnSmartAllocation').onclick = () => {
+      if (!customerId) {
+        showToast('请先选择客户');
+        return;
+      }
+      sessionStorage.setItem(PRODUCT_CATEGORY_KEY, '投资规划');
+      navigateWithCustomer('smart_allocation.html', customerId);
+    };
+
+    async function loadDiagnosis() {
+      if (!customerId) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('emptyState').style.display = 'block';
+        return;
+      }
+      try {
+        const res = await apiGet(`/api/wealth/diagnosis?customer_id=${encodeURIComponent(customerId)}`);
+        renderDiagnosis(res.data);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+      } catch (e) {
+        document.getElementById('loading').textContent = '加载失败: ' + e.message;
+      }
+    }
+
+    function renderDiagnosis(d) {
+      document.getElementById('diagnosisSubtitle').textContent =
+        `${d.name} · ${d.risk_profile_name} · 投资规划`;
+      document.getElementById('customerName').textContent = d.name;
+      document.getElementById('customerMeta').textContent =
+        `${d.risk_profile_name} · 客户编号 ${d.customer_id}`;
+      document.getElementById('metricTotal').textContent =
+        `${WealthJourney.formatWan(d.total_assets)} 万`;
+      document.getElementById('metricDate').textContent = `数据日期 ${d.diagnosis_date}`;
+
+      const p = d.performance;
+      const m = d.model_benchmark;
+      const annEl = document.getElementById('metricAnnual');
+      annEl.textContent = `${WealthJourney.formatSignedPct(p.annual_return_pct)} · ${formatMoney(p.annual_return_amount || 0)}`;
+      annEl.className = WealthJourney.pctClass(p.annual_return_pct);
+
+      const monEl = document.getElementById('metricMonth');
+      monEl.textContent = `${WealthJourney.formatSignedPct(p.month_return_pct)} · ${formatMoney(p.month_return_amount || 0)}`;
+      monEl.className = WealthJourney.pctClass(p.month_return_pct);
+
+      document.getElementById('metricExpectRet').textContent = `${m.expect_annual_return_pct}%`;
+
+      const lossEl = document.getElementById('metricLoss');
+      lossEl.textContent = `${p.principal_loss_pct.toFixed(2)}%`;
+      lossEl.className = p.principal_loss_pct < -d.loss_threshold_pct ? 'metric-down' : '';
+
+      document.getElementById('metricVol').textContent = `${p.volatility_pct}%`;
+      document.getElementById('metricExpectRisk').textContent =
+        `波动 ${m.expect_volatility_pct}% · 损失阈值 ${d.loss_threshold_pct}%`;
+      document.getElementById('metricModel').textContent = m.model_code || '--';
+
+      const flagsEl = document.getElementById('metricFlags');
+      flagsEl.innerHTML = WealthJourney.renderFlags(d.flags, { interactive: true });
+      WealthJourney.bindFlagTooltips(flagsEl);
+
+      document.getElementById('compositeScore').textContent = `${d.composite_score} 分`;
+      document.getElementById('beatInvestors').textContent =
+        `综合评分 ${d.composite_score} 分，跑赢约 ${d.beat_investors_pct}% 的同风险投资者`;
+      document.getElementById('diagnosisConclusion').textContent =
+        d.conclusions[0] || '暂无异常，建议定期复盘。';
+
+      document.getElementById('radarWrap').innerHTML = WealthJourney.renderRadar(d.dimensions);
+      document.getElementById('fourMoneyCompare').innerHTML =
+        WealthJourney.renderCompareBars(d.four_money);
+
+      document.getElementById('conclusionList').innerHTML =
+        d.conclusions.map(t => `<li>${t}</li>`).join('');
+    }
+
+    loadDiagnosis();
+  </script>
+</body>
+</html>

@@ -14,6 +14,7 @@
     <div class="admin-nav">
       <a href="model_config.html">资产配置模型建立</a>
       <a href="portfolio_mapping.html" class="active">资产配置模型指派</a>
+      <a href="aftercare_system.html">投后陪伴配置</a>
       <a href="../index.html">返回业务前台</a>
     </div>
 
@@ -125,20 +126,11 @@
       renderTable(tableRows);
     }
 
-    function parseMetricCell(text) {
-      const t = (text || '').trim();
-      if (!t || t === '—') return null;
-      const n = parseFloat(t.replace('%', ''));
-      return Number.isFinite(n) ? n : null;
-    }
-
     function syncDomToTableRows() {
       document.querySelectorAll('#tableBody tr').forEach((tr, i) => {
         if (!tableRows[i]) return;
         tableRows[i].target_model = tr.querySelector('.model-select').value;
         tableRows[i].customer_risk = tr.querySelector('.risk-select').value;
-        tableRows[i].ret = parseMetricCell(tr.querySelector('.cell-ret').textContent);
-        tableRows[i].vol = parseMetricCell(tr.querySelector('.cell-vol').textContent);
       });
     }
 
@@ -155,8 +147,6 @@
           target_model: r.target_model,
           customer_risk: r.customer_risk,
         };
-        if (r.ret != null) entry.ret = r.ret;
-        if (r.vol != null) entry.vol = r.vol;
         portfolio_map[cat][loss_key] = entry;
         risk_loss_default[cat][r.customer_risk] = loss_key;
       });

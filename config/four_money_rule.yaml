@@ -66,4 +66,4 @@ solver:
   # band_midpoint：取模型区间中点（折中，可能与基准值不同）。
   # band_low：取下限（保守，少加仓/多减仓）。
   # band_high：取上限（积极，多加仓/少减仓）。
-  fallback_strategy: band_midpoint
+  fallback_strategy: benchmark

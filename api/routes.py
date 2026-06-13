@@ -10,7 +10,9 @@ from fastapi.responses import StreamingResponse
 from agent_core.explain_agent import ExplainAgent
 from api.schemas import (
     AdvisorChatRequest,
-    AftercareRequest,
+    AftercareCompanionRequest,
+    AftercareItemGenerateRequest,
+    AftercareSystemSaveRequest,
     AutoRebalanceRequest,
     ManualAdjustRequest,
     ModelDeleteRequest,
@@ -27,15 +29,23 @@ from core.config_loader import (
     get_products_for_display_category,
     get_risk_level_name,
     is_product_limit_validation_enabled,
+    load_aftercare_system,
     load_customer_profile,
     load_model_config,
     load_portfolio_mapping,
 )
-from core.config_writer import delete_model, save_model_config, save_portfolio_mapping
+from core.config_writer import (
+    delete_model,
+    save_aftercare_system,
+    save_model_config,
+    save_portfolio_mapping,
+)
 from asset_allocation.auto_rebalance_engine import AutoRebalanceEngine
-from core.aftercare_service import AftercarePlanBuilder
+from core.aftercare_companion_service import AftercareCompanionService
+from core.aftercare_monitor_service import AftercareMonitorService
 from core.asset_service import AssetOverviewService, overview_to_dict
 from core.data_store import get_customer_holdings
+from core.wealth_journey_service import WealthJourneyService
 
 router = APIRouter(prefix="/api")
 
@@ -125,6 +135,25 @@ def get_asset_overview(
             customer_id, role, product_category=product_category
         )
         return {"code": 0, "message": "ok", "data": overview_to_dict(overview)}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/wealth/inventory")
+def wealth_inventory() -> Dict[str, Any]:
+    """财富盘点：客户列表 + 场景化健康标志。"""
+    svc = WealthJourneyService()
+    return {"code": 0, "message": "ok", "data": {"customers": svc.build_inventory()}}
+
+
+@router.get("/wealth/diagnosis")
+def wealth_diagnosis(
+    customer_id: str = Query(..., description="客户ID"),
+) -> Dict[str, Any]:
+    """资产诊断：单客户结构化诊断结果。"""
+    try:
+        svc = WealthJourneyService()
+        return {"code": 0, "message": "ok", "data": svc.build_diagnosis(customer_id)}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -486,16 +515,89 @@ def advisor_chat_stream(req: AdvisorChatRequest) -> StreamingResponse:
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-@router.post("/aftercare/build_plan")
-def build_aftercare_plan(req: AftercareRequest) -> Dict[str, Any]:
-    """生成投后陪伴方案。"""
+@router.get("/aftercare/system")
+def get_aftercare_system_config() -> Dict[str, Any]:
+    """读取投后陪伴体系配置。"""
+    return {"code": 0, "message": "ok", "data": load_aftercare_system()}
+
+
+@router.post("/aftercare/system")
+def save_aftercare_system_config(req: AftercareSystemSaveRequest) -> Dict[str, Any]:
+    """保存投后陪伴体系配置。"""
     try:
-        builder = AftercarePlanBuilder()
-        plan = builder.build_plan(
-            customer_id=req.customer_id,
-            rebalance_summary=req.rebalance_summary,
-            advisor_name=req.advisor_name,
-        )
-        return {"code": 0, "message": "ok", "data": plan}
+        save_aftercare_system(req.config, version=req.version)
+        return {"code": 0, "message": "ok", "data": load_aftercare_system()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/aftercare/monitor")
+def get_aftercare_monitor(
+    customer_id: str = Query(..., description="客户ID"),
+) -> Dict[str, Any]:
+    """模拟当日投研/产品监测预警（不含话术生成）。"""
+    try:
+        data = AftercareMonitorService().detect_all(customer_id)
+        return {"code": 0, "message": "ok", "data": data}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/aftercare/companion/generate")
+def generate_aftercare_companion(req: AftercareCompanionRequest) -> Dict[str, Any]:
+    """根据当日监测预警生成应对策略与客户沟通话术（非流式）。"""
+    try:
+        data = AftercareCompanionService().generate(req.customer_id)
+        return {"code": 0, "message": "ok", "data": data}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/aftercare/companion/generate/stream")
+def generate_aftercare_companion_stream(req: AftercareCompanionRequest) -> StreamingResponse:
+    """流式生成每条预警的应对策略与客户沟通话术。"""
+    import json
+
+    svc = AftercareCompanionService()
+
+    def event_stream():
+        try:
+            for chunk in svc.generate_stream(req.customer_id):
+                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+        except ValueError as e:
+            payload = {"type": "error", "message": str(e)}
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/aftercare/companion/generate/item")
+def generate_aftercare_item(req: AftercareItemGenerateRequest) -> Dict[str, Any]:
+    """为单条预警的指定字段生成话术（非流式）。"""
+    try:
+        data = AftercareCompanionService().generate_item_field(
+            req.customer_id, req.zone, req.rule_id, req.field
+        )
+        return {"code": 0, "message": "ok", "data": data}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/aftercare/companion/generate/item/stream")
+def generate_aftercare_item_stream(req: AftercareItemGenerateRequest) -> StreamingResponse:
+    """为单条预警的指定字段流式生成话术。"""
+    import json
+
+    svc = AftercareCompanionService()
+
+    def event_stream():
+        try:
+            for chunk in svc.generate_item_field_stream(
+                req.customer_id, req.zone, req.rule_id, req.field
+            ):
+                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+        except ValueError as e:
+            payload = {"type": "error", "message": str(e)}
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

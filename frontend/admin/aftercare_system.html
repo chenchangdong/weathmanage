@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>投后陪伴配置</title>
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <div class="admin-wrap admin-wrap--wide">
+    <div class="admin-header">
+      <h1>投后陪伴配置</h1>
+      <p class="admin-subtitle">监测指标 · 标签 · 话术方向（与智能资配无关）</p>
+    </div>
+    <div class="admin-nav">
+      <a href="model_config.html">资产配置模型建立</a>
+      <a href="portfolio_mapping.html">资产配置模型指派</a>
+      <a href="aftercare_system.html" class="active">投后陪伴配置</a>
+      <a href="../index.html">返回业务前台</a>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">生成设置</div>
+      <label class="stream-toggle">
+        <input type="checkbox" id="streamEnabled" checked>
+        默认流式输出话术（关闭后前端一次性返回完整 JSON）
+      </label>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">标签说明</div>
+      <div id="tagLegend" class="tag-legend-grid"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">
+        <span id="tabResearch" class="tab-btn active" data-tab="research">投研区</span>
+        <span id="tabProduct" class="tab-btn" data-tab="product">产品区</span>
+      </div>
+      <p id="sectionMeta" class="section-meta"></p>
+      <div class="table-scroll">
+        <table class="data-table aftercare-rules-table">
+          <thead>
+            <tr>
+              <th style="width:40px">启用</th>
+              <th style="width:72px">分层</th>
+              <th style="width:140px">覆盖范围</th>
+              <th>监测指标</th>
+              <th style="width:100px">标签</th>
+              <th style="width:180px">话术内容方向</th>
+            </tr>
+          </thead>
+          <tbody id="rulesBody">
+            <tr><td colspan="6">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn-blue" id="btnSave">保存配置</button>
+      <button type="button" class="btn-outline" id="btnReload">重新加载</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <style>
+    .admin-subtitle { margin-top: 4px; color: #666; font-size: 14px; }
+    .tab-btn {
+      display: inline-block;
+      padding: 6px 16px;
+      margin-right: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #f0f0f0;
+      font-size: 14px;
+    }
+    .tab-btn.active { background: #1677ff; color: #fff; }
+    .section-meta { font-size: 13px; color: #666; margin: 8px 0 12px; }
+    .tag-legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .tag-legend-item {
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    .tag-legend-item strong { color: #1677ff; }
+    .aftercare-rules-table td textarea {
+      width: 100%;
+      min-height: 52px;
+      font-size: 12px;
+      padding: 4px 6px;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      resize: vertical;
+    }
+    .aftercare-rules-table td input[type="text"] {
+      width: 100%;
+      font-size: 12px;
+      padding: 4px 6px;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+    }
+    .tag-checks label { display: block; font-size: 12px; margin: 2px 0; white-space: nowrap; }
+    .stream-toggle { font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  </style>
+
+  <script>
+    const TAG_KEYS = [
+      { key: 'warning', label: '【预警】' },
+      { key: 'soothe', label: '【安抚】' },
+      { key: 'value_add', label: '【增值】' },
+    ];
+
+    let config = null;
+    let activeTab = 'research';
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+
+    function sectionKey() {
+      return activeTab === 'research' ? 'research_driven' : 'product_driven';
+    }
+
+    function renderLegend() {
+      const legend = config.tag_legend || {};
+      document.getElementById('tagLegend').innerHTML = Object.entries(legend).map(([key, item]) => `
+        <div class="tag-legend-item">
+          <strong>${esc(item.label || key)}</strong>
+          <div>${esc(item.description || '')}</div>
+        </div>
+      `).join('');
+      const companion = config.companion || {};
+      document.getElementById('streamEnabled').checked = companion.stream_enabled !== false;
+    }
+
+    function renderRules() {
+      const sec = config[sectionKey()] || {};
+      document.getElementById('sectionMeta').textContent =
+        `触达目标客户：${sec.target_customer || '--'} · 共 ${(sec.rules || []).length} 条规则`;
+      const rules = sec.rules || [];
+      if (!rules.length) {
+        document.getElementById('rulesBody').innerHTML = '<tr><td colspan="6">暂无规则</td></tr>';
+        return;
+      }
+      document.getElementById('rulesBody').innerHTML = rules.map((r, idx) => {
+        const tags = r.tags || [];
+        const tagHtml = TAG_KEYS.map(t => `
+          <label><input type="checkbox" data-idx="${idx}" data-tag="${t.key}" ${tags.includes(t.key) ? 'checked' : ''}> ${t.label}</label>
+        `).join('');
+        return `<tr data-idx="${idx}">
+          <td><input type="checkbox" class="rule-enabled" data-idx="${idx}" ${r.enabled !== false ? 'checked' : ''}></td>
+          <td><input type="text" class="rule-layer" data-idx="${idx}" value="${esc(r.layer || '')}"></td>
+          <td><textarea class="rule-coverage" data-idx="${idx}">${esc(r.coverage || '')}</textarea></td>
+          <td><textarea class="rule-indicator" data-idx="${idx}">${esc(r.indicator || '')}</textarea></td>
+          <td class="tag-checks">${tagHtml}</td>
+          <td><textarea class="rule-script" data-idx="${idx}">${esc(r.script_direction || '')}</textarea></td>
+        </tr>`;
+      }).join('');
+    }
+
+    function collectRulesFromDom() {
+      const sec = config[sectionKey()] || {};
+      const rules = (sec.rules || []).map((r, idx) => {
+        const row = document.querySelector(`tr[data-idx="${idx}"]`);
+        if (!row) return r;
+        const tags = [];
+        row.querySelectorAll('input[data-tag]').forEach(cb => {
+          if (cb.checked) tags.push(cb.dataset.tag);
+        });
+        return {
+          ...r,
+          enabled: row.querySelector('.rule-enabled').checked,
+          layer: row.querySelector('.rule-layer').value.trim(),
+          coverage: row.querySelector('.rule-coverage').value.trim(),
+          indicator: row.querySelector('.rule-indicator').value.trim(),
+          tags,
+          script_direction: row.querySelector('.rule-script').value.trim(),
+        };
+      });
+      config[sectionKey()].rules = rules;
+    }
+
+    async function loadConfig() {
+      const res = await fetch('/api/aftercare/system');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || '加载失败');
+      config = json.data;
+      renderLegend();
+      renderRules();
+    }
+
+    document.getElementById('tabResearch').onclick = () => {
+      collectRulesFromDom();
+      activeTab = 'research';
+      document.getElementById('tabResearch').classList.add('active');
+      document.getElementById('tabProduct').classList.remove('active');
+      renderRules();
+    };
+    document.getElementById('tabProduct').onclick = () => {
+      collectRulesFromDom();
+      activeTab = 'product';
+      document.getElementById('tabProduct').classList.add('active');
+      document.getElementById('tabResearch').classList.remove('active');
+      renderRules();
+    };
+
+    document.getElementById('btnSave').onclick = async () => {
+      try {
+        collectRulesFromDom();
+        config.companion = {
+          stream_enabled: document.getElementById('streamEnabled').checked,
+        };
+        const res = await fetch('/api/aftercare/system', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ config, version: config.version || '1.0' }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.detail || '保存失败');
+        config = json.data;
+        toast('配置已保存');
+        renderLegend();
+        renderRules();
+      } catch (e) {
+        toast('保存失败: ' + e.message);
+      }
+    };
+
+    document.getElementById('btnReload').onclick = () => loadConfig().catch(e => toast(e.message));
+
+    loadConfig().catch(e => {
+      document.getElementById('rulesBody').innerHTML = `<tr><td colspan="6">加载失败: ${esc(e.message)}</td></tr>`;
+    });
+  </script>
+</body>
+</html>

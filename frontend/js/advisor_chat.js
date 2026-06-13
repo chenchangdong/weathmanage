@@ -34,9 +34,178 @@ const AdvisorChat = {
     },
   ],
 
-  async init() {
+  mountShell() {
+    if (document.getElementById('advisorChatPanel')) return;
+    const anchor = document.getElementById('toast') || document.body;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div id="advisorChatBackdrop" class="advisor-chat-backdrop" aria-hidden="true"></div>
+      <div id="advisorChatPanel" class="advisor-chat-panel" role="dialog" aria-label="智能投顾顾问">
+        <header class="advisor-chat-header">
+          <button type="button" class="advisor-chat-back" id="advisorChatClose" aria-label="返回">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="advisor-chat-header-center">
+            <div class="advisor-chat-orb" aria-hidden="true"></div>
+            <div id="advisorChatStatus" class="advisor-chat-status offline">
+              <span class="advisor-chat-status-label">连接状态检测中…</span>
+            </div>
+          </div>
+          <button type="button" class="advisor-chat-clear" id="advisorChatClear" title="清空对话" aria-label="清空对话">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </header>
+        <div id="advisorChatMessages" class="advisor-chat-messages"></div>
+        <footer class="advisor-chat-footer">
+          <div class="advisor-chat-input-wrap">
+            <button type="button" class="advisor-chat-input-icon" tabindex="-1" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            </button>
+            <input type="text" id="advisorChatInput" placeholder="欢迎向智能顾问提问~" autocomplete="off" maxlength="500" />
+            <button type="button" class="advisor-chat-send" id="advisorChatSend" disabled aria-label="发送">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+          </div>
+          <p class="advisor-chat-disclaimer">以上内容由 AI 生成，仅供参考，不构成投资建议</p>
+        </footer>
+      </div>
+      <button type="button" id="advisorChatToggle" class="advisor-chat-fab" title="智能投顾顾问">
+        <span class="advisor-chat-fab-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/><path d="M7 9h10v2H7zm0-3h10v2H7zm0 6h7v2H7z"/></svg>
+        </span>
+        <span class="advisor-chat-fab-label">智能顾问</span>
+      </button>`;
+    while (wrap.firstChild) {
+      anchor.parentNode.insertBefore(wrap.firstChild, anchor);
+    }
+  },
+
+  async init(options = {}) {
+    this.mountShell();
     await this.refreshStatus();
     this.bindUI();
+    this.bindPageLinkedActions(options);
+  },
+
+  getQuickService(title) {
+    return this.QUICK_SERVICES.find(s => s.title === title);
+  },
+
+  /**
+   * 页面按钮 → 智能顾问联动：复用 QUICK_SERVICES 提问词，在顾问面板展示与回复。
+   * @param {string} [serviceTitle] QUICK_SERVICES 中的 title；投后陪伴等可仅传 linkedParams
+   * @param {{ userLabel?, prompt?, validate?, linkedParams? }} options
+   */
+  async sendLinkedQuickService(serviceTitle, options = {}) {
+    if (options.validate) {
+      const msg = options.validate();
+      if (msg) {
+        showToast(msg);
+        return null;
+      }
+    }
+    const svc = serviceTitle ? this.getQuickService(serviceTitle) : null;
+    const prompt = options.prompt || (svc && svc.prompt);
+    const hasAftercare = options.linkedParams && options.linkedParams.aftercare;
+    if (!prompt && !hasAftercare) return null;
+    const userLabel = options.userLabel || serviceTitle || prompt || 'AI辅助生成';
+    return this.sendPrompt(prompt || userLabel, {
+      userLabel,
+      linkedParams: options.linkedParams,
+      onComplete: options.onComplete,
+    });
+  },
+
+  /**
+   * 绑定页面按钮与智能顾问联动（统一入口，避免各页重复实现）。
+   * 支持 buttonId 或 selector；动态列表请用 bindLinkedSelector 在渲染后调用。
+   */
+  bindLinkedAction(config) {
+    const {
+      buttonId,
+      el,
+      selector,
+      serviceTitle,
+      userLabel,
+      busyLabel,
+      validate,
+      prompt,
+      getUserLabel,
+      getPrompt,
+      getLinkedParams,
+      onComplete,
+    } = config;
+
+    const elements = [];
+    if (el) elements.push(el);
+    else if (buttonId) {
+      const node = document.getElementById(buttonId);
+      if (node) elements.push(node);
+    } else if (selector) {
+      document.querySelectorAll(selector).forEach((node) => elements.push(node));
+    }
+
+    elements.forEach((btn) => {
+      if (!btn || btn.dataset.advisorLinked) return;
+      btn.dataset.advisorLinked = '1';
+      btn.onclick = async () => {
+        btn.disabled = true;
+        const label = btn.textContent;
+        if (busyLabel) btn.textContent = busyLabel;
+        try {
+          const effectiveUserLabel = getUserLabel ? getUserLabel(btn) : userLabel;
+          const effectivePrompt = getPrompt ? getPrompt(btn) : prompt;
+          const linkedParams = getLinkedParams ? getLinkedParams(btn) : undefined;
+          const result = await this.sendLinkedQuickService(serviceTitle, {
+            userLabel: effectiveUserLabel,
+            validate,
+            prompt: effectivePrompt,
+            linkedParams,
+          });
+          if (onComplete && result) onComplete(result, btn);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = label;
+        }
+      };
+    });
+  },
+
+  /** 动态渲染的按钮在插入 DOM 后调用（如投后陪伴 AI 胶囊） */
+  bindLinkedSelector(selector, config) {
+    this.bindLinkedAction({ ...config, selector });
+  },
+
+  bindPageLinkedActions(options = {}) {
+    const {
+      linkedActions = [],
+      bindHealthDiagnose = true,
+      bindPlanExplain = true,
+      planExplainEmptyMessage = '请先生成配置方案',
+    } = options;
+
+    if (bindHealthDiagnose) {
+      this.bindLinkedAction({
+        buttonId: 'btnAiHealthDiagnose',
+        serviceTitle: '健康度解读',
+        userLabel: '财富健康诊断',
+        busyLabel: '诊断中…',
+      });
+    }
+    if (bindPlanExplain && document.getElementById('btnAiPlanExplain')) {
+      this.bindLinkedAction({
+        buttonId: 'btnAiPlanExplain',
+        serviceTitle: '方案解读',
+        userLabel: 'AI深度解读',
+        busyLabel: '解读中…',
+        validate: () => {
+          if (typeof planData === 'undefined') return null;
+          if (!planData) return planExplainEmptyMessage;
+          return null;
+        },
+      });
+    }
+    linkedActions.forEach((cfg) => this.bindLinkedAction(cfg));
   },
 
   async refreshStatus() {
@@ -63,6 +232,11 @@ const AdvisorChat = {
     }
   },
 
+  _isDockedLayout() {
+    return document.body.classList.contains('page-smart-allocation')
+      || document.body.classList.contains('page-wealth-journey');
+  },
+
   bindUI() {
     const toggle = document.getElementById('advisorChatToggle');
     const close = document.getElementById('advisorChatClose');
@@ -72,12 +246,13 @@ const AdvisorChat = {
     const backdrop = document.getElementById('advisorChatBackdrop');
     const panel = document.getElementById('advisorChatPanel');
     const messages = document.getElementById('advisorChatMessages');
+    const docked = this._isDockedLayout();
 
     if (toggle) toggle.onclick = () => this.setOpen(!this._open);
     if (close) close.onclick = () => this.setOpen(false);
     if (clear) clear.onclick = () => this.clearHistory();
     if (send) send.onclick = () => this.send();
-    if (backdrop) backdrop.onclick = () => this.setOpen(false);
+    if (backdrop && !docked) backdrop.onclick = () => this.setOpen(false);
 
     if (input) {
       input.addEventListener('input', () => this._syncSendBtn());
@@ -94,15 +269,18 @@ const AdvisorChat = {
         const item = e.target.closest('[data-chat-prompt]');
         if (!item) return;
         const text = item.dataset.chatPrompt || '';
-        if (input) input.value = text;
-        this._syncSendBtn();
-        this.send();
+        const serviceTitle = item.dataset.serviceTitle || '';
+        if (serviceTitle) {
+          this.sendLinkedQuickService(serviceTitle, { userLabel: serviceTitle, prompt: text });
+        } else {
+          this.sendPrompt(text);
+        }
       });
     }
 
     if (panel) panel.addEventListener('click', (e) => e.stopPropagation());
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this._open) this.setOpen(false);
+      if (e.key === 'Escape' && this._open && !this._isDockedLayout()) this.setOpen(false);
     });
   },
 
@@ -118,10 +296,18 @@ const AdvisorChat = {
     const panel = document.getElementById('advisorChatPanel');
     const backdrop = document.getElementById('advisorChatBackdrop');
     const fab = document.getElementById('advisorChatToggle');
+    const docked = this._isDockedLayout();
     if (panel) panel.classList.toggle('open', open);
-    if (backdrop) backdrop.classList.toggle('open', open);
     if (fab) fab.classList.toggle('hidden', open);
-    document.body.classList.toggle('advisor-chat-open', open);
+    if (docked) {
+      document.body.classList.toggle('advisor-chat-docked-open', open);
+      document.body.classList.remove('advisor-chat-open');
+      if (backdrop) backdrop.classList.remove('open');
+    } else {
+      document.body.classList.toggle('advisor-chat-open', open);
+      document.body.classList.remove('advisor-chat-docked-open');
+      if (backdrop) backdrop.classList.toggle('open', open);
+    }
     if (open) {
       if (!this._welcomed) this.showWelcome();
       const input = document.getElementById('advisorChatInput');
@@ -136,7 +322,7 @@ const AdvisorChat = {
 
   _serviceGridHtml() {
     return this.QUICK_SERVICES.map(s => `
-      <button type="button" class="advisor-service-item" data-chat-prompt="${this._escapeAttr(s.prompt)}">
+      <button type="button" class="advisor-service-item" data-chat-prompt="${this._escapeAttr(s.prompt)}" data-service-title="${this._escapeAttr(s.title)}">
         <span class="advisor-service-icon">${s.icon}</span>
         <span class="advisor-service-title">${s.title}</span>
         <span class="advisor-service-desc">${s.desc}</span>
@@ -293,31 +479,44 @@ const AdvisorChat = {
     return { overview, plan };
   },
 
-  async send() {
-    if (this._sending) return;
-    const input = document.getElementById('advisorChatInput');
-    const message = (input && input.value || '').trim();
-    if (!message) return;
+  async sendPrompt(message, options = {}) {
+    if (this._sending) return null;
+    const linkedParams = options.linkedParams || {};
+    const hasAftercare = linkedParams.aftercare;
+    const text = (message || '').trim();
+    if (!text && !hasAftercare) return null;
 
     const cid = getCustomerId();
     if (!cid) {
       showToast('请先选择客户');
-      return;
+      return null;
     }
 
+    const userLabel = options.userLabel || text || 'AI辅助生成';
     this._sending = true;
     this._syncSendBtn();
-    this.appendMessage('user', message);
+    const input = document.getElementById('advisorChatInput');
     if (input) input.value = '';
     this.setOpen(true);
+    this.appendMessage('user', userLabel);
     this.showTyping();
 
+    const historyText = text || userLabel;
     const { overview, plan } = this.getContextPayload();
+    let result = null;
     try {
-      const streamed = await this._sendStream(message, cid, overview, plan);
-      if (!streamed) {
-        await this._sendFallback(message, cid, overview, plan);
+      result = await this._fetchStream(historyText, cid, overview, plan, this._history, {
+        linkedParams,
+        onReasoning: (t) => this._updateLiveReasoning(t),
+        onContent: (t) => this._updateLiveReply(t),
+      });
+      if (!result) {
+        result = await this._fetchFallback(historyText, cid, overview, plan, this._history, linkedParams);
       }
+      this.hideTyping();
+      this._appendAssistantFromResult(historyText, result);
+      if (options.onComplete) options.onComplete(result);
+      return result;
     } catch (e) {
       this.hideTyping();
       this.appendMessage(
@@ -325,25 +524,59 @@ const AdvisorChat = {
         '请求失败：' + e.message + '。推理模型可能需要 30–60 秒，请确认服务未超时。',
         { source: 'fallback' }
       );
+      return null;
     } finally {
       this._sending = false;
       this._syncSendBtn();
     }
   },
 
-  async _sendStream(message, cid, overview, plan) {
+  async send() {
+    const input = document.getElementById('advisorChatInput');
+    const message = (input && input.value || '').trim();
+    if (!message) return;
+    await this.sendPrompt(message);
+  },
+
+  _appendAssistantFromResult(message, result) {
+    const reply = (result && result.reply) || '';
+    const reasoning = ((result && result.reasoning) || '').trim();
+    this._history.push({ role: 'user', content: message });
+    this._history.push({ role: 'assistant', content: reply });
+    if (this._history.length > 12) this._history = this._history.slice(-12);
+
+    if (!reply.trim()) {
+      this.appendMessage(
+        'assistant',
+        '大模型返回为空，请稍后重试或检查 config/llm_config.yaml 中的 model 配置。',
+        { source: 'fallback' }
+      );
+      return;
+    }
+    this.appendMessage('assistant', reply, {
+      source: result.source,
+      reasoning,
+    });
+  },
+
+  async _fetchStream(message, cid, overview, plan, history, hooks = {}) {
+    const linkedParams = hooks.linkedParams || {};
+    if (linkedParams.aftercare) {
+      return this._fetchAftercareStream(linkedParams.aftercare, cid, hooks);
+    }
+
     const res = await fetch('/api/ai/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customer_id: cid,
         message,
-        history: this._history,
+        history,
         overview,
         plan,
       }),
     });
-    if (!res.ok || !res.body) return false;
+    if (!res.ok || !res.body) return null;
 
     let reasoning = '';
     let content = '';
@@ -369,10 +602,10 @@ const AdvisorChat = {
         }
         if (payload.type === 'reasoning' && payload.delta) {
           reasoning += payload.delta;
-          this._updateLiveReasoning(reasoning);
+          if (hooks.onReasoning) hooks.onReasoning(reasoning);
         } else if (payload.type === 'content' && payload.delta) {
           content += payload.delta;
-          this._updateLiveReply(content);
+          if (hooks.onContent) hooks.onContent(content);
         } else if (payload.type === 'done') {
           donePayload = payload;
         } else if (payload.type === 'error') {
@@ -381,57 +614,107 @@ const AdvisorChat = {
       }
     }
 
-    this.hideTyping();
-    if (!donePayload) return false;
+    if (!donePayload) return null;
 
-    const reply = donePayload.reply || content || '';
-    const finalReasoning = (donePayload.reasoning || reasoning || '').trim();
-    this._history.push({ role: 'user', content: message });
-    this._history.push({ role: 'assistant', content: reply });
-    if (this._history.length > 12) this._history = this._history.slice(-12);
-
-    if (!reply.trim()) {
-      this.appendMessage(
-        'assistant',
-        '大模型返回为空，请稍后重试或检查 config/llm_config.yaml 中的 model 配置。',
-        { source: 'fallback' }
-      );
-      return true;
-    }
-
-    this.appendMessage('assistant', reply, {
+    return {
+      reply: donePayload.reply || content || '',
+      reasoning: (donePayload.reasoning || reasoning || '').trim(),
       source: donePayload.source,
-      reasoning: finalReasoning,
-    });
-    return true;
+      model: donePayload.model,
+      usage: donePayload.usage,
+    };
   },
 
-  async _sendFallback(message, cid, overview, plan) {
+  async _fetchAftercareStream(aftercare, cid, hooks = {}) {
+    const { zone, rule_id, field } = aftercare;
+    const res = await fetch('/api/aftercare/companion/generate/item/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: cid,
+        zone,
+        rule_id,
+        field,
+      }),
+    });
+    if (!res.ok || !res.body) return null;
+
+    let content = '';
+    let donePayload = null;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        let payload;
+        try {
+          payload = JSON.parse(line.slice(5).trim());
+        } catch (err) {
+          continue;
+        }
+        if (payload.type === 'error') {
+          throw new Error(payload.message || '生成失败');
+        }
+        if (payload.type === 'delta' && payload.text) {
+          content += payload.text;
+          if (hooks.onContent) hooks.onContent(content);
+        } else if (payload.type === 'done') {
+          donePayload = payload;
+          content = payload.content || content;
+          if (hooks.onContent) hooks.onContent(content);
+        }
+      }
+    }
+
+    if (!donePayload) return null;
+
+    return {
+      reply: donePayload.content || content || '',
+      reasoning: '',
+      source: donePayload.source || 'llm',
+      model: donePayload.model,
+    };
+  },
+
+  async _fetchFallback(message, cid, overview, plan, history, linkedParams = {}) {
+    if (linkedParams.aftercare) {
+      const { zone, rule_id, field } = linkedParams.aftercare;
+      const res = await apiPost('/api/aftercare/companion/generate/item', {
+        customer_id: cid,
+        zone,
+        rule_id,
+        field,
+      });
+      const data = res.data;
+      return {
+        reply: data.content || '',
+        reasoning: '',
+        source: data.source,
+      };
+    }
+
     const res = await apiPost('/api/ai/chat', {
       customer_id: cid,
       message,
-      history: this._history,
+      history,
       overview,
       plan,
     });
-    this.hideTyping();
     const data = res.data;
-    const reply = data.reply || '';
-    this._history.push({ role: 'user', content: message });
-    this._history.push({ role: 'assistant', content: reply });
-    if (this._history.length > 12) this._history = this._history.slice(-12);
-    if (!reply.trim()) {
-      this.appendMessage(
-        'assistant',
-        '大模型返回为空，请稍后重试或检查 config/llm_config.yaml 中的 model 配置。',
-        { source: 'fallback' }
-      );
-    } else {
-      this.appendMessage('assistant', reply, {
-        source: data.source,
-        reasoning: data.reasoning || '',
-      });
-    }
+    return {
+      reply: data.reply || '',
+      reasoning: (data.reasoning || '').trim(),
+      source: data.source,
+    };
   },
 
   clearHistory() {

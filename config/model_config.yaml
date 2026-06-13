@@ -1,134 +1,9 @@
 version: '1.0'
 model_list:
-  投资规划P1:
-    model_name: 投资规划P1
-    expect_annual_return: 4
-    expect_volatility: 1
-    asset_limit:
-      cash:
-      - 0
-      - 7
-      - 50
-      fixed_income:
-      - 50
-      - 84
-      - 90
-      equity:
-      - 0
-      - 4
-      - 30
-      alternative:
-      - 0
-      - 5
-      - 10
-      insurance:
-      - 0
-      - 0
-      - 0
-  投资规划P2:
-    model_name: 投资规划P2
-    expect_annual_return: 5
-    expect_volatility: 2
-    asset_limit:
-      cash:
-      - 0
-      - 5.3
-      - 30
-      fixed_income:
-      - 60
-      - 80
-      - 90
-      equity:
-      - 0
-      - 9.5
-      - 30
-      alternative:
-      - 0
-      - 5.2
-      - 10
-      insurance:
-      - 0
-      - 0
-      - 0
-  投资规划P3:
-    model_name: 投资规划P3
-    expect_annual_return: 5
-    expect_volatility: 4
-    asset_limit:
-      cash:
-      - 0
-      - 5.3
-      - 30
-      fixed_income:
-      - 50
-      - 69.5
-      - 90
-      equity:
-      - 5
-      - 20
-      - 30
-      alternative:
-      - 0
-      - 5.2
-      - 10
-      insurance:
-      - 0
-      - 0
-      - 0
-  投资规划P4:
-    model_name: 投资规划P4
-    expect_annual_return: 6
-    expect_volatility: 6
-    asset_limit:
-      cash:
-      - 0
-      - 5.3
-      - 30
-      fixed_income:
-      - 30
-      - 57.9
-      - 90
-      equity:
-      - 10
-      - 31.6
-      - 50
-      alternative:
-      - 0
-      - 5.2
-      - 10
-      insurance:
-      - 0
-      - 0
-      - 0
-  投资规划P5:
-    model_name: 投资规划P5
-    expect_annual_return: 7
-    expect_volatility: 9
-    asset_limit:
-      cash:
-      - 0
-      - 5.3
-      - 30
-      fixed_income:
-      - 20
-      - 42.1
-      - 90
-      equity:
-      - 30
-      - 47.4
-      - 60
-      alternative:
-      - 0
-      - 5.2
-      - 10
-      insurance:
-      - 0
-      - 0
-      - 0
   综合规划P1:
     model_name: 综合规划P1
-    expect_annual_return: 4
-    expect_volatility: 1
+    expect_annual_return: 4.7
+    expect_volatility: 1.9
     asset_limit:
       cash:
       - 0
@@ -152,8 +27,8 @@ model_list:
       - 20
   综合规划P2:
     model_name: 综合规划P2
-    expect_annual_return: 5
-    expect_volatility: 2
+    expect_annual_return: 5.1
+    expect_volatility: 2.57
     asset_limit:
       cash:
       - 0
@@ -177,8 +52,8 @@ model_list:
       - 20
   综合规划P3:
     model_name: 综合规划P3
-    expect_annual_return: 5
-    expect_volatility: 4
+    expect_annual_return: 5.79
+    expect_volatility: 4.29
     asset_limit:
       cash:
       - 0
@@ -202,8 +77,8 @@ model_list:
       - 60
   综合规划P4:
     model_name: 综合规划P4
-    expect_annual_return: 6
-    expect_volatility: 6
+    expect_annual_return: 6.78
+    expect_volatility: 6.59
     asset_limit:
       cash:
       - 0
@@ -227,8 +102,8 @@ model_list:
       - 20
   综合规划P5:
     model_name: 综合规划P5
-    expect_annual_return: 7
-    expect_volatility: 9
+    expect_annual_return: 7.94
+    expect_volatility: 9.56
     asset_limit:
       cash:
       - 0
@@ -250,3 +125,128 @@ model_list:
       - 5
       - 10
       - 20
+  投资规划P1:
+    model_name: 投资规划P1
+    expect_annual_return: 4.7
+    expect_volatility: 1.9
+    asset_limit:
+      cash:
+      - 0
+      - 7
+      - 50
+      fixed_income:
+      - 50
+      - 84
+      - 90
+      equity:
+      - 0
+      - 4
+      - 30
+      alternative:
+      - 0
+      - 5
+      - 10
+      insurance:
+      - 0
+      - 0
+      - 0
+  投资规划P2:
+    model_name: 投资规划P2
+    expect_annual_return: 5.1
+    expect_volatility: 2.57
+    asset_limit:
+      cash:
+      - 0
+      - 5.3
+      - 30
+      fixed_income:
+      - 60
+      - 80
+      - 90
+      equity:
+      - 0
+      - 9.5
+      - 30
+      alternative:
+      - 0
+      - 5.2
+      - 10
+      insurance:
+      - 0
+      - 0
+      - 0
+  投资规划P3:
+    model_name: 投资规划P3
+    expect_annual_return: 5.79
+    expect_volatility: 4.29
+    asset_limit:
+      cash:
+      - 0
+      - 5.3
+      - 30
+      fixed_income:
+      - 50
+      - 69.5
+      - 90
+      equity:
+      - 5
+      - 20
+      - 30
+      alternative:
+      - 0
+      - 5.2
+      - 10
+      insurance:
+      - 0
+      - 0
+      - 0
+  投资规划P4:
+    model_name: 投资规划P4
+    expect_annual_return: 6.78
+    expect_volatility: 6.59
+    asset_limit:
+      cash:
+      - 0
+      - 5.3
+      - 30
+      fixed_income:
+      - 30
+      - 57.9
+      - 90
+      equity:
+      - 10
+      - 31.6
+      - 50
+      alternative:
+      - 0
+      - 5.2
+      - 10
+      insurance:
+      - 0
+      - 0
+      - 0
+  投资规划P5:
+    model_name: 投资规划P5
+    expect_annual_return: 7.94
+    expect_volatility: 9.56
+    asset_limit:
+      cash:
+      - 0
+      - 5.3
+      - 30
+      fixed_income:
+      - 20
+      - 42.1
+      - 90
+      equity:
+      - 30
+      - 47.4
+      - 60
+      alternative:
+      - 0
+      - 5.2
+      - 10
+      insurance:
+      - 0
+      - 0
+      - 0

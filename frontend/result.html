@@ -49,10 +49,14 @@
         <tbody id="detailBody"></tbody>
       </table>
 
-      <div id="validationNotes" style="font-size:13px;color:#8c8c8c;margin-bottom:16px"></div>
+      <div id="planBanner" class="plan-banner" style="display:none"></div>
 
       <div class="ai-section" id="aiSection">
-        <h3>AI 配置解读</h3>
+        <div class="explain-section-header">
+          <h3 class="explain-section-title">配置解读</h3>
+          <button type="button" class="btn btn-ai-explain" id="btnAiPlanExplain">AI深度解读</button>
+        </div>
+        <div class="ai-explain-rule-blocks">
         <div class="ai-block">
           <h4>配置逻辑</h4>
           <p id="allocationLogic">--</p>
@@ -73,6 +77,7 @@
           <h4>客户沟通话术</h4>
           <p id="clientScript">--</p>
         </div>
+        </div>
       </div>
 
       <button class="btn btn-primary btn-large" id="btnAftercare">生成投后陪伴方案 →</button>
@@ -83,6 +88,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/common.js"></script>
+  <script src="js/advisor_chat.js"></script>
   <script src="js/plan_editor.js"></script>
   <script>
     let planData = null;
@@ -100,8 +106,7 @@
 
       document.getElementById('summaryBody').innerHTML = PlanEditor.renderSummaryRows(rb);
       document.getElementById('detailBody').innerHTML = PlanEditor.renderEditableDetailRows(rb);
-      document.getElementById('validationNotes').textContent =
-        PlanEditor.renderValidationNotes(rb.validation_notes);
+      PlanEditor.updatePlanBanner(rb);
       PlanEditor.updateExplanation(ex);
 
       document.getElementById('loading').style.display = 'none';
@@ -136,6 +141,8 @@
     document.getElementById('btnAftercare').onclick = () => {
       window.location.href = 'aftercare.html';
     };
+
+    AdvisorChat.init({ planExplainEmptyMessage: '暂无配置方案' });
   </script>
 </body>
 </html>

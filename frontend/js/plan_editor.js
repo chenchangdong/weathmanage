@@ -74,6 +74,7 @@ const PlanEditor = {
       product_category: productCategory,
       product_targets: holdings,
       baseline_product_targets: holdings,
+      idle_cash: overview.idle_cash,
     });
     return res.data;
   },

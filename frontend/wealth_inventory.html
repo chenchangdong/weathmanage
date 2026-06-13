@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>财富盘点 - 四笔钱智能投顾</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="page-wealth-journey">
+  <div class="container container-wealth">
+    <div class="page-header">
+      <h1>财富盘点</h1>
+      <p>场景化发现需干预客户，从问题切入而非直接配置</p>
+    </div>
+
+    <div id="navBar" class="nav-bar"></div>
+
+    <div class="journey-step-bar">
+      <span class="journey-step active">① 财富盘点</span>
+      <span class="journey-step-arrow">→</span>
+      <span class="journey-step muted">② 资产诊断</span>
+      <span class="journey-step-arrow">→</span>
+      <span class="journey-step muted">③ 智能资配</span>
+    </div>
+
+    <div id="loading" class="loading">加载客户清单…</div>
+
+    <div id="content" style="display:none">
+      <div class="inventory-toolbar">
+        <span class="inventory-summary" id="inventorySummary">--</span>
+        <span class="inventory-hint">点击客户行进入资产诊断 · 悬停标志查看简要提示</span>
+      </div>
+      <div class="inventory-table-wrap">
+        <table class="inventory-table">
+          <thead>
+            <tr>
+              <th>客户</th>
+              <th>风险等级</th>
+              <th>总资产</th>
+              <th>年化收益</th>
+              <th>本月收益</th>
+              <th>年化波动率</th>
+              <th>本金浮亏</th>
+              <th>健康标志</th>
+            </tr>
+          </thead>
+          <tbody id="inventoryBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="flagTooltip" class="flag-tooltip" style="display:none" role="tooltip"></div>
+  <div id="toast" class="toast"></div>
+
+  <script src="js/common.js"></script>
+  <script src="js/wealth_journey.js"></script>
+  <script src="js/advisor_chat.js?v=20260613b"></script>
+  <script>
+    renderNav('wealth_inventory');
+    AdvisorChat.init({ bindHealthDiagnose: false });
+
+    async function loadInventory() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('content').style.display = 'none';
+      try {
+        const res = await apiGet('/api/wealth/inventory');
+        renderTable(res.data.customers || []);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+      } catch (e) {
+        document.getElementById('loading').textContent = '加载失败: ' + e.message;
+      }
+    }
+
+    function renderTable(customers) {
+      const needCare = customers.filter(c => c.flag_count > 0).length;
+      document.getElementById('inventorySummary').textContent =
+        `共 ${customers.length} 位客户 · ${needCare} 位建议介入`;
+
+      const tbody = document.getElementById('inventoryBody');
+      tbody.innerHTML = customers.map(c => {
+        const p = c.performance;
+        const annCls = WealthJourney.pctClass(p.annual_return_pct);
+        const monCls = WealthJourney.pctClass(p.month_return_pct);
+        const lossExceeded = p.principal_loss_pct < -c.loss_threshold_pct;
+        const lossCls = lossExceeded ? 'metric-down' : (p.principal_loss_pct < -0.05 ? 'metric-flat' : '');
+        return `
+          <tr class="inventory-row" data-customer-id="${c.customer_id}" tabindex="0">
+            <td><strong>${c.name}</strong></td>
+            <td>${c.risk_profile_name}</td>
+            <td>${formatMoney(c.total_assets)}</td>
+            <td class="${annCls}">${WealthJourney.formatSignedPct(p.annual_return_pct)}</td>
+            <td class="${monCls}">${WealthJourney.formatSignedPct(p.month_return_pct)}<span class="cell-sub">${formatMoney(p.month_return_amount)}</span></td>
+            <td>${p.volatility_pct.toFixed(1)}%</td>
+            <td class="${lossCls}">${p.principal_loss_pct.toFixed(2)}%</td>
+            <td class="inventory-flags">${WealthJourney.renderFlags(c.flags)}</td>
+          </tr>`;
+      }).join('');
+
+      tbody.querySelectorAll('.inventory-row').forEach(row => {
+        const go = () => navigateWithCustomer('asset_diagnosis.html', row.dataset.customerId);
+        row.addEventListener('click', go);
+        row.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+        });
+      });
+      WealthJourney.bindFlagTooltips(tbody);
+    }
+
+    loadInventory();
+  </script>
+</body>
+</html>

@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 
 from agent_core.explain_agent import ExplainAgent
 from asset_allocation.auto_rebalance_engine import AutoRebalanceEngine
-from core.aftercare_service import AftercarePlanBuilder
+from core.aftercare_companion_service import AftercareCompanionService
 from core.asset_service import AssetOverviewService, overview_to_dict
 from core.config_loader import load_customer_profile
 from core.data_store import get_customer_holdings
@@ -88,17 +88,14 @@ def run_single(customer_id: str, verbose: bool = True) -> dict:
         print(f"\n客户适配: {explain['customer_fit']}")
 
     # 4. 投后陪伴
-    aftercare = AftercarePlanBuilder().build_plan(
-        customer_id=customer_id,
-        rebalance_summary=result.category_summary,
-    )
+    aftercare = AftercareCompanionService().generate(customer_id)
     if verbose:
         print(f"\n【投后陪伴】")
-        print(f"  首次回访: {aftercare['visit_schedule']['initial_visit']}")
-        print(f"  预警阈值: {aftercare['drawdown_thresholds']['warning_pct']}")
-        print(f"  话术数量: {len(aftercare['communication_scripts'])} 条")
-        for script in aftercare["communication_scripts"][:2]:
-            print(f"  - {script['title']}")
+        rz = aftercare["research_zone"]["items"]
+        pz = aftercare["product_zone"]["items"]
+        print(f"  投研预警: {len(rz)} 条 | 产品预警: {len(pz)} 条")
+        for item in (rz + pz)[:3]:
+            print(f"  - [{item.get('coverage')}] {item.get('mock_detail', '')[:40]}...")
 
     return {
         "customer": customer,

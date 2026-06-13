@@ -77,6 +77,25 @@ def save_model_config(
     reload_all_configs()
 
 
+def _strip_portfolio_map_metrics(portfolio_map: Dict[str, Any]) -> Dict[str, Any]:
+    """收益/波动仅来自 model_config，映射表不持久化 ret/vol。"""
+    cleaned: Dict[str, Any] = {}
+    for cat, loss_map in (portfolio_map or {}).items():
+        if not isinstance(loss_map, dict):
+            cleaned[cat] = loss_map
+            continue
+        cleaned[cat] = {}
+        for loss_key, entry in loss_map.items():
+            if not isinstance(entry, dict):
+                cleaned[cat][loss_key] = entry
+                continue
+            item = dict(entry)
+            item.pop("ret", None)
+            item.pop("vol", None)
+            cleaned[cat][loss_key] = item
+    return cleaned
+
+
 def save_portfolio_mapping(
     portfolio_map: Dict[str, Any],
     risk_customer_map: Optional[Dict[str, str]] = None,
@@ -95,8 +114,16 @@ def save_portfolio_mapping(
         "version": version,
         "customer_risk_levels": customer_risk_levels or existing.get("customer_risk_levels", []),
         "risk_loss_default": risk_loss_default or existing.get("risk_loss_default", {}),
-        "portfolio_map": portfolio_map,
+        "portfolio_map": _strip_portfolio_map_metrics(portfolio_map),
         "risk_customer_map": risk_customer_map or existing.get("risk_customer_map", {}),
     }
     _dump_yaml(path, payload)
+    reload_all_configs()
+
+
+def save_aftercare_system(config: Dict[str, Any], version: str = "1.0") -> None:
+    """投后陪伴体系配置 → aftercare_system.yaml"""
+    payload = dict(config)
+    payload["version"] = version
+    _dump_yaml(CONFIG_DIR / "aftercare_system.yaml", payload)
     reload_all_configs()

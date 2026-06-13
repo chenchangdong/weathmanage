@@ -7,7 +7,7 @@ from typing import Any
 # 演示客户持仓与闲置资金
 DEMO_HOLDINGS: dict[str, dict[str, Any]] = {
     "C20250602001": {
-        "idle_cash": 150000.0,
+        "idle_cash": 20000.0,
         "holdings": {
             "P001": 80000.0,
             "P002": 20000.0,

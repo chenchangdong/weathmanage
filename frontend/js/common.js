@@ -4,6 +4,7 @@ let CUSTOMERS = [];
 
 const PLANNING_TYPES = ['投资规划', '综合规划'];
 const PRODUCT_CATEGORY_KEY = 'productCategory';
+const SELECTED_CUSTOMER_KEY = 'selectedCustomerId';
 
 const RISK_PROFILE_LABELS = {
   conservative: '保守型',
@@ -76,6 +77,21 @@ function getProductCategory() {
   return sessionStorage.getItem(PRODUCT_CATEGORY_KEY) || '投资规划';
 }
 
+function setSelectedCustomerId(customerId) {
+  if (customerId) sessionStorage.setItem(SELECTED_CUSTOMER_KEY, customerId);
+}
+
+function getSelectedCustomerId() {
+  const fromUrl = new URLSearchParams(window.location.search).get('customer_id');
+  if (fromUrl) return fromUrl;
+  return sessionStorage.getItem(SELECTED_CUSTOMER_KEY) || '';
+}
+
+function navigateWithCustomer(path, customerId) {
+  setSelectedCustomerId(customerId);
+  window.location.href = `${path}?customer_id=${encodeURIComponent(customerId)}`;
+}
+
 function formatModelMetrics(ret, vol) {
   const parts = [];
   if (ret != null && ret !== '') parts.push(`预期收益 ${ret}%`);
@@ -144,13 +160,23 @@ function initPlanningTypeSelect(onChange) {
   });
 }
 
-function initCustomerSelect(onChange) {
+function initCustomerSelect(onChange, options = {}) {
   const sel = document.getElementById('customerSelect');
   if (!sel) return;
   loadCustomerList().then(() => {
     sel.innerHTML = CUSTOMERS.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-    sel.addEventListener('change', onChange);
-    initPlanningTypeSelect(onChange);
+    const preset = getSelectedCustomerId();
+    if (preset && CUSTOMERS.some(c => c.id === preset)) {
+      sel.value = preset;
+      setSelectedCustomerId(preset);
+    }
+    sel.addEventListener('change', () => {
+      setSelectedCustomerId(sel.value);
+      if (onChange) onChange();
+    });
+    if (!options.skipPlanningType) {
+      initPlanningTypeSelect(onChange);
+    }
     if (onChange) onChange();
   });
 }
@@ -159,19 +185,23 @@ function renderNav(active) {
   const nav = document.getElementById('navBar');
   if (!nav) return;
   const pages = [
+    { href: 'wealth_inventory.html', label: '财富盘点' },
+    { href: 'asset_diagnosis.html', label: '资产诊断' },
     { href: 'smart_allocation.html', label: '智能资配' },
-    { href: 'index.html', label: '客户资产' },
-    { href: 'result.html', label: '配置方案' },
+    { href: 'index.html', label: '客户资产', muted: true },
+    { href: 'result.html', label: '配置方案', muted: true },
     { href: 'aftercare.html', label: '投后陪伴' },
   ];
   const adminPages = [
     { href: 'admin/model_config.html', label: '模型建立', key: 'model_config' },
     { href: 'admin/portfolio_mapping.html', label: '模型指派', key: 'portfolio_mapping' },
+    { href: 'admin/aftercare_system.html', label: '投后陪伴配置', key: 'aftercare_system' },
   ];
   const mainLinks = pages.map(p => {
     const pageKey = p.href.replace('.html', '');
     const isActive = active === pageKey || (active && p.href.includes(active));
-    return `<a href="${p.href}" class="${isActive ? 'active' : ''}">${p.label}</a>`;
+    const muted = p.muted ? ' nav-muted' : '';
+    return `<a href="${p.href}" class="${isActive ? 'active' : ''}${muted}">${p.label}</a>`;
   }).join('');
   const adminLinks = adminPages.map(p => {
     const isActive = active === p.key;

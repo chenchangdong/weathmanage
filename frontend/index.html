@@ -27,15 +27,16 @@
 
     <div id="content" style="display:none">
       <!-- 顶部总资产卡片 -->
-      <div class="total-card">
+      <div class="total-card" id="totalCard">
+        <div class="total-card-health-status" id="healthStatus">
+          <span class="health-dot"></span>
+          <span id="healthLabel">--</span>
+        </div>
         <div class="label">总资产</div>
         <div class="amount" id="totalAssets">--</div>
         <div class="meta">
           <span id="idleCash">闲置资金 --</span>
-          <span class="health-badge" id="healthBadge">
-            <span class="health-dot"></span>
-            <span id="healthLabel">--</span>
-          </span>
+          <button type="button" class="btn btn-ai-health-diagnose" id="btnAiHealthDiagnose">AI财富健康诊断</button>
         </div>
       </div>
 
@@ -68,12 +69,15 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/common.js"></script>
+  <script src="js/advisor_chat.js"></script>
   <script>
     let overviewData = null;
+    let planData = null;
     let tweakCategory = null;
 
     renderNav('index');
-    initCustomerSelect(loadOverview);  // 加载客户列表后自动拉取概览
+    initCustomerSelect(loadOverview);
+    AdvisorChat.init();
 
     async function loadOverview() {
       document.getElementById('loading').style.display = 'block';
@@ -103,8 +107,8 @@
 
       document.getElementById('totalAssets').textContent = formatMoney(data.total_assets);
       document.getElementById('idleCash').textContent = '闲置资金 ' + formatMoney(data.idle_cash);
-      const badge = document.getElementById('healthBadge');
-      badge.style.color = data.health.color;
+      const status = document.getElementById('healthStatus');
+      status.style.color = data.health.color;
       document.getElementById('healthLabel').textContent = data.health.label;
 
       const grid = document.getElementById('categoryGrid');

@@ -52,8 +52,8 @@ def is_product_limit_validation_enabled() -> bool:
 
 
 @lru_cache(maxsize=1)
-def load_aftercare_rule() -> dict[str, Any]:
-    return _load_yaml("aftercare_rule.yaml")
+def load_aftercare_system() -> dict[str, Any]:
+    return _load_yaml("aftercare_system.yaml")
 
 
 @lru_cache(maxsize=1)
@@ -109,7 +109,7 @@ def reload_all_configs() -> None:
     load_customer_profile.cache_clear()
     load_four_money_page.cache_clear()
     load_page_constraint.cache_clear()
-    load_aftercare_rule.cache_clear()
+    load_aftercare_system.cache_clear()
     load_four_money_mapping.cache_clear()
     load_model_config.cache_clear()
     load_portfolio_mapping.cache_clear()

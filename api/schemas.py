@@ -50,10 +50,20 @@ class PortfolioMapSaveRequest(BaseModel):
     customer_risk_levels: Optional[List[Dict[str, Any]]] = None
 
 
-class AftercareRequest(BaseModel):
+class AftercareCompanionRequest(BaseModel):
     customer_id: str
-    rebalance_summary: Optional[List[Dict[str, Any]]] = None
-    advisor_name: str = "理财经理"
+
+
+class AftercareItemGenerateRequest(BaseModel):
+    customer_id: str
+    zone: str = Field(..., description="research | product")
+    rule_id: str
+    field: str = Field(..., description="advisor_strategy | customer_script")
+
+
+class AftercareSystemSaveRequest(BaseModel):
+    config: Dict[str, Any]
+    version: str = "1.0"
 
 
 class ExplainRequest(BaseModel):

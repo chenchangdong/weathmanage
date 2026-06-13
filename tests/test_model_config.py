@@ -124,6 +124,23 @@ class TestModelConfigAPI:
         assert resp.status_code == 200
         assert len(resp.json()["data"]["rows"]) == 10
 
+    def test_portfolio_map_metrics_from_model_config(self, client):
+        models = load_model_config()["model_list"]
+        resp = client.get("/api/portfolio/map")
+        for row in resp.json()["data"]["rows"]:
+            model = models[row["target_model"]]
+            assert row["ret"] == model["expect_annual_return"]
+            assert row["vol"] == model["expect_volatility"]
+
+    def test_get_model_by_risk_metrics_from_model_config(self):
+        svc = AllocationConfigService()
+        models = load_model_config()["model_list"]
+        for risk in ("conservative", "prudent", "balanced", "growth", "aggressive"):
+            m = svc.get_model_by_customer_risk("投资规划", risk)
+            model = models[m["model_code"]]
+            assert m["expect_annual_return"] == model["expect_annual_return"]
+            assert m["expect_volatility"] == model["expect_volatility"]
+
     def test_overview_includes_mapping(self, client):
         resp = client.get(
             "/api/asset/overview?customer_id=C20250602001&product_category=投资规划"

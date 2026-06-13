@@ -69,7 +69,7 @@ class AssetOverviewService:
         product_map = get_product_map()
 
         categories: list[CategorySnapshot] = []
-        max_deviation = 0.0
+        all_in_band = True
 
         for cat in self.engine.categories:
             cfg = profile_targets[cat]
@@ -77,10 +77,11 @@ class AssetOverviewService:
             target_ratio = cfg["target"]
             current_ratio = cur / total if total else 0
             deviation = abs(current_ratio - target_ratio)
-            max_deviation = max(max_deviation, deviation)
             target_amount = target_ratio * total
             band = cfg["band"]
             in_band = band[0] <= current_ratio <= band[1]
+            if not in_band:
+                all_in_band = False
 
             # 底层产品汇总（仅展示当前有持仓的产品）
             prods = []
@@ -98,7 +99,7 @@ class AssetOverviewService:
                     })
 
             card_cfg = self.page_config.get("category_cards", {}).get(cat, {})
-            health_level, _, _ = compute_health_level(deviation)
+            health_level, _, _ = compute_health_level(in_band)
 
             categories.append(
                 CategorySnapshot(
@@ -117,7 +118,7 @@ class AssetOverviewService:
                 )
             )
 
-        health_level, health_label, health_color = compute_health_level(max_deviation)
+        health_level, health_label, health_color = compute_health_level(all_in_band)
         permissions = self._get_permissions(role)
 
         return AssetOverview(
@@ -177,17 +178,18 @@ class AssetOverviewService:
                 current_by_type[prod["asset_type"]] += amount
 
         categories: list[CategorySnapshot] = []
-        max_deviation = 0.0
+        all_in_band = True
         for cat in INVESTMENT_CARD_KEYS:
             cfg = profile_targets[cat]
             cur = current_by_type.get(cat, 0.0)
             target_ratio = cfg["target"]
             current_ratio = cur / total if total else 0
             deviation = abs(current_ratio - target_ratio)
-            max_deviation = max(max_deviation, deviation)
             target_amount = target_ratio * total
             band = cfg["band"]
             in_band = band[0] <= current_ratio <= band[1]
+            if not in_band:
+                all_in_band = False
 
             prods = []
             for code, amt in invest_holdings.items():
@@ -203,7 +205,7 @@ class AssetOverviewService:
                         "asset_type_name": p.get("asset_type_name"),
                     })
 
-            health_level, _, _ = compute_health_level(deviation)
+            health_level, _, _ = compute_health_level(in_band)
             categories.append(
                 CategorySnapshot(
                     category=cat,
@@ -221,7 +223,7 @@ class AssetOverviewService:
                 )
             )
 
-        health_level, health_label, health_color = compute_health_level(max_deviation)
+        health_level, health_label, health_color = compute_health_level(all_in_band)
         permissions = self._get_permissions(role)
         return AssetOverview(
             customer_id=customer_id,

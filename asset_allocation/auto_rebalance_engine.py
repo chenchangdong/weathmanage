@@ -659,11 +659,27 @@ class AutoRebalanceEngine:
             hi = profile_targets[cat]["band"][1] * total
             target[cat] = self._clamp(target[cat] + per, lo, hi)
 
-        # 二次归一化
+        # 二次归一化：末类不足吸收差额时，从其余可调整类扣减，避免出现负目标
         current_sum = sum(target.values())
         if abs(current_sum - total) > 0.01 and adjustable:
             last = adjustable[-1]
-            target[last] += total - current_sum
+            remainder = total - current_sum
+            new_last = target[last] + remainder
+            if new_last >= -0.01:
+                target[last] = new_last
+            else:
+                target[last] = 0.0
+                excess = round(-new_last, 2)
+                donors = [c for c in adjustable if c != last and target.get(c, 0) > 0]
+                if donors:
+                    donor_sum = sum(target[c] for c in donors)
+                    for c in donors:
+                        lo = profile_targets[c]["band"][0] * total
+                        cut = excess * (target[c] / donor_sum)
+                        target[c] = round(max(lo, target[c] - cut), 2)
+                    drift = round(total - sum(target.values()), 2)
+                    if abs(drift) > 0.01:
+                        target[donors[0]] = round(target[donors[0]] + drift, 2)
 
         return target
 
@@ -1236,15 +1252,12 @@ class AutoRebalanceEngine:
         return max(lo, min(value, hi))
 
 
-def compute_health_level(max_deviation: float) -> tuple[str, str, str]:
-    """根据最大偏差返回健康度等级、标签、颜色。"""
+def compute_health_level(in_band: bool) -> tuple[str, str, str]:
+    """根据是否在模型区间内返回健康度等级、标签、颜色。"""
     page = load_four_money_page()
     thresholds = page.get("health_thresholds", {})
-    if max_deviation <= thresholds.get("green", {}).get("max_deviation", 0.05):
-        g = thresholds["green"]
-        return "green", g["label"], g["color"]
-    if max_deviation <= thresholds.get("yellow", {}).get("max_deviation", 0.12):
-        y = thresholds["yellow"]
-        return "yellow", y["label"], y["color"]
-    r = thresholds["red"]
-    return "red", r["label"], r["color"]
+    if in_band:
+        g = thresholds.get("green", {})
+        return "green", g.get("label", "配置健康"), g.get("color", "#52c41a")
+    r = thresholds.get("red", {})
+    return "red", r.get("label", "需优化"), r.get("color", "#ff4d4f")

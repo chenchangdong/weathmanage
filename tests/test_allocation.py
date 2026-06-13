@@ -4,7 +4,6 @@ import pytest
 
 from agent_core.explain_agent import ExplainAgent
 from asset_allocation.auto_rebalance_engine import AutoRebalanceEngine, compute_health_level
-from core.aftercare_service import AftercarePlanBuilder
 from core.asset_service import AssetOverviewService
 from core.config_loader import (
     get_asset_type_to_category,
@@ -524,17 +523,15 @@ class TestAutoRebalanceEngine:
 
 
 class TestHealthLevel:
-    def test_green(self):
-        level, label, color = compute_health_level(0.03)
+    def test_green_when_in_band(self):
+        level, label, color = compute_health_level(True)
         assert level == "green"
+        assert label == "配置健康"
 
-    def test_yellow(self):
-        level, label, color = compute_health_level(0.08)
-        assert level == "yellow"
-
-    def test_red(self):
-        level, label, color = compute_health_level(0.20)
+    def test_red_when_out_of_band(self):
+        level, label, color = compute_health_level(False)
         assert level == "red"
+        assert label == "需优化"
 
 
 class TestAssetOverview:
@@ -545,7 +542,15 @@ class TestAssetOverview:
         assert overview.view_mode == "asset_type"
         assert overview.total_assets == 1012000.0 - 32000.0
         assert len(overview.categories) == 4
-        assert overview.health_level in ("green", "yellow", "red")
+        assert overview.health_level in ("green", "red")
+
+    def test_conservative_investment_all_in_band_is_green(self):
+        """李先生投资规划：各类均在模型区间内时应为配置健康。"""
+        svc = AssetOverviewService()
+        overview = svc.build_overview("C20250602002", product_category=INVESTMENT_PLANNING)
+        assert all(c.in_band for c in overview.categories)
+        assert overview.health_level == "green"
+        assert overview.health_label == "配置健康"
 
     def test_build_overview_comprehensive(self):
         svc = AssetOverviewService()
@@ -590,12 +595,3 @@ class TestExplainAgent:
         assert "client_script" in explain
         assert len(explain["allocation_logic"]) > 50
 
-
-class TestAftercare:
-    def test_build_plan(self):
-        builder = AftercarePlanBuilder()
-        plan = builder.build_plan(CUSTOMER_ID)
-        assert plan["customer_id"] == CUSTOMER_ID
-        assert "visit_schedule" in plan
-        assert "drawdown_thresholds" in plan
-        assert len(plan["communication_scripts"]) >= 1
