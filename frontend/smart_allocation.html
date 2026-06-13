@@ -6,7 +6,7 @@
   <title>智能资配 - 四笔钱智能投顾</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="page-smart-allocation">
+<body class="page-smart-allocation" data-advisor-dock>
   <div class="container container-smart-allocation">
     <div class="page-header">
       <h1>智能资配</h1>
@@ -23,17 +23,23 @@
       <span class="journey-step active">③ 智能资配</span>
     </div>
 
-    <div class="customer-select">
+    <div class="customer-select customer-select-with-flags">
       <label for="customerSelect">选择客户：</label>
       <select id="customerSelect"></select>
-      <label for="planningTypeSelect">规划类型：</label>
-      <select id="planningTypeSelect"></select>
+      <span class="customer-select-flags-label">健康标志：</span>
+      <span id="overviewHealthFlags" class="diagnosis-inline-flags"></span>
     </div>
-    <div class="addon-holding-bar">
-      <label for="addonHoldingInput">追加持仓：</label>
-      <input type="text" id="addonHoldingInput" class="addon-holding-input" inputmode="decimal" value="0" placeholder="0" autocomplete="off">
-      <span class="addon-holding-hint">录入金额即为总资产卡片中的闲置资金，可为 0 或负数</span>
-      <span id="addonHoldingError" class="addon-holding-error" style="display:none">请输入有效数值</span>
+    <div class="addon-holding-bar addon-holding-bar-split">
+      <div class="addon-holding-planning">
+        <label for="planningTypeSelect">规划类型：</label>
+        <select id="planningTypeSelect"></select>
+      </div>
+      <div class="addon-holding-main">
+        <label for="addonHoldingInput">追加持仓：</label>
+        <input type="text" id="addonHoldingInput" class="addon-holding-input" inputmode="decimal" value="0" placeholder="0" autocomplete="off">
+        <span class="addon-holding-hint">录入金额即为总资产卡片中的闲置资金，可为 0 或负数</span>
+        <span id="addonHoldingError" class="addon-holding-error" style="display:none">请输入有效数值</span>
+      </div>
     </div>
     <div id="mappingBanner" class="mapping-banner" style="display:none"></div>
 
@@ -53,7 +59,7 @@
             <span id="configuredIdle" class="idle-cash-extra" style="display:none">本次已配置闲置资金 --</span>
             <span id="remainingIdle" class="idle-cash-extra" style="display:none">剩余可配置闲置资金 --</span>
           </div>
-          <button type="button" class="btn btn-ai-health-diagnose" id="btnAiHealthDiagnose">AI财富健康诊断</button>
+          <button type="button" class="btn btn-ai-explain" id="btnAiHealthDiagnose">AI资配解读</button>
         </div>
       </div>
 
@@ -114,9 +120,14 @@
       </div>
 
       <div class="global-actions" id="globalActions">
-        <button class="btn btn-primary btn-large" id="btnFullOptimize">全账户一键智能最优配置</button>
-        <button class="btn btn-primary btn-large" id="btnManualConfig">手工配置</button>
-        <button class="btn btn-secondary btn-large" id="btnGenerateExplain">生成配置解读</button>
+        <div class="global-actions-primary">
+          <button class="btn btn-primary btn-large" id="btnFullOptimize">全账户一键智能最优配置</button>
+          <button class="btn btn-primary btn-large" id="btnPersonalizedOptimize">个性化智能配仓</button>
+          <button class="btn btn-primary btn-large" id="btnManualConfig">手工配置</button>
+        </div>
+        <div class="global-actions-secondary">
+          <button class="btn btn-secondary btn-large" id="btnGenerateExplain">生成配置解读</button>
+        </div>
       </div>
     </div>
   </div>
@@ -157,50 +168,16 @@
     </div>
   </div>
 
-  <div id="advisorChatBackdrop" class="advisor-chat-backdrop" aria-hidden="true"></div>
-  <div id="advisorChatPanel" class="advisor-chat-panel" role="dialog" aria-label="智能投顾顾问">
-    <header class="advisor-chat-header">
-      <button type="button" class="advisor-chat-back" id="advisorChatClose" aria-label="返回">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-      </button>
-      <div class="advisor-chat-header-center">
-        <div class="advisor-chat-orb" aria-hidden="true"></div>
-        <div id="advisorChatStatus" class="advisor-chat-status offline">
-          <span class="advisor-chat-status-label">连接状态检测中…</span>
-        </div>
-      </div>
-      <button type="button" class="advisor-chat-clear" id="advisorChatClear" title="清空对话" aria-label="清空对话">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
-      </button>
-    </header>
-    <div id="advisorChatMessages" class="advisor-chat-messages"></div>
-    <footer class="advisor-chat-footer">
-      <div class="advisor-chat-input-wrap">
-        <button type="button" class="advisor-chat-input-icon" tabindex="-1" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-        </button>
-        <input type="text" id="advisorChatInput" placeholder="欢迎向智能顾问提问~" autocomplete="off" maxlength="500" />
-        <button type="button" class="advisor-chat-send" id="advisorChatSend" disabled aria-label="发送">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        </button>
-      </div>
-      <p class="advisor-chat-disclaimer">以上内容由 AI 生成，仅供参考，不构成投资建议</p>
-    </footer>
-  </div>
-  <button type="button" id="advisorChatToggle" class="advisor-chat-fab" title="智能投顾顾问">
-    <span class="advisor-chat-fab-icon" aria-hidden="true">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/><path d="M7 9h10v2H7zm0-3h10v2H7zm0 6h7v2H7z"/></svg>
-    </span>
-    <span class="advisor-chat-fab-label">智能顾问</span>
-  </button>
-
+  <div id="flagTooltip" class="flag-tooltip" style="display:none" role="tooltip"></div>
   <div id="toast" class="toast"></div>
 
   <script src="js/common.js"></script>
+  <script src="js/wealth_journey.js"></script>
   <script src="js/plan_editor.js"></script>
   <script src="js/advisor_chat.js?v=20260613b"></script>
   <script>
     let overviewData = null;
+    let diagnosisData = null;
     let planData = null;
     let viewMode = 'overview';
     let tweakCategory = null;
@@ -322,11 +299,42 @@
       };
     }
 
+    function updateGlobalActionsLayout() {
+      const isInvestment = getProductCategory() === '投资规划';
+      const btnPersonalized = document.getElementById('btnPersonalizedOptimize');
+      if (btnPersonalized) {
+        btnPersonalized.style.display = isInvestment ? '' : 'none';
+      }
+    }
+
     function onCustomerChange() {
       planData = null;
+      diagnosisData = null;
       viewMode = 'overview';
       hidePlanSection();
+      updateGlobalActionsLayout();
       loadOverview();
+    }
+
+    function renderHealthFlags() {
+      const el = document.getElementById('overviewHealthFlags');
+      if (!el) return;
+      if (!diagnosisData) {
+        el.innerHTML = '';
+        return;
+      }
+      el.innerHTML = WealthJourney.renderFlags(diagnosisData.flags || [], { interactive: true });
+      WealthJourney.bindFlagTooltips(el);
+    }
+
+    async function loadDiagnosis(cid) {
+      try {
+        const res = await apiGet(`/api/wealth/diagnosis?customer_id=${encodeURIComponent(cid)}`);
+        diagnosisData = res.data;
+      } catch (e) {
+        diagnosisData = null;
+      }
+      renderHealthFlags();
     }
 
     async function loadOverview() {
@@ -339,6 +347,7 @@
         overviewData = res.data;
         holdingsBaseTotal = (overviewData.total_assets || 0) - (overviewData.idle_cash || 0);
         loadAddonFromStorage();
+        await loadDiagnosis(cid);
         renderOverview(overviewData);
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
@@ -398,7 +407,8 @@
         </div>
       `).join('');
 
-      document.getElementById('globalActions').style.display = 'block';
+      document.getElementById('globalActions').style.display = '';
+      updateGlobalActionsLayout();
     }
 
     function onPlanUpdated(data, editedCode) {
@@ -469,7 +479,7 @@
       document.getElementById('planSection').style.display = 'none';
       PlanEditor.hidePlanBanner();
       document.getElementById('planEditHint').style.display = 'none';
-      document.getElementById('globalActions').style.display = 'block';
+      document.getElementById('globalActions').style.display = '';
     }
 
     function toggleProducts(id) {
@@ -523,6 +533,17 @@
       await runRebalance({ mode: 'smart_one_click' });
     };
 
+    document.getElementById('btnPersonalizedOptimize').onclick = async () => {
+      const flags = (diagnosisData && diagnosisData.flags) || [];
+      const effective = flags.filter(f => f.code !== 'four_money_mismatch');
+      if (!effective.length) {
+        showToast('财富健康，请用全账户一键配仓');
+        return;
+      }
+      showToast(`依据健康标志（${effective.map(f => f.label).join('、')}）执行个性化智能配仓…`);
+      await runRebalance({ mode: 'flag_personalized' });
+    };
+
     document.getElementById('btnManualConfig').onclick = async () => {
       if (!overviewData) {
         showToast('请先选择客户');
@@ -559,7 +580,7 @@
       window.location.href = 'aftercare.html';
     };
 
-    AdvisorChat.init();
+    AdvisorChat.initDockPage();
   </script>
 </body>
 </html>

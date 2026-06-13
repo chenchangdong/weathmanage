@@ -6,7 +6,7 @@
   <title>财富盘点 - 四笔钱智能投顾</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="page-wealth-journey">
+<body class="page-wealth-journey" data-advisor-dock>
   <div class="container container-wealth">
     <div class="page-header">
       <h1>财富盘点</h1>
@@ -58,7 +58,7 @@
   <script src="js/advisor_chat.js?v=20260613b"></script>
   <script>
     renderNav('wealth_inventory');
-    AdvisorChat.init({ bindHealthDiagnose: false });
+    WealthJourney.initAdvisor();
 
     async function loadInventory() {
       document.getElementById('loading').style.display = 'block';

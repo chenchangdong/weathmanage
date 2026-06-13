@@ -82,3 +82,4 @@ class AdvisorChatRequest(BaseModel):
     history: List[ChatMessage] = Field(default_factory=list)
     overview: Optional[Dict[str, Any]] = None
     plan: Optional[Dict[str, Any]] = None
+    diagnosis: Optional[Dict[str, Any]] = None

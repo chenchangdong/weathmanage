@@ -59,6 +59,7 @@ class AutoRebalanceEngine:
         manual_overrides: dict[str, float] | None = None,
         target_category: str | None = None,
         product_category: str = "投资规划",
+        flag_codes: list[str] | None = None,
     ) -> RebalanceResult:
         """
         一键智能配仓。
@@ -68,7 +69,7 @@ class AutoRebalanceEngine:
             holdings: 当前各产品持仓 {product_code: amount}
             idle_cash: 闲置资金
             risk_profile: 风险画像 conservative/balanced/aggressive
-            mode: smart_one_click | manual_tweak
+            mode: smart_one_click | manual_tweak | flag_personalized
             locked_categories: 人工微调时锁定的大类
             manual_overrides: 人工指定的大类目标金额
             target_category: 单类优化时指定的大类
@@ -84,6 +85,7 @@ class AutoRebalanceEngine:
                 manual_overrides=manual_overrides,
                 target_category=target_category,
                 product_category=product_category,
+                flag_codes=flag_codes,
             )
 
         locked = set(locked_categories or [])
@@ -194,8 +196,11 @@ class AutoRebalanceEngine:
         manual_overrides: dict[str, float] | None,
         target_category: str | None,
         product_category: str,
+        flag_codes: list[str] | None = None,
     ) -> RebalanceResult:
         """投资规划：按资产类型四卡配仓，保障类不计入总资产且不参与调仓。"""
+        from asset_allocation.flag_driven_solver import FlagDrivenSolver, FlagDrivenSolverError
+
         locked = set(locked_categories or [])
         overrides = manual_overrides or {}
         resolved = self.config_svc.resolve_asset_type_targets(product_category, risk_profile)
@@ -212,6 +217,64 @@ class AutoRebalanceEngine:
         consolidate = self.solver.get("consolidate_category_rebalance", False)
         names = get_asset_type_aliases()
         invest_cats = list(INVESTMENT_CARD_KEYS)
+
+        if mode == "flag_personalized":
+            if target_category is not None:
+                raise ValueError("个性化配仓不支持单类优化")
+            solver = FlagDrivenSolver()
+            try:
+                target_cat, flag_notes = solver.solve(
+                    current_cat=current_cat,
+                    idle_cash=idle_cash,
+                    profile_targets=profile_targets,
+                    flag_codes=flag_codes or [],
+                )
+            except FlagDrivenSolverError:
+                raise
+            product_targets, alloc_notes, limit_hits = self._allocate_products_asset_type(
+                target_cat=target_cat,
+                current_holdings=invest_holdings,
+                prefer_existing=prefer_existing,
+                consolidate=consolidate,
+                only_category=None,
+            )
+            product_deltas = self._build_deltas(
+                invest_holdings, product_targets, limit_hits, use_asset_type_key=True
+            )
+            actual_target_cat = self._target_cat_from_asset_type(product_targets)
+            category_summary = self._build_category_summary(
+                total,
+                current_cat,
+                actual_target_cat,
+                profile_targets,
+                categories=list(INVESTMENT_CARD_KEYS),
+                names=names,
+            )
+            notes = flag_notes + list(alloc_notes)
+            notes.extend(
+                self._validate(
+                    total,
+                    actual_target_cat,
+                    profile_targets,
+                    product_deltas,
+                    categories=list(INVESTMENT_CARD_KEYS),
+                    names=names,
+                )
+            )
+            return RebalanceResult(
+                customer_id=customer_id,
+                risk_profile=risk_profile,
+                total_assets=total,
+                idle_cash=idle_cash,
+                category_targets=actual_target_cat,
+                category_summary=category_summary,
+                product_deltas=product_deltas,
+                validation_notes=notes,
+                mode=mode,
+                locked_categories=list(locked),
+                view_mode="asset_type",
+                product_category=product_category,
+            )
 
         if target_category is None:
             target_cat, product_targets, alloc_notes, limit_hits = (

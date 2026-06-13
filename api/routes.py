@@ -174,6 +174,29 @@ def auto_rebalance(req: AutoRebalanceRequest) -> Dict[str, Any]:
 
     product_category = req.product_category or customer.get("product_category", "投资规划")
 
+    flag_codes: list[str] | None = None
+    if req.mode == "flag_personalized":
+        if product_category != "投资规划":
+            raise HTTPException(
+                status_code=400,
+                detail="个性化智能配仓仅支持投资规划",
+            )
+        svc = WealthJourneyService()
+        try:
+            diagnosis = svc.build_diagnosis(req.customer_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        flag_codes = [
+            f["code"]
+            for f in diagnosis.get("flags", [])
+            if f.get("code") != "four_money_mismatch"
+        ]
+        if not flag_codes:
+            raise HTTPException(
+                status_code=400,
+                detail="财富健康，请用全账户一键配仓",
+            )
+
     engine = AutoRebalanceEngine()
     try:
         result = engine.rebalance(
@@ -186,6 +209,7 @@ def auto_rebalance(req: AutoRebalanceRequest) -> Dict[str, Any]:
             manual_overrides=req.manual_overrides,
             target_category=req.target_category,
             product_category=product_category,
+            flag_codes=flag_codes,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -480,6 +504,7 @@ def advisor_chat(req: AdvisorChatRequest) -> Dict[str, Any]:
             history=[h.model_dump() for h in req.history],
             overview=req.overview,
             plan=req.plan,
+            diagnosis=req.diagnosis,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -506,6 +531,7 @@ def advisor_chat_stream(req: AdvisorChatRequest) -> StreamingResponse:
                 history=[h.model_dump() for h in req.history],
                 overview=req.overview,
                 plan=req.plan,
+                diagnosis=req.diagnosis,
             ):
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
         except ValueError as e:

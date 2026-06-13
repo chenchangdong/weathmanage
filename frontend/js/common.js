@@ -65,7 +65,10 @@ async function apiPost(path, body) {
 
 function getCustomerId() {
   const sel = document.getElementById('customerSelect');
-  return sel ? sel.value : (CUSTOMERS[0] && CUSTOMERS[0].id);
+  if (sel && sel.value) return sel.value;
+  const selected = getSelectedCustomerId();
+  if (selected) return selected;
+  return CUSTOMERS[0] && CUSTOMERS[0].id;
 }
 
 function getProductCategory() {

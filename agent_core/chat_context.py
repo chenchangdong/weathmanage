@@ -105,13 +105,60 @@ def build_plan_context(plan: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def build_diagnosis_context(diagnosis: dict[str, Any] | None) -> dict[str, Any]:
+    if not diagnosis:
+        return {"available": False}
+    four_money = []
+    for x in diagnosis.get("four_money") or []:
+        four_money.append({
+            "category_name": x.get("category_name"),
+            "current_ratio": x.get("current_ratio"),
+            "target_ratio": x.get("target_ratio"),
+            "band": x.get("band"),
+            "in_band": x.get("in_band"),
+        })
+    flags = []
+    for f in diagnosis.get("flags") or []:
+        flags.append({
+            "label": f.get("label"),
+            "severity": f.get("severity"),
+            "hint": f.get("hint"),
+        })
+    perf = diagnosis.get("performance") or {}
+    model = diagnosis.get("model_benchmark") or {}
+    return {
+        "available": True,
+        "diagnosis_date": diagnosis.get("diagnosis_date"),
+        "composite_score": diagnosis.get("composite_score"),
+        "beat_investors_pct": diagnosis.get("beat_investors_pct"),
+        "loss_threshold_pct": diagnosis.get("loss_threshold_pct"),
+        "performance": {
+            "annual_return_pct": perf.get("annual_return_pct"),
+            "month_return_pct": perf.get("month_return_pct"),
+            "principal_loss_pct": perf.get("principal_loss_pct"),
+            "volatility_pct": perf.get("volatility_pct"),
+        },
+        "model_benchmark": {
+            "model_code": model.get("model_code"),
+            "expect_annual_return_pct": model.get("expect_annual_return_pct"),
+            "expect_volatility_pct": model.get("expect_volatility_pct"),
+        },
+        "four_money": four_money,
+        "flags": flags,
+        "dimensions": diagnosis.get("dimensions"),
+        "conclusions": diagnosis.get("conclusions"),
+    }
+
+
 def build_chat_grounding(
     customer_id: str,
     overview: dict[str, Any] | None = None,
     plan: dict[str, Any] | None = None,
+    diagnosis: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "customer": build_customer_context(customer_id),
         "asset_overview": build_overview_context(customer_id, overview),
         "allocation_plan": build_plan_context(plan),
+        "asset_diagnosis": build_diagnosis_context(diagnosis),
     }

@@ -86,41 +86,62 @@ const WealthJourney = {
   },
 
   renderRadar(dimensions) {
-    const labels = {
-      assets: '资产',
-      holdings: '持仓',
-      returns: '收益',
-      risk: '风险',
-      behavior: '行为',
-    };
-    const keys = Object.keys(labels);
-    const points = keys.map((k, i) => {
+    const defs = [
+      { key: 'assets', label: '资产', cls: 'radar-label-top' },
+      { key: 'holdings', label: '持仓', cls: 'radar-label-tr' },
+      { key: 'returns', label: '收益', cls: 'radar-label-br' },
+      { key: 'risk', label: '风险', cls: 'radar-label-bl' },
+      { key: 'behavior', label: '行为', cls: 'radar-label-tl' },
+    ];
+    const keys = defs.map((d) => d.key);
+    const cx = 50;
+    const cy = 50;
+    const dataR = 36;
+    const outerR = 40;
+
+    const pointAt = (i, r) => {
       const angle = (Math.PI * 2 * i) / keys.length - Math.PI / 2;
-      const r = (dimensions[k] / 700) * 42;
-      const x = 50 + Math.cos(angle) * r;
-      const y = 50 + Math.sin(angle) * r;
+      return {
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r,
+      };
+    };
+
+    const points = keys.map((k, i) => {
+      const { x, y } = pointAt(i, (dimensions[k] / 700) * dataR);
       return `${x},${y}`;
     }).join(' ');
-    const axisLines = keys.map((k, i) => {
-      const angle = (Math.PI * 2 * i) / keys.length - Math.PI / 2;
-      const x = 50 + Math.cos(angle) * 46;
-      const y = 50 + Math.sin(angle) * 46;
-      return `<line x1="50" y1="50" x2="${x}" y2="${y}" class="radar-axis"/>`;
+
+    const outerPoints = keys.map((_, i) => {
+      const { x, y } = pointAt(i, outerR);
+      return `${x},${y}`;
+    }).join(' ');
+
+    const innerPoints = keys.map((_, i) => {
+      const { x, y } = pointAt(i, outerR * 0.72);
+      return `${x},${y}`;
+    }).join(' ');
+
+    const axisLines = keys.map((_, i) => {
+      const { x, y } = pointAt(i, outerR);
+      return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" class="radar-axis"/>`;
     }).join('');
-    const labelsHtml = keys.map((k, i) => {
-      const angle = (Math.PI * 2 * i) / keys.length - Math.PI / 2;
-      const x = 50 + Math.cos(angle) * 54;
-      const y = 50 + Math.sin(angle) * 54;
-      return `<text x="${x}" y="${y}" class="radar-label" text-anchor="middle" dominant-baseline="middle">${labels[k]} ${dimensions[k]}</text>`;
-    }).join('');
-    return `
-      <svg viewBox="0 0 100 100" class="radar-chart" aria-hidden="true">
-        <polygon points="50,4 96,38 78,92 22,92 4,38" class="radar-bg"/>
-        <polygon points="50,18 82,42 70,78 30,78 18,42" class="radar-bg inner"/>
+
+    const labelsHtml = defs.map((d) => `
+      <div class="radar-html-label ${d.cls}">
+        <span class="radar-html-name">${d.label}</span>
+        <span class="radar-html-score">${dimensions[d.key]}</span>
+      </div>`).join('');
+
+    const svg = `
+      <svg viewBox="0 0 100 100" class="radar-chart-svg" aria-hidden="true">
+        <polygon points="${outerPoints}" class="radar-bg"/>
+        <polygon points="${innerPoints}" class="radar-bg inner"/>
         ${axisLines}
         <polygon points="${points}" class="radar-area"/>
-        ${labelsHtml}
       </svg>`;
+
+    return `<div class="radar-chart-outer">${labelsHtml}<div class="radar-chart-inner">${svg}</div></div>`;
   },
 
   _escapeAttr(s) {
@@ -128,5 +149,14 @@ const WealthJourney = {
       .replace(/&/g, '&amp;')
       .replace(/"/g, '&quot;')
       .replace(/</g, '&lt;');
+  },
+
+  /** 财富旅程页：侧栏停靠顾问（与智能资配/投后陪伴一致） */
+  initAdvisor(options = {}) {
+    AdvisorChat.initDockPage({
+      bindHealthDiagnose: false,
+      bindPlanExplain: false,
+      ...options,
+    });
   },
 };

@@ -89,12 +89,15 @@ class AdvisorChatService:
         history: list[dict[str, str]] | None = None,
         overview: dict[str, Any] | None = None,
         plan: dict[str, Any] | None = None,
+        diagnosis: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         message = (message or "").strip()
         if not message:
             raise ValueError("消息不能为空")
 
-        grounding = build_chat_grounding(customer_id, overview=overview, plan=plan)
+        grounding = build_chat_grounding(
+            customer_id, overview=overview, plan=plan, diagnosis=diagnosis
+        )
         disclaimer = self.cfg.get("chat", {}).get("disclaimer", "")
 
         if not self.llm.is_configured():
@@ -146,12 +149,15 @@ class AdvisorChatService:
         history: list[dict[str, str]] | None = None,
         overview: dict[str, Any] | None = None,
         plan: dict[str, Any] | None = None,
+        diagnosis: dict[str, Any] | None = None,
     ):
         message = (message or "").strip()
         if not message:
             raise ValueError("消息不能为空")
 
-        grounding = build_chat_grounding(customer_id, overview=overview, plan=plan)
+        grounding = build_chat_grounding(
+            customer_id, overview=overview, plan=plan, diagnosis=diagnosis
+        )
         disclaimer = self.cfg.get("chat", {}).get("disclaimer", "")
 
         if not self.llm.is_configured():
@@ -205,10 +211,12 @@ class AdvisorChatService:
         cust = grounding.get("customer") or {}
         ov = grounding.get("asset_overview") or {}
         pl = grounding.get("allocation_plan") or {}
+        dx = grounding.get("asset_diagnosis") or {}
         return {
             "customer_name": cust.get("name"),
             "has_overview": ov.get("available", False),
             "has_plan": pl.get("available", False),
+            "has_diagnosis": dx.get("available", False),
         }
 
     def _fallback_reply(
@@ -223,6 +231,7 @@ class AdvisorChatService:
         cust = grounding.get("customer") or {}
         ov = grounding.get("asset_overview") or {}
         pl = grounding.get("allocation_plan") or {}
+        dx = grounding.get("asset_diagnosis") or {}
         name = cust.get("name", "客户")
         if reason == "llm_error":
             headline = "【大模型调用失败】以下为基于系统数据的规则兜底说明。"
@@ -262,6 +271,14 @@ class AdvisorChatService:
             )
         else:
             lines.append("尚未生成智能配置方案，可先执行「全账户一键智能最优配置」。")
+
+        if dx.get("available"):
+            lines.append(
+                f"资产诊断：综合评分 {dx.get('composite_score')} 分，"
+                f"健康标志 {len(dx.get('flags') or [])} 项。"
+            )
+            for c in (dx.get("conclusions") or [])[:3]:
+                lines.append(f"- {c}")
 
         lines.append(f"您的问题：{message}")
         if reason == "no_key":

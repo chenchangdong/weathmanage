@@ -6,7 +6,7 @@
   <title>资产诊断 - 四笔钱智能投顾</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="page-wealth-journey">
+<body class="page-wealth-journey" data-advisor-dock>
   <div class="container container-diagnosis">
     <div class="page-header page-header-compact">
       <h1>资产诊断</h1>
@@ -36,12 +36,13 @@
             <h2 id="customerName">--</h2>
             <p id="customerMeta" class="diagnosis-customer-meta">--</p>
           </div>
-          <div class="diagnosis-metric-group">
+          <div class="diagnosis-metric-group diagnosis-metric-group-with-ai">
             <div class="diagnosis-metric">
               <span class="diagnosis-metric-label">总资产</span>
               <span class="diagnosis-metric-value" id="metricTotal">--</span>
               <span class="diagnosis-metric-sub" id="metricDate">--</span>
             </div>
+            <button type="button" class="btn btn-ai-explain" id="btnAiAssetDiagnose">AI资产诊断</button>
           </div>
         </div>
         <div class="diagnosis-metrics-grid">
@@ -144,7 +145,8 @@
   <script src="js/advisor_chat.js?v=20260613b"></script>
   <script>
     renderNav('asset_diagnosis');
-    AdvisorChat.init({ bindHealthDiagnose: false });
+    let diagnosisData = null;
+    WealthJourney.initAdvisor({ bindAssetDiagnose: true });
 
     const customerId = getSelectedCustomerId();
 
@@ -187,6 +189,7 @@
     }
 
     function renderDiagnosis(d) {
+      diagnosisData = d;
       document.getElementById('diagnosisSubtitle').textContent =
         `${d.name} · ${d.risk_profile_name} · 投资规划`;
       document.getElementById('customerName').textContent = d.name;

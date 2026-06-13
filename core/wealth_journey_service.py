@@ -19,55 +19,55 @@ from core.data_store import get_customer_holdings
 
 PLANNING_CATEGORY = "投资规划"
 
-# 演示用模拟业绩（稳定、可复现）
+# 演示用模拟业绩（稳定、可复现；与模型基准对齐，单客户健康标志不超过 2 个）
 _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
     "C20250602001": {
-        "annual_return_pct": 12.5,
+        "annual_return_pct": 9.0,
         "month_return_pct": 0.8,
-        "principal_loss_pct": -5.5,
-        "volatility_pct": 9.8,
+        "principal_loss_pct": -3.0,
+        "volatility_pct": 4.2,
     },
     "C20250602002": {
-        "annual_return_pct": 3.8,
+        "annual_return_pct": 4.8,
         "month_return_pct": 0.3,
-        "principal_loss_pct": -1.2,
-        "volatility_pct": 3.5,
+        "principal_loss_pct": -0.5,
+        "volatility_pct": 1.85,
     },
     "C20250602003": {
-        "annual_return_pct": 28.6,
-        "month_return_pct": 3.2,
-        "principal_loss_pct": -9.5,
-        "volatility_pct": 22.4,
+        "annual_return_pct": 8.0,
+        "month_return_pct": 1.5,
+        "principal_loss_pct": -5.0,
+        "volatility_pct": 11.0,
     },
     "C20250602004": {
-        "annual_return_pct": 4.1,
-        "month_return_pct": -0.6,
-        "principal_loss_pct": -4.8,
-        "volatility_pct": 6.2,
+        "annual_return_pct": 4.2,
+        "month_return_pct": -0.2,
+        "principal_loss_pct": -2.0,
+        "volatility_pct": 2.5,
     },
     "C20250602005": {
-        "annual_return_pct": 11.2,
-        "month_return_pct": 1.1,
-        "principal_loss_pct": -7.8,
-        "volatility_pct": 13.5,
+        "annual_return_pct": 10.0,
+        "month_return_pct": 1.0,
+        "principal_loss_pct": -5.0,
+        "volatility_pct": 6.5,
     },
     "C20250602006": {
-        "annual_return_pct": 9.5,
-        "month_return_pct": 0.5,
-        "principal_loss_pct": -3.0,
-        "volatility_pct": 8.0,
+        "annual_return_pct": 5.5,
+        "month_return_pct": 0.4,
+        "principal_loss_pct": -2.5,
+        "volatility_pct": 4.0,
     },
     "C20250602007": {
         "annual_return_pct": 5.2,
-        "month_return_pct": -1.2,
-        "principal_loss_pct": -3.5,
-        "volatility_pct": 7.8,
+        "month_return_pct": -0.3,
+        "principal_loss_pct": -3.8,
+        "volatility_pct": 2.9,
     },
     "C20250602008": {
-        "annual_return_pct": 18.3,
-        "month_return_pct": 2.0,
-        "principal_loss_pct": -6.2,
-        "volatility_pct": 16.2,
+        "annual_return_pct": 6.5,
+        "month_return_pct": 0.8,
+        "principal_loss_pct": -4.0,
+        "volatility_pct": 6.2,
     },
 }
 

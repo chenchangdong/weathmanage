@@ -11,8 +11,14 @@ const AdvisorChat = {
     {
       icon: '💚',
       title: '健康度解读',
-      desc: '财富健康分析',
+      desc: '资配健康分析',
       prompt: '请解读该客户财富健康度，先给结论，再用 3~4 条要点说明优先处理建议',
+    },
+    {
+      icon: '📋',
+      title: '资产诊断解读',
+      desc: '结构化诊断分析',
+      prompt: '请基于 grounding 中 asset_diagnosis 的结构化诊断结果，解读综合评分、五维雷达、四笔钱配置与健康标志，先给结论，再用 3~4 条要点说明优先处理建议',
     },
     {
       icon: '📊',
@@ -80,11 +86,48 @@ const AdvisorChat = {
     }
   },
 
+  PAGE_DOCK_CONTAINERS:
+    '.container-smart-allocation, .container-wealth, .container-diagnosis, .container',
+
   async init(options = {}) {
     this.mountShell();
+    this.setupPageDock(options.dock);
     await this.refreshStatus();
     this.bindUI();
     this.bindPageLinkedActions(options);
+  },
+
+  /** 侧栏停靠页统一初始化（点击外部不关闭、主内容自适应） */
+  initDockPage(options = {}) {
+    return this.init({ dock: true, ...options });
+  },
+
+  /**
+   * 启用顾问侧栏停靠：主内容区自适应右移，点击页面其他区域不关闭顾问。
+   * 页面在 body 上加 data-advisor-dock，或 init 时传 dock: true。
+   */
+  setupPageDock(dock) {
+    if (dock === false) return;
+    const viaAttr = document.body.hasAttribute('data-advisor-dock');
+    if (!dock && !viaAttr) return;
+    if (!viaAttr) {
+      document.body.setAttribute('data-advisor-dock', '');
+    }
+
+    let selector = null;
+    if (typeof dock === 'string') selector = dock;
+    else if (dock && typeof dock === 'object' && dock.container) selector = dock.container;
+
+    let containers = selector
+      ? document.querySelectorAll(selector)
+      : document.querySelectorAll('.container-advisor-dock');
+    if (!containers.length) {
+      const fallback = document.querySelector(this.PAGE_DOCK_CONTAINERS);
+      if (fallback) containers = [fallback];
+    }
+    containers.forEach((el) => {
+      el.classList.add('container-advisor-dock');
+    });
   },
 
   getQuickService(title) {
@@ -181,15 +224,30 @@ const AdvisorChat = {
       linkedActions = [],
       bindHealthDiagnose = true,
       bindPlanExplain = true,
+      bindAssetDiagnose = false,
       planExplainEmptyMessage = '请先生成配置方案',
+      assetDiagnoseEmptyMessage = '请先加载诊断数据',
     } = options;
 
     if (bindHealthDiagnose) {
       this.bindLinkedAction({
         buttonId: 'btnAiHealthDiagnose',
         serviceTitle: '健康度解读',
-        userLabel: '财富健康诊断',
+        userLabel: 'AI资配解读',
+        busyLabel: '解读中…',
+      });
+    }
+    if (bindAssetDiagnose && document.getElementById('btnAiAssetDiagnose')) {
+      this.bindLinkedAction({
+        buttonId: 'btnAiAssetDiagnose',
+        serviceTitle: '资产诊断解读',
+        userLabel: 'AI资产诊断',
         busyLabel: '诊断中…',
+        validate: () => {
+          if (typeof diagnosisData === 'undefined') return null;
+          if (!diagnosisData) return assetDiagnoseEmptyMessage;
+          return null;
+        },
       });
     }
     if (bindPlanExplain && document.getElementById('btnAiPlanExplain')) {
@@ -233,8 +291,7 @@ const AdvisorChat = {
   },
 
   _isDockedLayout() {
-    return document.body.classList.contains('page-smart-allocation')
-      || document.body.classList.contains('page-wealth-journey');
+    return document.body.hasAttribute('data-advisor-dock');
   },
 
   bindUI() {
@@ -476,7 +533,8 @@ const AdvisorChat = {
   getContextPayload() {
     const overview = typeof overviewData !== 'undefined' ? overviewData : null;
     const plan = typeof planData !== 'undefined' ? planData : null;
-    return { overview, plan };
+    const diagnosis = typeof diagnosisData !== 'undefined' ? diagnosisData : null;
+    return { overview, plan, diagnosis };
   },
 
   async sendPrompt(message, options = {}) {
@@ -502,16 +560,16 @@ const AdvisorChat = {
     this.showTyping();
 
     const historyText = text || userLabel;
-    const { overview, plan } = this.getContextPayload();
+    const { overview, plan, diagnosis } = this.getContextPayload();
     let result = null;
     try {
-      result = await this._fetchStream(historyText, cid, overview, plan, this._history, {
+      result = await this._fetchStream(historyText, cid, overview, plan, diagnosis, this._history, {
         linkedParams,
         onReasoning: (t) => this._updateLiveReasoning(t),
         onContent: (t) => this._updateLiveReply(t),
       });
       if (!result) {
-        result = await this._fetchFallback(historyText, cid, overview, plan, this._history, linkedParams);
+        result = await this._fetchFallback(historyText, cid, overview, plan, diagnosis, this._history, linkedParams);
       }
       this.hideTyping();
       this._appendAssistantFromResult(historyText, result);
@@ -559,7 +617,7 @@ const AdvisorChat = {
     });
   },
 
-  async _fetchStream(message, cid, overview, plan, history, hooks = {}) {
+  async _fetchStream(message, cid, overview, plan, diagnosis, history, hooks = {}) {
     const linkedParams = hooks.linkedParams || {};
     if (linkedParams.aftercare) {
       return this._fetchAftercareStream(linkedParams.aftercare, cid, hooks);
@@ -574,6 +632,7 @@ const AdvisorChat = {
         history,
         overview,
         plan,
+        diagnosis,
       }),
     });
     if (!res.ok || !res.body) return null;
@@ -685,7 +744,7 @@ const AdvisorChat = {
     };
   },
 
-  async _fetchFallback(message, cid, overview, plan, history, linkedParams = {}) {
+  async _fetchFallback(message, cid, overview, plan, diagnosis, history, linkedParams = {}) {
     if (linkedParams.aftercare) {
       const { zone, rule_id, field } = linkedParams.aftercare;
       const res = await apiPost('/api/aftercare/companion/generate/item', {
@@ -708,6 +767,7 @@ const AdvisorChat = {
       history,
       overview,
       plan,
+      diagnosis,
     });
     const data = res.data;
     return {
