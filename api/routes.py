@@ -45,6 +45,7 @@ from core.aftercare_companion_service import AftercareCompanionService
 from core.aftercare_monitor_service import AftercareMonitorService
 from core.asset_service import AssetOverviewService, overview_to_dict
 from core.data_store import get_customer_holdings
+from core.product_display import apply_demand_deposit_to_result
 from core.wealth_journey_service import WealthJourneyService
 
 router = APIRouter(prefix="/api")
@@ -127,12 +128,15 @@ def get_asset_overview(
     product_category: Optional[str] = Query(
         None, description="规划类型：投资规划 / 综合规划"
     ),
+    loss_key: Optional[str] = Query(
+        None, description="投资组合偏好档位，覆盖客户风险默认模型"
+    ),
 ) -> Dict[str, Any]:
     """查询客户首页卡片数据。"""
     try:
         service = AssetOverviewService()
         overview = service.build_overview(
-            customer_id, role, product_category=product_category
+            customer_id, role, product_category=product_category, loss_key=loss_key
         )
         return {"code": 0, "message": "ok", "data": overview_to_dict(overview)}
     except ValueError as e:
@@ -141,7 +145,7 @@ def get_asset_overview(
 
 @router.get("/wealth/inventory")
 def wealth_inventory() -> Dict[str, Any]:
-    """财富盘点：客户列表 + 场景化健康标志。"""
+    """财富盘点：客户列表 + 场景化财富健康标志。"""
     svc = WealthJourneyService()
     return {"code": 0, "message": "ok", "data": {"customers": svc.build_inventory()}}
 
@@ -210,10 +214,12 @@ def auto_rebalance(req: AutoRebalanceRequest) -> Dict[str, Any]:
             target_category=req.target_category,
             product_category=product_category,
             flag_codes=flag_codes,
+            loss_key=req.loss_key,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    apply_demand_deposit_to_result(result, holdings)
     explain = ExplainAgent().generate(result)
     return {
         "code": 0,
@@ -318,10 +324,12 @@ def manual_adjust(req: ManualAdjustRequest) -> Dict[str, Any]:
             product_targets=req.product_targets,
             baseline_product_targets=req.baseline_product_targets,
             product_category=product_category,
+            loss_key=req.loss_key,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    apply_demand_deposit_to_result(result, holdings)
     explain = ExplainAgent().generate(result)
     return {
         "code": 0,

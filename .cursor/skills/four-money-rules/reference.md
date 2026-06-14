@@ -49,12 +49,30 @@
 ```yaml
 customer_risk_levels:
   - code: balanced
-    loss_key: loss_6pct
+    loss_pct: 6
 portfolio_map:
   投资规划:
     loss_6pct:
+      label: P3
       target_model: P2-3
+  综合规划:
+    loss_6pct:
+      target_model: P2-3
+risk_loss_default:
+  投资规划:
+    balanced: loss_6pct
+  综合规划:
+    balanced: loss_6pct
 ```
+
+`loss_key` 既用于风险默认映射，也用于智能资配页用户手动选档（API 参数 `loss_key`）。
+
+## allocation_view.yaml
+
+| product_category | view_mode |
+|------------------|-----------|
+| 投资规划 | asset_type（四类资产卡片） |
+| 综合规划 | four_money（四笔钱卡片） |
 
 ## 缓存与热加载
 

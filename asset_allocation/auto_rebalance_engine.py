@@ -60,6 +60,7 @@ class AutoRebalanceEngine:
         target_category: str | None = None,
         product_category: str = "投资规划",
         flag_codes: list[str] | None = None,
+        loss_key: str | None = None,
     ) -> RebalanceResult:
         """
         一键智能配仓。
@@ -86,6 +87,7 @@ class AutoRebalanceEngine:
                 target_category=target_category,
                 product_category=product_category,
                 flag_codes=flag_codes,
+                loss_key=loss_key,
             )
 
         locked = set(locked_categories or [])
@@ -93,7 +95,7 @@ class AutoRebalanceEngine:
 
         # 配置链路：客户风险 → 组合映射 → 模型 → 四笔钱阈值
         resolved = self.config_svc.resolve_profile_targets(
-            product_category, risk_profile
+            product_category, risk_profile, loss_key
         )
         profile_targets = {"targets": resolved["targets"]}
         self._last_model_code = resolved["model"]["model_code"]
@@ -197,13 +199,16 @@ class AutoRebalanceEngine:
         target_category: str | None,
         product_category: str,
         flag_codes: list[str] | None = None,
+        loss_key: str | None = None,
     ) -> RebalanceResult:
         """投资规划：按资产类型四卡配仓，保障类不计入总资产且不参与调仓。"""
         from asset_allocation.flag_driven_solver import FlagDrivenSolver, FlagDrivenSolverError
 
         locked = set(locked_categories or [])
         overrides = manual_overrides or {}
-        resolved = self.config_svc.resolve_asset_type_targets(product_category, risk_profile)
+        resolved = self.config_svc.resolve_asset_type_targets(
+            product_category, risk_profile, loss_key
+        )
         profile_targets = resolved["targets"]
         self._last_model_code = resolved["model"]["model_code"]
         invest_holdings = self._investment_holdings(holdings, self.products)
@@ -372,6 +377,7 @@ class AutoRebalanceEngine:
         product_targets: dict[str, float],
         baseline_product_targets: dict[str, float] | None = None,
         product_category: str = "投资规划",
+        loss_key: str | None = None,
     ) -> RebalanceResult:
         """人工二次调整：仅更新指定产品目标，其余产品保持方案基准不变。"""
         if product_category == "投资规划":
@@ -383,10 +389,11 @@ class AutoRebalanceEngine:
                 product_targets=product_targets,
                 baseline_product_targets=baseline_product_targets,
                 product_category=product_category,
+                loss_key=loss_key,
             )
 
         resolved = self.config_svc.resolve_profile_targets(
-            product_category, risk_profile
+            product_category, risk_profile, loss_key
         )
         profile_targets = resolved["targets"]
 
@@ -475,8 +482,11 @@ class AutoRebalanceEngine:
         product_targets: dict[str, float],
         baseline_product_targets: dict[str, float] | None,
         product_category: str,
+        loss_key: str | None = None,
     ) -> RebalanceResult:
-        resolved = self.config_svc.resolve_asset_type_targets(product_category, risk_profile)
+        resolved = self.config_svc.resolve_asset_type_targets(
+            product_category, risk_profile, loss_key
+        )
         profile_targets = resolved["targets"]
         invest_holdings = self._investment_holdings(holdings, self.products)
         total = sum(invest_holdings.values()) + idle_cash

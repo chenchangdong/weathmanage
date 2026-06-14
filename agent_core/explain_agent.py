@@ -48,6 +48,18 @@ class ExplainAgent:
                 f"基于客户{risk_name}风险画像，总资产{result.total_assets:,.0f}元（含闲置资金{result.idle_cash:,.0f}元），",
                 "理财经理已对智能方案进行人工二次调整，当前为产品级目标配置：",
             ]
+        elif result.mode == "flag_personalized":
+            scope_note = (
+                "（保障类持仓不计入投资规划可配置总资产）"
+                if result.view_mode == "asset_type"
+                else ""
+            )
+            lines = [
+                f"基于客户{risk_name}风险画像，"
+                f"可配置总资产{result.total_assets:,.0f}元{scope_note}"
+                f"（含闲置资金{result.idle_cash:,.0f}元），",
+                "根据财富健康标志诊断结果，采用「个性化智能配仓」策略，生成资产类型配置方案：",
+            ]
         else:
             strategy = self._describe_solver_strategy()
             plan_label = (
@@ -84,6 +96,7 @@ class ExplainAgent:
             "smart_one_click": "智能一键",
             "manual_tweak": "人工微调",
             "manual_product_edit": "人工配置",
+            "flag_personalized": "个性化智能配仓",
         }
         return labels.get(mode, mode)
 

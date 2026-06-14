@@ -275,7 +275,7 @@ class AdvisorChatService:
         if dx.get("available"):
             lines.append(
                 f"资产诊断：综合评分 {dx.get('composite_score')} 分，"
-                f"健康标志 {len(dx.get('flags') or [])} 项。"
+                f"财富健康标志 {len(dx.get('flags') or [])} 项。"
             )
             for c in (dx.get("conclusions") or [])[:3]:
                 lines.append(f"- {c}")

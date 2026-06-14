@@ -1,11 +1,19 @@
 /** AI 顾问对话 — 招行小招式气泡交互 */
 
 const AdvisorChat = {
+  OPEN_STORAGE_KEY: 'advisorChatOpen',
+  SESSION_KEY_PREFIX: 'advisorChatSession:',
+  INFLIGHT_KEY_PREFIX: 'advisorChatInflight:',
   _open: false,
   _history: [],
+  _uiMessages: [],
   _status: null,
   _sending: false,
   _welcomed: false,
+  _inflight: null,
+  _inflightPartialReasoning: '',
+  _inflightPartialContent: '',
+  _abortController: null,
 
   QUICK_SERVICES: [
     {
@@ -18,7 +26,7 @@ const AdvisorChat = {
       icon: '📋',
       title: '资产诊断解读',
       desc: '结构化诊断分析',
-      prompt: '请基于 grounding 中 asset_diagnosis 的结构化诊断结果，解读综合评分、五维雷达、四笔钱配置与健康标志，先给结论，再用 3~4 条要点说明优先处理建议',
+      prompt: '请基于 grounding 中 asset_diagnosis 的结构化诊断结果，解读综合评分、五维雷达、四笔钱配置与财富健康标志，先给结论，再用 3~4 条要点说明优先处理建议',
     },
     {
       icon: '📊',
@@ -84,6 +92,22 @@ const AdvisorChat = {
     while (wrap.firstChild) {
       anchor.parentNode.insertBefore(wrap.firstChild, anchor);
     }
+    this._applyPendingOpenShell();
+  },
+
+  _applyPendingOpenShell() {
+    const pending = document.documentElement.classList.contains('advisor-chat-pending-open');
+    if (!pending) return;
+    this._open = true;
+    const panel = document.getElementById('advisorChatPanel');
+    const fab = document.getElementById('advisorChatToggle');
+    if (panel) {
+      panel.classList.add('open', 'advisor-chat-instant');
+    }
+    if (fab) fab.classList.add('hidden');
+    if (this._isDockedLayout()) {
+      document.body.classList.add('advisor-chat-docked-open');
+    }
   },
 
   PAGE_DOCK_CONTAINERS:
@@ -92,9 +116,308 @@ const AdvisorChat = {
   async init(options = {}) {
     this.mountShell();
     this.setupPageDock(options.dock);
-    await this.refreshStatus();
     this.bindUI();
+    this._restoreSessionState();
+    await this._resumeInflightIfNeeded();
     this.bindPageLinkedActions(options);
+    await this.refreshStatus();
+  },
+
+  _defaultOpenOnDock() {
+    return this._isDockedLayout() && sessionStorage.getItem(this.OPEN_STORAGE_KEY) !== '0';
+  },
+
+  _sessionKey() {
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    return `${this.SESSION_KEY_PREFIX}${cid || '_none'}`;
+  },
+
+  _inflightKey() {
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    return `${this.INFLIGHT_KEY_PREFIX}${cid || '_none'}`;
+  },
+
+  _beginInflight({ message, userLabel, historyBefore, linkedParams }) {
+    this._inflight = {
+      message,
+      userLabel,
+      historyBefore: Array.isArray(historyBefore) ? historyBefore : [],
+      linkedParams: linkedParams || {},
+    };
+    this._inflightPartialReasoning = '';
+    this._inflightPartialContent = '';
+    this._persistInflight();
+  },
+
+  _persistInflight(extra = {}) {
+    if (!this._inflight) return;
+    try {
+      const payload = {
+        customerId: typeof getCustomerId === 'function' ? getCustomerId() : '',
+        message: this._inflight.message,
+        userLabel: this._inflight.userLabel,
+        historyBefore: this._inflight.historyBefore,
+        linkedParams: this._inflight.linkedParams,
+        partialReasoning: this._inflightPartialReasoning || '',
+        partialContent: this._inflightPartialContent || '',
+        interrupted: !!extra.interrupted,
+      };
+      sessionStorage.setItem(this._inflightKey(), JSON.stringify(payload));
+    } catch (e) {
+      /* sessionStorage unavailable */
+    }
+  },
+
+  _schedulePersistInflight() {
+    if (this._inflightPersistTimer) clearTimeout(this._inflightPersistTimer);
+    this._inflightPersistTimer = setTimeout(() => {
+      if (this._sending && this._inflight) this._persistInflight();
+    }, 250);
+  },
+
+  _clearInflight() {
+    this._inflight = null;
+    this._inflightPartialReasoning = '';
+    this._inflightPartialContent = '';
+    if (this._inflightPersistTimer) {
+      clearTimeout(this._inflightPersistTimer);
+      this._inflightPersistTimer = null;
+    }
+    try {
+      sessionStorage.removeItem(this._inflightKey());
+    } catch (e) {
+      /* ignore */
+    }
+  },
+
+  _createStreamHooks() {
+    return {
+      linkedParams: (this._inflight && this._inflight.linkedParams) || {},
+      onReasoning: (t) => {
+        this._inflightPartialReasoning = t;
+        this._updateLiveReasoning(t);
+        this._schedulePersistInflight();
+      },
+      onContent: (t) => {
+        this._inflightPartialContent = t;
+        this._updateLiveReply(t);
+        this._schedulePersistInflight();
+      },
+    };
+  },
+
+  async _completeInflightTurn(options = {}) {
+    const inflight = this._inflight;
+    if (!inflight) return null;
+
+    const { message, historyBefore, linkedParams } = inflight;
+    const cid = getCustomerId();
+    const { overview, plan, diagnosis } = this.getContextPayload();
+    const hooks = this._createStreamHooks();
+
+    let result = null;
+    try {
+      result = await this._fetchStream(
+        message,
+        cid,
+        overview,
+        plan,
+        diagnosis,
+        historyBefore || [],
+        hooks
+      );
+      if (!result) {
+        result = await this._fetchFallback(
+          message,
+          cid,
+          overview,
+          plan,
+          diagnosis,
+          historyBefore || [],
+          linkedParams || {}
+        );
+      }
+      this.hideTyping();
+      this._appendAssistantFromResult(message, result);
+      if (options.onComplete) options.onComplete(result);
+      return result;
+    } catch (e) {
+      if (e.name === 'AbortError') return null;
+      this.hideTyping();
+      this.appendMessage(
+        'assistant',
+        '请求失败：' + e.message + '。推理模型可能需要 30–60 秒，请确认服务未超时。',
+        { source: 'fallback' }
+      );
+      return null;
+    } finally {
+      this._abortController = null;
+      this._clearInflight();
+      this._sending = false;
+      this._syncSendBtn();
+    }
+  },
+
+  async _resumeInflightIfNeeded() {
+    try {
+      const raw = sessionStorage.getItem(this._inflightKey());
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+      if (!cid || data.customerId !== cid || !data.message) return;
+
+      this._inflight = {
+        message: data.message,
+        userLabel: data.userLabel || data.message,
+        historyBefore: Array.isArray(data.historyBefore) ? data.historyBefore : [],
+        linkedParams: data.linkedParams || {},
+      };
+      this._inflightPartialReasoning = data.partialReasoning || '';
+      this._inflightPartialContent = data.partialContent || '';
+      this._sending = true;
+      this._syncSendBtn();
+      this.setOpen(true, { skipFocus: true, skipAnimation: true, skipPersist: true });
+
+      this.showTyping();
+      if (this._inflightPartialReasoning) {
+        this._updateLiveReasoning(this._inflightPartialReasoning);
+      }
+      if (this._inflightPartialContent) {
+        this._updateLiveReply(this._inflightPartialContent);
+      }
+
+      await this._waitForPageContext();
+      await this._completeInflightTurn();
+    } catch (e) {
+      this._clearInflight();
+      this._sending = false;
+      this._syncSendBtn();
+    }
+  },
+
+  /** 跳转后续传前等待当前页业务数据就绪，以便 grounding 完整 */
+  async _waitForPageContext(maxMs = 5000) {
+    const path = location.pathname.split('/').pop() || '';
+    const start = Date.now();
+    while (Date.now() - start < maxMs) {
+      if (path === 'asset_diagnosis.html') {
+        if (typeof diagnosisData === 'undefined') break;
+        if (diagnosisData !== null) break;
+      } else if (path === 'smart_allocation.html') {
+        if (typeof overviewData === 'undefined') break;
+        if (overviewData !== null) break;
+      } else {
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 80));
+    }
+  },
+
+  _persistSession() {
+    try {
+      const box = document.getElementById('advisorChatMessages');
+      const payload = {
+        open: this._open,
+        welcomed: this._welcomed,
+        history: this._history,
+        messages: this._uiMessages,
+        scrollTop: box ? box.scrollTop : 0,
+      };
+      sessionStorage.setItem(this._sessionKey(), JSON.stringify(payload));
+      sessionStorage.setItem(this.OPEN_STORAGE_KEY, this._open ? '1' : '0');
+    } catch (e) {
+      /* sessionStorage unavailable */
+    }
+  },
+
+  _schedulePersistScroll() {
+    if (this._scrollPersistTimer) clearTimeout(this._scrollPersistTimer);
+    this._scrollPersistTimer = setTimeout(() => this._persistSession(), 120);
+  },
+
+  _restoreSessionState() {
+    try {
+      const raw = sessionStorage.getItem(this._sessionKey());
+      if (!raw) {
+        if (this._defaultOpenOnDock()) {
+          this.setOpen(true, { skipPersist: true, skipFocus: true, skipAnimation: true });
+        } else if (sessionStorage.getItem(this.OPEN_STORAGE_KEY) === '1') {
+          this.setOpen(true, { skipPersist: true, skipFocus: true, skipAnimation: true });
+        } else if (document.documentElement.classList.contains('advisor-chat-pending-open')) {
+          this._clearPendingOpen();
+        }
+        return;
+      }
+
+      const data = JSON.parse(raw);
+      this._history = Array.isArray(data.history) ? data.history : [];
+      this._uiMessages = Array.isArray(data.messages) ? data.messages : [];
+      this._welcomed = false;
+
+      const box = document.getElementById('advisorChatMessages');
+      if (box) box.innerHTML = '';
+
+      this._uiMessages.forEach((m) => {
+        if (m.kind === 'welcome') {
+          this.showWelcome({ skipPersist: true, time: m.time });
+        } else {
+          this.appendMessage(m.role, m.content, m.meta || {}, {
+            skipPersist: true,
+            time: m.time,
+          });
+        }
+      });
+
+      if (data.welcomed && !this._uiMessages.some(m => m.kind === 'welcome')) {
+        this.showWelcome({ skipPersist: true });
+      }
+
+      if (data.open === false) {
+        this.setOpen(false, { skipPersist: true, skipFocus: true, skipAnimation: true });
+      } else if (data.open || this._defaultOpenOnDock()) {
+        this.setOpen(true, { skipPersist: true, skipFocus: true, skipAnimation: true });
+      }
+
+      if (box && typeof data.scrollTop === 'number') {
+        requestAnimationFrame(() => {
+          box.scrollTop = data.scrollTop;
+        });
+      }
+    } catch (e) {
+      /* ignore corrupt session */
+    } finally {
+      this._clearPendingOpen();
+    }
+  },
+
+  _clearPendingOpen() {
+    document.documentElement.classList.remove('advisor-chat-pending-open');
+    const panel = document.getElementById('advisorChatPanel');
+    if (panel) {
+      requestAnimationFrame(() => panel.classList.remove('advisor-chat-instant'));
+    }
+  },
+
+  /** 切换客户时恢复该客户的历史会话（无记录则空白） */
+  async reloadForCustomer() {
+    if (this._abortController) this._abortController.abort();
+    this._clearInflight();
+    this._history = [];
+    this._uiMessages = [];
+    this._welcomed = false;
+    this._open = false;
+    this._sending = false;
+    const box = document.getElementById('advisorChatMessages');
+    if (box) box.innerHTML = '';
+    document.body.classList.remove('advisor-chat-docked-open', 'advisor-chat-open');
+    const panel = document.getElementById('advisorChatPanel');
+    const fab = document.getElementById('advisorChatToggle');
+    if (panel) panel.classList.remove('open');
+    if (fab) fab.classList.remove('hidden');
+    this.hideTyping();
+    this._restoreSessionState();
+    await this._resumeInflightIfNeeded();
+    this._syncSendBtn();
   },
 
   /** 侧栏停靠页统一初始化（点击外部不关闭、主内容自适应） */
@@ -333,6 +656,17 @@ const AdvisorChat = {
           this.sendPrompt(text);
         }
       });
+      messages.addEventListener('scroll', () => this._schedulePersistScroll());
+    }
+
+    if (!this._pageLifecycleBound) {
+      this._pageLifecycleBound = true;
+      window.addEventListener('pagehide', () => {
+        if (this._sending && this._inflight) {
+          this._persistInflight({ interrupted: true });
+        }
+        this._persistSession();
+      });
     }
 
     if (panel) panel.addEventListener('click', (e) => e.stopPropagation());
@@ -348,12 +682,13 @@ const AdvisorChat = {
     send.disabled = !((input && input.value.trim()) && !this._sending);
   },
 
-  setOpen(open) {
+  setOpen(open, options = {}) {
     this._open = open;
     const panel = document.getElementById('advisorChatPanel');
     const backdrop = document.getElementById('advisorChatBackdrop');
     const fab = document.getElementById('advisorChatToggle');
     const docked = this._isDockedLayout();
+    if (options.skipAnimation && panel) panel.classList.add('advisor-chat-instant');
     if (panel) panel.classList.toggle('open', open);
     if (fab) fab.classList.toggle('hidden', open);
     if (docked) {
@@ -365,10 +700,16 @@ const AdvisorChat = {
       document.body.classList.remove('advisor-chat-docked-open');
       if (backdrop) backdrop.classList.toggle('open', open);
     }
+    if (!options.skipPersist) this._persistSession();
     if (open) {
       if (!this._welcomed) this.showWelcome();
-      const input = document.getElementById('advisorChatInput');
-      if (input) setTimeout(() => input.focus(), 320);
+      if (!options.skipFocus) {
+        const input = document.getElementById('advisorChatInput');
+        if (input) setTimeout(() => input.focus(), 320);
+      }
+    }
+    if (options.skipAnimation && panel) {
+      requestAnimationFrame(() => panel.classList.remove('advisor-chat-instant'));
     }
   },
 
@@ -386,11 +727,11 @@ const AdvisorChat = {
       </button>`).join('');
   },
 
-  showWelcome() {
+  showWelcome(options = {}) {
     const box = document.getElementById('advisorChatMessages');
     if (!box || this._welcomed) return;
     this._welcomed = true;
-    const time = this._nowLabel();
+    const time = options.time || this._nowLabel();
     const wrap = document.createElement('div');
     wrap.className = 'advisor-chat-welcome';
     wrap.innerHTML = `
@@ -413,6 +754,10 @@ const AdvisorChat = {
       </div>`;
     box.appendChild(wrap);
     this._scrollToBottom();
+    if (!options.skipPersist) {
+      this._uiMessages.push({ kind: 'welcome', time });
+      this._persistSession();
+    }
   },
 
   showTyping() {
@@ -459,11 +804,11 @@ const AdvisorChat = {
     if (el) el.remove();
   },
 
-  appendMessage(role, content, meta = {}) {
+  appendMessage(role, content, meta = {}, options = {}) {
     const box = document.getElementById('advisorChatMessages');
     if (!box) return;
     const isUser = role === 'user';
-    const time = this._nowLabel();
+    const time = options.time || this._nowLabel();
     const row = document.createElement('div');
     row.className = `advisor-chat-row advisor-chat-row-${isUser ? 'user' : 'assistant'}`;
 
@@ -487,7 +832,22 @@ const AdvisorChat = {
         </div>
         <div class="advisor-chat-time">${time}</div>`;
     box.appendChild(row);
-    this._scrollToBottom();
+    if (!options.skipPersist) this._scrollToBottom();
+    else if (typeof options.scrollTop === 'number') {
+      box.scrollTop = options.scrollTop;
+    }
+    if (!options.skipPersist) {
+      this._uiMessages.push({
+        role,
+        content,
+        time,
+        meta: {
+          source: meta.source || '',
+          reasoning: meta.reasoning || '',
+        },
+      });
+      this._persistSession();
+    }
   },
 
   _formatContent(text) {
@@ -551,42 +911,20 @@ const AdvisorChat = {
     }
 
     const userLabel = options.userLabel || text || 'AI辅助生成';
+    const historyText = text || userLabel;
+    const historyBefore = [...this._history];
+
     this._sending = true;
     this._syncSendBtn();
+    this._beginInflight({ message: historyText, userLabel, historyBefore, linkedParams });
+
     const input = document.getElementById('advisorChatInput');
     if (input) input.value = '';
     this.setOpen(true);
     this.appendMessage('user', userLabel);
     this.showTyping();
 
-    const historyText = text || userLabel;
-    const { overview, plan, diagnosis } = this.getContextPayload();
-    let result = null;
-    try {
-      result = await this._fetchStream(historyText, cid, overview, plan, diagnosis, this._history, {
-        linkedParams,
-        onReasoning: (t) => this._updateLiveReasoning(t),
-        onContent: (t) => this._updateLiveReply(t),
-      });
-      if (!result) {
-        result = await this._fetchFallback(historyText, cid, overview, plan, diagnosis, this._history, linkedParams);
-      }
-      this.hideTyping();
-      this._appendAssistantFromResult(historyText, result);
-      if (options.onComplete) options.onComplete(result);
-      return result;
-    } catch (e) {
-      this.hideTyping();
-      this.appendMessage(
-        'assistant',
-        '请求失败：' + e.message + '。推理模型可能需要 30–60 秒，请确认服务未超时。',
-        { source: 'fallback' }
-      );
-      return null;
-    } finally {
-      this._sending = false;
-      this._syncSendBtn();
-    }
+    return this._completeInflightTurn({ onComplete: options.onComplete });
   },
 
   async send() {
@@ -623,9 +961,12 @@ const AdvisorChat = {
       return this._fetchAftercareStream(linkedParams.aftercare, cid, hooks);
     }
 
+    this._abortController = new AbortController();
+
     const res = await fetch('/api/ai/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: this._abortController ? this._abortController.signal : undefined,
       body: JSON.stringify({
         customer_id: cid,
         message,
@@ -686,9 +1027,11 @@ const AdvisorChat = {
 
   async _fetchAftercareStream(aftercare, cid, hooks = {}) {
     const { zone, rule_id, field } = aftercare;
+    this._abortController = new AbortController();
     const res = await fetch('/api/aftercare/companion/generate/item/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: this._abortController.signal,
       body: JSON.stringify({
         customer_id: cid,
         zone,
@@ -778,11 +1121,18 @@ const AdvisorChat = {
   },
 
   clearHistory() {
+    if (this._abortController) this._abortController.abort();
+    this._clearInflight();
+    this._sending = false;
     this._history = [];
+    this._uiMessages = [];
     this._welcomed = false;
     const box = document.getElementById('advisorChatMessages');
     if (box) box.innerHTML = '';
+    this.hideTyping();
+    this._persistSession();
     this.showWelcome();
+    this._syncSendBtn();
     showToast('对话已清空');
   },
 };

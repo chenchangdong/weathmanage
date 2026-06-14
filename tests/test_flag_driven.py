@@ -78,6 +78,103 @@ class TestFlagDrivenSolver:
         expected = bench + (hi - bench) * 0.5
         assert abs(tgt["equity"] - expected) < total * 0.02 + 1
 
+    def test_return_below_equity_at_least_bench_not_cut(self):
+        """收益低：权益 intent 为 max(bench,cur)，不主动减超基准仓。"""
+        total = 1_000_000.0
+        bounds = {
+            "cash": {"target": 0.05, "band": [0.03, 0.10]},
+            "fixed_income": {"target": 0.30, "band": [0.20, 0.40]},
+            "equity": {"target": 0.40, "band": [0.30, 0.50]},
+            "alternative": {"target": 0.25, "band": [0.15, 0.35]},
+        }
+        profile = {
+            cat: {"target": bounds[cat]["target"], "band": bounds[cat]["band"]}
+            for cat in bounds
+        }
+        cur = {
+            "cash": 80_000.0,
+            "fixed_income": 300_000.0,
+            "equity": 450_000.0,  # 高于基准 400k，低于上限 500k
+            "alternative": 170_000.0,
+        }
+        tgt, _ = self.solver.solve(
+            current_cat=cur,
+            idle_cash=0,
+            profile_targets=profile,
+            flag_codes=["return_below_expected"],
+        )
+        assert tgt["equity"] >= 450_000.0 - 0.02
+
+    def test_return_above_fixed_anchors_bench(self):
+        """收益高：固收 intent 至少基准，超基准部分不在 intent 阶段主动卖出。"""
+        total = 1_000_000.0
+        profile = {
+            "cash": {"target": 0.05, "band": [0.03, 0.10]},
+            "fixed_income": {"target": 0.30, "band": [0.20, 0.40]},
+            "equity": {"target": 0.40, "band": [0.30, 0.50]},
+            "alternative": {"target": 0.25, "band": [0.15, 0.35]},
+        }
+        cur = {
+            "cash": 30_000.0,
+            "fixed_income": 350_000.0,  # 高于基准 300k
+            "equity": 500_000.0,
+            "alternative": 120_000.0,
+        }
+        tgt, _ = self.solver.solve(
+            current_cat=cur,
+            idle_cash=0,
+            profile_targets=profile,
+            flag_codes=["return_above_expected"],
+        )
+        assert tgt["fixed_income"] >= 350_000.0 - 0.02
+
+    def test_merge_above_and_principal_prefers_principal(self):
+        total = 1_000_000.0
+        profile = {
+            "cash": {"target": 0.05, "band": [0.03, 0.10]},
+            "fixed_income": {"target": 0.30, "band": [0.20, 0.40]},
+            "equity": {"target": 0.40, "band": [0.30, 0.50]},
+            "alternative": {"target": 0.25, "band": [0.15, 0.35]},
+        }
+        lo_eq = profile["equity"]["band"][0] * total
+        cur = {
+            "cash": 50_000.0,
+            "fixed_income": 300_000.0,
+            "equity": 450_000.0,
+            "alternative": 200_000.0,
+        }
+        tgt, _ = self.solver.solve(
+            current_cat=cur,
+            idle_cash=0,
+            profile_targets=profile,
+            flag_codes=["return_above_expected", "principal_loss_exceeded"],
+        )
+        assert abs(tgt["equity"] - lo_eq) < total * 0.02 + 1
+
+    def test_merge_above_and_volatility_uses_vol_and_note(self):
+        total = 1_000_000.0
+        profile = {
+            "cash": {"target": 0.05, "band": [0.03, 0.10]},
+            "fixed_income": {"target": 0.30, "band": [0.20, 0.40]},
+            "equity": {"target": 0.40, "band": [0.30, 0.50]},
+            "alternative": {"target": 0.25, "band": [0.15, 0.35]},
+        }
+        bench_f = profile["fixed_income"]["target"] * total
+        cur = {
+            "cash": 30_000.0,
+            "fixed_income": 250_000.0,
+            "equity": 500_000.0,
+            "alternative": 220_000.0,
+        }
+        tgt, notes = self.solver.solve(
+            current_cat=cur,
+            idle_cash=0,
+            profile_targets=profile,
+            flag_codes=["return_above_expected", "volatility_exceeded"],
+        )
+        assert any("兼考虑收益偏高" in n for n in notes)
+        assert tgt["fixed_income"] <= bench_f + total * 0.02 + 1 or tgt["fixed_income"] >= bench_f - 0.02
+
 
 class TestFlagPersonalizedRebalance:
     def test_engine_flag_personalized(self):

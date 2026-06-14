@@ -33,6 +33,7 @@ class AssetOverviewService:
         customer_id: str,
         role: str = "advisor",
         product_category: Optional[str] = None,
+        loss_key: Optional[str] = None,
     ) -> AssetOverview:
         customer = get_demo_customer(customer_id)
         if not customer:
@@ -56,12 +57,15 @@ class AssetOverviewService:
                 risk_profile=risk_profile,
                 product_category=product_category,
                 role=role,
+                loss_key=loss_key,
             )
 
         total = sum(holdings.values()) + idle_cash
 
         config_svc = AllocationConfigService()
-        resolved = config_svc.resolve_profile_targets(product_category, risk_profile)
+        resolved = config_svc.resolve_profile_targets(
+            product_category, risk_profile, loss_key
+        )
         profile_targets = resolved["targets"]
         allocation_mapping = resolved["model"]
         current_cat = self.engine._aggregate_by_category(holdings)
@@ -153,6 +157,7 @@ class AssetOverviewService:
         risk_profile: str,
         product_category: str,
         role: str,
+        loss_key: Optional[str] = None,
     ) -> AssetOverview:
         """投资规划：按资产类型四卡展示，保障类不计入总资产。"""
         product_map = get_product_map()
@@ -167,7 +172,9 @@ class AssetOverviewService:
 
         total = sum(invest_holdings.values()) + idle_cash
         config_svc = AllocationConfigService()
-        resolved = config_svc.resolve_asset_type_targets(product_category, risk_profile)
+        resolved = config_svc.resolve_asset_type_targets(
+            product_category, risk_profile, loss_key
+        )
         profile_targets = resolved["targets"]
         allocation_mapping = resolved["model"]
         names = get_asset_type_aliases()

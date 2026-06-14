@@ -1,4 +1,4 @@
-"""健康标志驱动配仓 — 独立于一键 smart_one_click 的大类目标求解器。"""
+"""财富健康标志驱动配仓 — 独立于一键 smart_one_click 的大类目标求解器。"""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ class FlagDrivenSolverError(ValueError):
 
 
 class FlagDrivenSolver:
-    """根据健康标志计算四类资产目标金额（含归一化）。"""
+    """根据财富健康标志计算四类资产目标金额（含归一化）。"""
 
     def solve(
         self,
@@ -67,9 +67,8 @@ class FlagDrivenSolver:
 
         cur = self._cash_pool(current_cat, idle_cash)
         bounds = self._bounds(profile_targets, total)
-        dominant = self._dominant_scenario(effective)
 
-        intent, passive = self._merged_intents(
+        intent, passive, normalize_key = self._merged_intents(
             effective, cur, total, bounds, profile_targets
         )
         intent = self._alternative_yields_equity(intent, cur, bounds)
@@ -77,6 +76,11 @@ class FlagDrivenSolver:
 
         notes: list[str] = []
         notes.append(f"个性化配仓依据：{self._flag_labels(effective)}")
+        if (
+            "return_above_expected" in effective
+            and "volatility_exceeded" in effective
+        ):
+            notes.append("兼考虑收益偏高，权益已收到基准止盈")
 
         diff = round(total - sum(tgt.values()), 2)
         if abs(diff) > _EPS:
@@ -85,7 +89,7 @@ class FlagDrivenSolver:
                 diff=diff,
                 total=total,
                 bounds=bounds,
-                dominant=dominant,
+                dominant=normalize_key,
                 passive=passive,
             )
             notes.extend(norm_notes)
@@ -139,8 +143,11 @@ class FlagDrivenSolver:
 
     @staticmethod
     def _dominant_scenario(codes: set[str]) -> str:
+        """复合场景主导优先级：本金亏 > 波动高 > 收益高 > 收益低。"""
         if "principal_loss_exceeded" in codes:
             return "principal_loss_exceeded"
+        if "volatility_exceeded" in codes:
+            return "volatility_exceeded"
         if "return_above_expected" in codes:
             return "return_above_expected"
         if "return_below_expected" in codes:
@@ -154,21 +161,24 @@ class FlagDrivenSolver:
         total: float,
         bounds: dict[str, dict[str, float]],
         profile_targets: dict[str, Any],
-    ) -> tuple[dict[str, float], set[str]]:
+    ) -> tuple[dict[str, float], set[str], str]:
         passive: set[str] = set()
 
         if "return_above_expected" in codes and "principal_loss_exceeded" in codes:
-            return self._scenario_intents(
-                "return_above_expected", cur, total, bounds, passive
-            )
-
-        if "return_below_expected" in codes and "principal_loss_exceeded" in codes:
-            return self._scenario_intents(
+            intents, passive = self._scenario_intents(
                 "principal_loss_exceeded", cur, total, bounds, passive
             )
+            return intents, passive, "principal_loss_exceeded"
+
+        if "return_below_expected" in codes and "principal_loss_exceeded" in codes:
+            intents, passive = self._scenario_intents(
+                "principal_loss_exceeded", cur, total, bounds, passive
+            )
+            return intents, passive, "principal_loss_exceeded"
 
         if "return_below_expected" in codes and "volatility_exceeded" in codes:
-            return self._merge_below_vol(cur, total, bounds, passive)
+            intents, passive = self._merge_below_vol(cur, total, bounds, passive)
+            return intents, passive, "return_below_expected"
 
         if "principal_loss_exceeded" in codes and "volatility_exceeded" in codes:
             s3, p3 = self._scenario_intents(
@@ -181,19 +191,22 @@ class FlagDrivenSolver:
             for cat in (EQUITY, ALT):
                 merged[cat] = min(s3[cat], s4[cat])
             passive = p3 | {c for c in INVESTMENT_CARD_KEYS if merged[c] == cur[c]}
-            return merged, passive
+            return merged, passive, "principal_loss_exceeded"
 
         if "return_above_expected" in codes and "volatility_exceeded" in codes:
-            return self._scenario_intents(
-                "return_above_expected", cur, total, bounds, passive
+            intents, passive = self._scenario_intents(
+                "volatility_exceeded", cur, total, bounds, passive
             )
+            return intents, passive, "volatility_exceeded"
 
         if len(codes) == 1:
             code = next(iter(codes))
-            return self._scenario_intents(code, cur, total, bounds, passive)
+            intents, passive = self._scenario_intents(code, cur, total, bounds, passive)
+            return intents, passive, code
 
         primary = self._dominant_scenario(codes)
-        return self._scenario_intents(primary, cur, total, bounds, passive)
+        intents, passive = self._scenario_intents(primary, cur, total, bounds, passive)
+        return intents, passive, primary
 
     def _merge_below_vol(
         self,
@@ -232,12 +245,14 @@ class FlagDrivenSolver:
         if scenario == "return_below_expected":
             intents[CASH] = self._to_bench_down(cur[CASH], bounds[CASH])
             intents[FIXED] = self._to_upper_cap(cur[FIXED], bounds[FIXED])
-            intents[EQUITY] = bounds[EQUITY]["hi"]
+            # 至少基准，不主动减超基准仓；Normalize 按 BUY 顺序加至上限
+            intents[EQUITY] = self._to_bench_up(cur[EQUITY], bounds[EQUITY])
             intents[ALT] = self._hold_in_band(cur[ALT], bounds[ALT])
 
         elif scenario == "return_above_expected":
             intents[CASH] = self._to_bench_up(cur[CASH], bounds[CASH])
-            intents[FIXED] = bounds[FIXED]["hi"]
+            # 至少基准，不主动减超基准仓；Normalize 按 BUY 顺序加至上限
+            intents[FIXED] = self._to_bench_up(cur[FIXED], bounds[FIXED])
             intents[EQUITY] = self._to_bench_down(cur[EQUITY], bounds[EQUITY])
             intents[ALT] = bounds[ALT]["lo"]
 

@@ -513,9 +513,32 @@ body {
 }
 
 .addon-holding-bar-split {
+  display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
+}
+
+.addon-holding-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.model-selector-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.addon-holding-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .addon-holding-planning {
@@ -534,42 +557,182 @@ body {
   min-width: 128px;
 }
 
-.addon-holding-main {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-left: auto;
-  justify-content: flex-end;
-}
-
 .addon-holding-bar label {
   white-space: nowrap;
   font-size: 14px;
   color: var(--text-secondary);
 }
 
+.addon-holding-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .addon-holding-input {
-  width: 160px;
-  padding: 10px 12px;
+  width: 72px;
+  padding: 10px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
   background: var(--card-bg);
+  text-align: right;
+}
+
+.addon-holding-unit {
+  font-size: 14px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.addon-holding-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #888);
+  cursor: help;
+  outline: none;
+}
+
+.addon-holding-info-icon {
+  display: block;
+}
+
+.addon-holding-info-tip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  z-index: 200;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.5;
+  border-radius: 6px;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  white-space: normal;
+}
+
+.addon-holding-info:hover .addon-holding-info-tip,
+.addon-holding-info:focus .addon-holding-info-tip,
+.addon-holding-info:focus-within .addon-holding-info-tip {
+  visibility: visible;
+  opacity: 1;
 }
 
 .addon-holding-input.invalid {
   border-color: #e53935;
 }
 
-.addon-holding-hint {
-  font-size: 13px;
-  color: var(--text-muted, #888);
-}
-
 .addon-holding-error {
   font-size: 13px;
   color: #e53935;
+}
+
+.model-selector-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.model-selector-mode-tabs {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-secondary, #f5f5f5);
+  flex-shrink: 0;
+}
+
+.model-selector-tab {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s;
+}
+
+.model-selector-tab + .model-selector-tab {
+  border-left: 1px solid var(--border);
+}
+
+.model-selector-tab:hover:not(.active) {
+  color: var(--text-primary, #222);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.model-selector-tab.active {
+  background: var(--primary, #1677ff);
+  color: #fff;
+  font-weight: 600;
+}
+
+.model-selector-select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--card-bg);
+  min-width: 100px;
+  max-width: 160px;
+  flex-shrink: 1;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch .slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #ccc;
+  border-radius: 24px;
+  transition: 0.2s;
+}
+
+.switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.switch input:checked + .slider {
+  background-color: var(--primary, #1976d2);
+}
+
+.switch input:checked + .slider:before {
+  transform: translateX(20px);
 }
 
 /* 四大卡片 */
@@ -1373,7 +1536,22 @@ body.advisor-chat-open { overflow: hidden; }
 
 .advisor-chat-panel.open { transform: translateX(0); }
 
-/* 顾问侧栏停靠：主内容右移、点击外部不关闭（backdrop 隐藏） */
+.advisor-chat-panel.advisor-chat-instant {
+  transition: none !important;
+}
+
+/* 首屏 bootstrap：跳转前已判定为打开，避免侧栏闪动 */
+html.advisor-chat-pending-open body[data-advisor-dock] {
+  --advisor-panel-width: 380px;
+  padding-right: var(--advisor-panel-width);
+}
+
+html.advisor-chat-pending-open body[data-advisor-dock] .advisor-chat-panel {
+  transform: translateX(0);
+  transition: none !important;
+}
+
+/* 顾问侧栏停靠：默认展开，可关闭；主内容随侧栏开合自适应 */
 body[data-advisor-dock] {
   --advisor-panel-width: 0px;
   --page-max-width: 1152px;
@@ -1396,8 +1574,13 @@ body[data-advisor-dock] .advisor-chat-backdrop {
 body[data-advisor-dock] .advisor-chat-panel {
   width: 380px;
   max-width: min(380px, 100vw);
+  transform: translateX(100%);
   box-shadow: -2px 0 20px rgba(74, 130, 210, 0.12);
   border-left: 1px solid rgba(74, 130, 210, 0.12);
+}
+
+body[data-advisor-dock] .advisor-chat-panel.open {
+  transform: translateX(0);
 }
 
 .container-wealth.container-advisor-dock,
@@ -1407,21 +1590,25 @@ body[data-advisor-dock] .advisor-chat-panel {
 }
 
 @media (max-width: 768px) {
-  body[data-advisor-dock],
-  body[data-advisor-dock].advisor-chat-docked-open {
+  body[data-advisor-dock] {
     --advisor-panel-width: 0px;
     padding-right: 0;
   }
 
-  body[data-advisor-dock].advisor-chat-docked-open .container-advisor-dock {
+  body[data-advisor-dock] .container-advisor-dock {
     max-width: var(--page-max-width);
   }
 
   body[data-advisor-dock] .advisor-chat-panel {
     width: 100vw;
     max-width: 100vw;
+    transform: translateX(100%);
     border-radius: 0;
     border-left: none;
+  }
+
+  body[data-advisor-dock] .advisor-chat-panel.open {
+    transform: translateX(0);
   }
 }
 
@@ -2517,4 +2704,94 @@ body[data-advisor-dock] .advisor-chat-panel {
 .page-smart-allocation .journey-step-bar,
 .page-wealth-journey .journey-step-bar {
   margin-bottom: 12px;
+}
+
+/* 智能资配工具栏：右列对齐「财富健康标志」与「追加持仓」 */
+.page-smart-allocation .smart-alloc-toolbar {
+  --toolbar-select-width: 220px;
+  display: grid;
+  grid-template-columns: auto var(--toolbar-select-width) auto minmax(160px, 1fr);
+  column-gap: 8px;
+  row-gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.page-smart-allocation .smart-alloc-toolbar .toolbar-label {
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.page-smart-allocation .smart-alloc-toolbar .toolbar-field {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--card-bg);
+  width: 100%;
+  max-width: var(--toolbar-select-width);
+  box-sizing: border-box;
+}
+
+.page-smart-allocation .smart-alloc-toolbar .toolbar-right {
+  padding-left: 24px;
+}
+
+.page-smart-allocation .smart-alloc-toolbar .toolbar-flags,
+.page-smart-allocation .smart-alloc-toolbar #overviewHealthFlags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: unset;
+}
+
+.page-smart-allocation .smart-alloc-toolbar .toolbar-addon-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.page-smart-allocation .smart-alloc-toolbar .toolbar-model-row {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+
+.page-smart-allocation .smart-alloc-toolbar .model-selector-select {
+  width: var(--toolbar-select-width);
+  max-width: 100%;
+  min-width: 128px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .page-smart-allocation .smart-alloc-toolbar {
+    grid-template-columns: auto 1fr;
+  }
+
+  .page-smart-allocation .smart-alloc-toolbar .toolbar-field {
+    max-width: none;
+  }
+
+  .page-smart-allocation .smart-alloc-toolbar .model-selector-select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .page-smart-allocation .smart-alloc-toolbar .toolbar-flags,
+  .page-smart-allocation .smart-alloc-toolbar #overviewHealthFlags,
+  .page-smart-allocation .smart-alloc-toolbar .toolbar-addon-field,
+  .page-smart-allocation .smart-alloc-toolbar .toolbar-model-row,
+  .page-smart-allocation .smart-alloc-toolbar .toolbar-right {
+    grid-column: 1 / -1;
+    padding-left: 0;
+  }
+
+  .page-smart-allocation .smart-alloc-toolbar .toolbar-label.toolbar-right {
+    padding-left: 0;
+  }
 }

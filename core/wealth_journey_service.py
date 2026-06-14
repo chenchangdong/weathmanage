@@ -19,7 +19,17 @@ from core.data_store import get_customer_holdings
 
 PLANNING_CATEGORY = "投资规划"
 
-# 演示用模拟业绩（稳定、可复现；与模型基准对齐，单客户健康标志不超过 2 个）
+# 演示用模拟业绩（稳定、可复现；与模型基准对齐）
+# 四笔钱配置不合理 four_money_mismatch 由持仓实时计算，不在此表。
+# 各客户有效标志（不含 four_money_mismatch，与最新 data_store 对齐）：
+#   C001 张女士  return_above_expected
+#   C002 李先生  （无）
+#   C003 王先生  volatility_exceeded
+#   C004 赵女士  return_below_expected
+#   C005 陈先生  return_above_expected
+#   C006 刘女士  return_above_expected + principal_loss_exceeded
+#   C007 周先生  principal_loss_exceeded（未持仓 P000 活钱存款）
+#   C008 孙女士  return_above_expected + volatility_exceeded
 _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
     "C20250602001": {
         "annual_return_pct": 9.0,
@@ -51,11 +61,12 @@ _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
         "principal_loss_pct": -5.0,
         "volatility_pct": 6.5,
     },
+    # 刘女士：收益超预期 + 本金损失超阈值（复合场景，优先本金亏）
     "C20250602006": {
-        "annual_return_pct": 5.5,
-        "month_return_pct": 0.4,
-        "principal_loss_pct": -2.5,
-        "volatility_pct": 4.0,
+        "annual_return_pct": 9.5,
+        "month_return_pct": 0.6,
+        "principal_loss_pct": -7.5,
+        "volatility_pct": 4.5,
     },
     "C20250602007": {
         "annual_return_pct": 5.2,
@@ -63,11 +74,12 @@ _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
         "principal_loss_pct": -3.8,
         "volatility_pct": 2.9,
     },
+    # 孙女士：收益超预期 + 波动率超预期（复合场景，优先波动高）
     "C20250602008": {
-        "annual_return_pct": 6.5,
-        "month_return_pct": 0.8,
-        "principal_loss_pct": -4.0,
-        "volatility_pct": 6.2,
+        "annual_return_pct": 10.5,
+        "month_return_pct": 1.0,
+        "principal_loss_pct": -5.0,
+        "volatility_pct": 8.5,
     },
 }
 

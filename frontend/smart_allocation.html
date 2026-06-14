@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>智能资配 - 四笔钱智能投顾</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/advisor_chat_bootstrap.js"></script>
 </head>
 <body class="page-smart-allocation" data-advisor-dock>
   <div class="container container-smart-allocation">
@@ -23,22 +24,38 @@
       <span class="journey-step active">③ 智能资配</span>
     </div>
 
-    <div class="customer-select customer-select-with-flags">
-      <label for="customerSelect">选择客户：</label>
-      <select id="customerSelect"></select>
-      <span class="customer-select-flags-label">健康标志：</span>
-      <span id="overviewHealthFlags" class="diagnosis-inline-flags"></span>
-    </div>
-    <div class="addon-holding-bar addon-holding-bar-split">
-      <div class="addon-holding-planning">
-        <label for="planningTypeSelect">规划类型：</label>
-        <select id="planningTypeSelect"></select>
-      </div>
-      <div class="addon-holding-main">
-        <label for="addonHoldingInput">追加持仓：</label>
-        <input type="text" id="addonHoldingInput" class="addon-holding-input" inputmode="decimal" value="0" placeholder="0" autocomplete="off">
-        <span class="addon-holding-hint">录入金额即为总资产卡片中的闲置资金，可为 0 或负数</span>
+    <div class="smart-alloc-toolbar">
+      <label for="customerSelect" class="toolbar-label">选择客户：</label>
+      <select id="customerSelect" class="toolbar-field"></select>
+      <span class="toolbar-label toolbar-right">财富健康标志：</span>
+      <span id="overviewHealthFlags" class="diagnosis-inline-flags toolbar-flags toolbar-right"></span>
+
+      <label for="planningTypeSelect" class="toolbar-label">规划类型：</label>
+      <select id="planningTypeSelect" class="toolbar-field"></select>
+      <label for="addonHoldingInput" class="toolbar-label toolbar-right">追加持仓：</label>
+      <div class="toolbar-addon-field toolbar-right">
+        <span class="addon-holding-info" tabindex="0" aria-describedby="addonHoldingTip">
+          <svg class="addon-holding-info-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M8 7v4M8 5h.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <span id="addonHoldingTip" class="addon-holding-info-tip" role="tooltip">录入金额（单位：万）即为总资产卡片中的闲置资金，可为 0 或负数</span>
+        </span>
+        <span class="addon-holding-input-wrap">
+          <input type="text" id="addonHoldingInput" class="addon-holding-input" inputmode="decimal" value="0" placeholder="0" autocomplete="off">
+          <span class="addon-holding-unit">万</span>
+        </span>
         <span id="addonHoldingError" class="addon-holding-error" style="display:none">请输入有效数值</span>
+      </div>
+
+      <div class="model-selector-row toolbar-model-row">
+        <div class="model-selector-wrap">
+          <div class="model-selector-mode-tabs" role="tablist" aria-label="模型选择方式">
+            <button type="button" class="model-selector-tab active" role="tab" id="modelSelectorTabLoss" data-mode="loss" aria-selected="true" aria-controls="modelSelectorSelect">投资组合偏好</button>
+            <button type="button" class="model-selector-tab" role="tab" id="modelSelectorTabReturn" data-mode="return" aria-selected="false" aria-controls="modelSelectorSelect">预期年化收益</button>
+          </div>
+          <select id="modelSelectorSelect" class="model-selector-select" title="选择资产配置模型"></select>
+        </div>
       </div>
     </div>
     <div id="mappingBanner" class="mapping-banner" style="display:none"></div>
@@ -173,8 +190,9 @@
 
   <script src="js/common.js"></script>
   <script src="js/wealth_journey.js"></script>
+  <script src="js/model_selector.js"></script>
   <script src="js/plan_editor.js"></script>
-  <script src="js/advisor_chat.js?v=20260613b"></script>
+  <script src="js/advisor_chat.js?v=20260614b"></script>
   <script>
     let overviewData = null;
     let diagnosisData = null;
@@ -188,13 +206,21 @@
       return `smartAllocation_addon_${getCustomerId()}_${getProductCategory()}`;
     }
 
+    const ADDON_WAN_FACTOR = 10000;
+
+    function yuanToWan(yuan) {
+      const wan = Number(yuan) / ADDON_WAN_FACTOR;
+      if (!Number.isFinite(wan)) return '0';
+      return String(parseFloat(wan.toFixed(4)));
+    }
+
     function parseAddonInput(raw) {
       const trimmed = String(raw ?? '').trim();
       if (trimmed === '') return { ok: true, value: 0 };
       if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return { ok: false, value: null };
-      const value = parseFloat(trimmed);
-      if (!Number.isFinite(value)) return { ok: false, value: null };
-      return { ok: true, value };
+      const wan = parseFloat(trimmed);
+      if (!Number.isFinite(wan)) return { ok: false, value: null };
+      return { ok: true, value: wan * ADDON_WAN_FACTOR };
     }
 
     function setAddonInputError(show) {
@@ -210,11 +236,14 @@
 
     function loadAddonFromStorage() {
       const stored = sessionStorage.getItem(addonStorageKey());
-      const parsed = stored != null ? parseAddonInput(stored) : { ok: true, value: 0 };
-      const value = parsed.ok ? parsed.value : 0;
+      let value = 0;
+      if (stored != null && stored !== '') {
+        const yuan = parseFloat(stored);
+        value = Number.isFinite(yuan) ? yuan : 0;
+      }
       lastAppliedAddon = value;
       const input = document.getElementById('addonHoldingInput');
-      if (input) input.value = String(value);
+      if (input) input.value = yuanToWan(value);
       setAddonInputError(false);
     }
 
@@ -254,14 +283,14 @@
       const parsed = parseAddonInput(input.value);
       if (!parsed.ok) {
         setAddonInputError(true);
-        showToast('追加持仓请输入有效数值（可为 0 或负数）');
-        input.value = String(lastAppliedAddon);
+        showToast('追加持仓请输入有效数值（单位：万，可为 0 或负数）');
+        input.value = yuanToWan(lastAppliedAddon);
         return false;
       }
       setAddonInputError(false);
       const prev = lastAppliedAddon;
       lastAppliedAddon = parsed.value;
-      input.value = String(parsed.value);
+      input.value = yuanToWan(parsed.value);
       saveAddonToStorage(parsed.value);
       applyAddonIdleToDisplay();
       if (viewMode === 'plan' && prev !== parsed.value) {
@@ -286,8 +315,6 @@
     bindAddonHoldingInput();
 
     renderNav('smart_allocation');
-    initCustomerSelect(onCustomerChange);
-    PlanEditor.loadPageConstraints();
 
     const linkDiagnosis = document.getElementById('linkDiagnosis');
     if (linkDiagnosis) {
@@ -307,12 +334,24 @@
       }
     }
 
-    function onCustomerChange() {
+    function onModelSelectorChange() {
+      if (viewMode === 'plan') {
+        planData = null;
+        viewMode = 'overview';
+        hidePlanSection();
+        sessionStorage.removeItem('rebalanceResult');
+      }
+      loadOverview();
+    }
+
+    async function onCustomerChange() {
       planData = null;
       diagnosisData = null;
       viewMode = 'overview';
       hidePlanSection();
       updateGlobalActionsLayout();
+      if (typeof AdvisorChat !== 'undefined') await AdvisorChat.reloadForCustomer();
+      await ModelSelector.reloadForCategory();
       loadOverview();
     }
 
@@ -343,7 +382,10 @@
       try {
         const cid = getCustomerId();
         const cat = encodeURIComponent(getProductCategory());
-        const res = await apiGet(`/api/asset/overview?customer_id=${cid}&product_category=${cat}`);
+        const url = ModelSelector.appendQuery(
+          `/api/asset/overview?customer_id=${cid}&product_category=${cat}`
+        );
+        const res = await apiGet(url);
         overviewData = res.data;
         holdingsBaseTotal = (overviewData.total_assets || 0) - (overviewData.idle_cash || 0);
         loadAddonFromStorage();
@@ -490,12 +532,12 @@
       if (!applyAddonHoldingInput()) return;
       showToast('智能配仓计算中...');
       try {
-        const res = await apiPost('/api/allocation/auto_rebalance', {
+        const res = await apiPost('/api/allocation/auto_rebalance', withLossKey({
           customer_id: getCustomerId(),
           product_category: getProductCategory(),
           idle_cash: syncAddonToOverviewData(),
           ...payload,
-        });
+        }));
         renderPlan(res.data, scrollToExplain);
         showToast('配置方案已生成');
       } catch (e) {
@@ -540,7 +582,7 @@
         showToast('财富健康，请用全账户一键配仓');
         return;
       }
-      showToast(`依据健康标志（${effective.map(f => f.label).join('、')}）执行个性化智能配仓…`);
+      showToast(`依据财富健康标志（${effective.map(f => f.label).join('、')}）执行个性化智能配仓…`);
       await runRebalance({ mode: 'flag_personalized' });
     };
 
@@ -581,6 +623,11 @@
     };
 
     AdvisorChat.initDockPage();
+
+    ModelSelector.init({ onChange: onModelSelectorChange }).then(() => {
+      initCustomerSelect(onCustomerChange);
+    });
+    PlanEditor.loadPageConstraints();
   </script>
 </body>
 </html>

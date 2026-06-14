@@ -16,6 +16,7 @@ class AutoRebalanceRequest(BaseModel):
     manual_overrides: Dict[str, float] = Field(default_factory=dict)
     holdings: Optional[Dict[str, float]] = None
     idle_cash: Optional[float] = None
+    loss_key: Optional[str] = None
 
 
 class ManualAdjustRequest(BaseModel):
@@ -25,6 +26,7 @@ class ManualAdjustRequest(BaseModel):
     product_category: Optional[str] = None
     holdings: Optional[Dict[str, float]] = None
     idle_cash: Optional[float] = None
+    loss_key: Optional[str] = None
 
 
 class ModelCodeRename(BaseModel):

@@ -13,11 +13,20 @@ asset_types:
 
 products:
   # --- 现金类 → 要花的钱 ---
+  - code: P000
+    name: 活钱存款
+    asset_type: cash
+    product_subtype: demand_deposit
+    rebalance_priority: 0
+    min_amount: 1
+    max_amount: 500000
+    liquidity_days: 0
+    risk_level: 1
   - code: P001
     name: 余额宝
     asset_type: cash
     product_subtype: money_market
-    rebalance_priority: 1
+    rebalance_priority: 2
     min_amount: 1
     max_amount: 500000
     liquidity_days: 0
@@ -26,7 +35,7 @@ products:
     name: 活期理财
     asset_type: cash
     product_subtype: current
-    rebalance_priority: 2
+    rebalance_priority: 3
     min_amount: 1000
     max_amount: 200000
     liquidity_days: 0

@@ -33,6 +33,7 @@ const PlanEditor = {
       smart_one_click: '智能一键',
       manual_tweak: '人工微调',
       manual_product_edit: '人工配置',
+      flag_personalized: '个性化智能配仓',
     };
     return labels[mode] || mode;
   },
@@ -69,13 +70,13 @@ const PlanEditor = {
   async beginManualConfig(customerId, productCategory, overview) {
     this.resetManualState();
     const holdings = this.holdingsFromOverview(overview);
-    const res = await apiPost('/api/allocation/manual_adjust', {
+    const res = await apiPost('/api/allocation/manual_adjust', withLossKey({
       customer_id: customerId,
       product_category: productCategory,
       product_targets: holdings,
       baseline_product_targets: holdings,
       idle_cash: overview.idle_cash,
-    });
+    }));
     return res.data;
   },
 
@@ -1224,11 +1225,11 @@ const PlanEditor = {
     try {
       const editedCode = this._lastEditedCode;
       const payload = this.buildAdjustPayload(ctx.rb, editedCode);
-      const res = await apiPost('/api/allocation/manual_adjust', {
+      const res = await apiPost('/api/allocation/manual_adjust', withLossKey({
         customer_id: ctx.rb.customer_id,
         product_category: typeof getProductCategory === 'function' ? getProductCategory() : undefined,
         ...payload,
-      });
+      }));
       onUpdated(res.data, editedCode);
     } catch (e) {
       showToast('调整失败: ' + e.message);
@@ -1242,12 +1243,12 @@ const PlanEditor = {
     this._pending = true;
     try {
       const baseline = this.buildFullProductTargets(ctx.rb);
-      const res = await apiPost('/api/allocation/manual_adjust', {
+      const res = await apiPost('/api/allocation/manual_adjust', withLossKey({
         customer_id: ctx.rb.customer_id,
         product_category: typeof getProductCategory === 'function' ? getProductCategory() : undefined,
         product_targets: baseline,
         baseline_product_targets: baseline,
-      });
+      }));
       this._lastEditedCode = null;
       onUpdated(res.data, null);
       showToast('已移除产品，方案已更新');
