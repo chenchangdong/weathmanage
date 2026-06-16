@@ -10,7 +10,7 @@ header_card:
   show_total_assets: true
   show_idle_cash: true
   show_health_badge: true
-  idle_cash_label: 可用闲置资金
+  idle_cash_label: 追加持仓
   total_assets_label: 总资产
 
 # 配置健康度：全部大类在模型区间内为健康，任一类越界为需优化

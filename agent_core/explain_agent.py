@@ -17,6 +17,12 @@ from core.models import RebalanceResult
 class ExplainAgent:
     """接收调仓结果，生成理财经理配置说明 + 客户沟通话术。"""
 
+    @staticmethod
+    def _addon_holding_clause(idle_cash: float) -> str:
+        if idle_cash and idle_cash > 0.01:
+            return f"（含追加持仓{idle_cash:,.0f}元）"
+        return ""
+
     def generate(self, result: RebalanceResult) -> dict[str, Any]:
         customer = get_demo_customer(result.customer_id)
         if not customer:
@@ -45,7 +51,7 @@ class ExplainAgent:
     ) -> str:
         if result.mode == "manual_product_edit":
             lines = [
-                f"基于客户{risk_name}风险画像，总资产{result.total_assets:,.0f}元（含闲置资金{result.idle_cash:,.0f}元），",
+                f"基于客户{risk_name}风险画像，总资产{result.total_assets:,.0f}元{self._addon_holding_clause(result.idle_cash)}，",
                 "理财经理已对智能方案进行人工二次调整，当前为产品级目标配置：",
             ]
         elif result.mode == "flag_personalized":
@@ -57,7 +63,7 @@ class ExplainAgent:
             lines = [
                 f"基于客户{risk_name}风险画像，"
                 f"可配置总资产{result.total_assets:,.0f}元{scope_note}"
-                f"（含闲置资金{result.idle_cash:,.0f}元），",
+                f"{self._addon_holding_clause(result.idle_cash)}，",
                 "根据财富健康标志诊断结果，采用「个性化智能配仓」策略，生成资产类型配置方案：",
             ]
         else:
@@ -76,7 +82,7 @@ class ExplainAgent:
                 f"基于客户{risk_name}风险画像，"
                 f"{'可配置' if result.view_mode == 'asset_type' else ''}"
                 f"总资产{result.total_assets:,.0f}元{scope_note}"
-                f"（含闲置资金{result.idle_cash:,.0f}元），",
+                f"{self._addon_holding_clause(result.idle_cash)}，",
                 f"采用「{strategy}」策略，生成{plan_label}：",
             ]
         for item in result.category_summary:

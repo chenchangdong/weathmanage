@@ -53,7 +53,7 @@ def run_single(customer_id: str, verbose: bool = True) -> dict:
     overview_dict = overview_to_dict(overview)
 
     if verbose:
-        print(f"\n【资产概览】总资产 {overview.total_assets:,.0f} 元 | 闲置 {overview.idle_cash:,.0f} 元")
+        print(f"\n【资产概览】总资产 {overview.total_assets:,.0f} 元")
         print(f"健康度: {overview.health_label} ({overview.health_level})")
         for cat in overview.categories:
             print(f"  {cat.category_name}: 当前 {cat.current_amount:,.0f} | 目标 {cat.target_amount:,.0f} | 偏差 {cat.deviation_pct}")
@@ -63,7 +63,7 @@ def run_single(customer_id: str, verbose: bool = True) -> dict:
     result = engine.rebalance(
         customer_id=customer_id,
         holdings=data["holdings"],
-        idle_cash=data["idle_cash"],
+        idle_cash=0.0,
         risk_profile=customer["risk_profile"],
         mode="smart_one_click",
     )

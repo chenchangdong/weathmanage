@@ -97,6 +97,13 @@ YAML 索引 → [reference.md](reference.md)
 
 算法怎么执行 → `smart-allocation-engine/algorithm.md`
 
+### 追加持仓（idle_cash）
+
+- 用户于智能资配页录入；demo 默认 0（`core/data_store.py`）
+- **total** = 持仓 + idle
+- **综合规划**：求解与 `category_summary` 中 **spend current** 含 idle（`_current_with_addon`）
+- **投资规划一键**：**cash current** 含 idle；个性化仍走 `FlagDrivenSolver`，展示口径一致
+
 ## 配置后台
 
 | 页面 | API | 写入 |

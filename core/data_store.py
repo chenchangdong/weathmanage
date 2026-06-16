@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-# 演示客户持仓与闲置资金
+# 演示客户持仓（追加持仓由智能资配页用户录入，不在 demo 中预置）
 DEMO_HOLDINGS: dict[str, dict[str, Any]] = {
     "C20250602001": {
-        "idle_cash": 20000.0,
+        "idle_cash": 0.0,
         "holdings": {
             "P001": 80000.0,
             "P002": 20000.0,
@@ -23,7 +23,7 @@ DEMO_HOLDINGS: dict[str, dict[str, Any]] = {
         },
     },
     "C20250602002": {
-        "idle_cash": 80000.0,
+        "idle_cash": 0.0,
         "holdings": {
             "P001": 12000.0,
             "P002": 30000.0,
@@ -39,7 +39,7 @@ DEMO_HOLDINGS: dict[str, dict[str, Any]] = {
         },
     },
     "C20250602003": {
-        "idle_cash": 300000.0,
+        "idle_cash": 0.0,
         "holdings": {
             "P000": 35000.0,
             "P001": 50000.0,
@@ -56,7 +56,7 @@ DEMO_HOLDINGS: dict[str, dict[str, Any]] = {
         },
     },
     "C20250602004": {
-        "idle_cash": 60000.0,
+        "idle_cash": 0.0,
         "holdings": {
             "P000": 2800.0,
             "P001": 90000.0,
@@ -73,7 +73,7 @@ DEMO_HOLDINGS: dict[str, dict[str, Any]] = {
         },
     },
     "C20250602005": {
-        "idle_cash": 120000.0,
+        "idle_cash": 0.0,
         "holdings": {
             "P000": 22000.0,
             "P001": 40000.0,
@@ -91,7 +91,7 @@ DEMO_HOLDINGS: dict[str, dict[str, Any]] = {
     },
     # 纯投资客户：P009/P010 保障类产品持仓均为 0
     "C20250602006": {
-        "idle_cash": 130000.0,
+        "idle_cash": 0.0,
         "holdings": {
             "P000": 4500.0,
             "P001": 70000.0,
@@ -108,7 +108,7 @@ DEMO_HOLDINGS: dict[str, dict[str, Any]] = {
         },
     },
     "C20250602007": {
-        "idle_cash": 55000.0,
+        "idle_cash": 0.0,
         "holdings": {
             "P001": 28000.0,
             "P002": 13000.0,
@@ -124,7 +124,7 @@ DEMO_HOLDINGS: dict[str, dict[str, Any]] = {
         },
     },
     "C20250602008": {
-        "idle_cash": 100000.0,
+        "idle_cash": 0.0,
         "holdings": {
             "P000": 18000.0,
             "P001": 35000.0,

@@ -3,7 +3,7 @@
 > 引擎算法 → [algorithm.md](algorithm.md)  
 > 标志驱动个性化 → [../flag-personalized-allocation/scenarios.md](../flag-personalized-allocation/scenarios.md)
 
-主工作台：`frontend/smart_allocation.html`（默认入口 `/` → 智能资配）。
+主工作台：`frontend/smart_allocation_setup.html`（配置）→ `frontend/smart_allocation.html`（配仓）。导航「智能资配」默认进入配置页。
 
 ---
 
@@ -53,9 +53,12 @@ curl -s -X POST http://127.0.0.1:8000/api/allocation/auto_rebalance \
 | 项 | 内容 |
 |----|------|
 | UI | 工具栏 **追加持仓** 与 **财富健康标志** 右列对齐 |
-| 操作 | 输入 `50` 表示 **50 万** |
-| 预期 | API `idle_cash=500000`；总资产卡片闲置资金联动 |
+| 操作 | 打开 **追加持仓** 开关后输入 `50` 表示 **50 万**；关闭开关视为无追加持仓 |
+| 预期 | 开关打开且录入后 API `idle_cash=500000`；总资产含追加持仓 |
+| 口径 | 投资规划→并入 **cash** current；综合规划→并入 **spend** current（均 **不** 调用 FlagDrivenSolver） |
+| 全在 band 内 | 追加持仓留在活钱类，固收/权益等不动（如李先生 C002 + 10 万） |
 | 注意 | `sessionStorage` 存 **元**；页面显示 **万** |
+| 验证 | `pytest tests/test_allocation.py::TestIdleCashAddon -v` |
 
 ---
 

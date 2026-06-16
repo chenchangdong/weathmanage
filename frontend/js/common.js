@@ -138,14 +138,17 @@ async function loadCustomerList() {
     CUSTOMERS = res.data.customers.map(c => ({
       id: c.customer_id,
       name: `${c.name}（${c.risk_profile_name}）`,
+      displayName: c.name,
       risk_profile: c.risk_profile,
+      risk_profile_name: c.risk_profile_name || RISK_PROFILE_LABELS[c.risk_profile] || c.risk_profile,
       product_category: c.product_category || '投资规划',
+      invest_horizon_years: c.invest_horizon_years,
     }));
   } catch (e) {
     CUSTOMERS = [
-      { id: 'C20250602001', name: '张女士（平衡型）', risk_profile: 'balanced', product_category: '投资规划' },
-      { id: 'C20250602002', name: '李先生（保守型）', risk_profile: 'conservative', product_category: '投资规划' },
-      { id: 'C20250602003', name: '王先生（进取型）', risk_profile: 'aggressive', product_category: '投资规划' },
+      { id: 'C20250602001', name: '张女士（平衡型）', displayName: '张女士', risk_profile: 'balanced', risk_profile_name: '平衡型', product_category: '投资规划', invest_horizon_years: 10 },
+      { id: 'C20250602002', name: '李先生（保守型）', displayName: '李先生', risk_profile: 'conservative', risk_profile_name: '保守型', product_category: '投资规划', invest_horizon_years: 5 },
+      { id: 'C20250602003', name: '王先生（进取型）', displayName: '王先生', risk_profile: 'aggressive', risk_profile_name: '进取型', product_category: '投资规划', invest_horizon_years: 20 },
     ];
   }
 }
@@ -190,7 +193,7 @@ function renderNav(active) {
   const pages = [
     { href: 'wealth_inventory.html', label: '财富盘点' },
     { href: 'asset_diagnosis.html', label: '资产诊断' },
-    { href: 'smart_allocation.html', label: '智能资配' },
+    { href: 'smart_allocation_setup.html', label: '智能资配' },
     { href: 'index.html', label: '客户资产', muted: true },
     { href: 'result.html', label: '配置方案', muted: true },
     { href: 'aftercare.html', label: '投后陪伴' },
@@ -202,7 +205,9 @@ function renderNav(active) {
   ];
   const mainLinks = pages.map(p => {
     const pageKey = p.href.replace('.html', '');
-    const isActive = active === pageKey || (active && p.href.includes(active));
+    const smartAllocActive = pageKey === 'smart_allocation_setup'
+      && (active === 'smart_allocation' || active === 'smart_allocation_setup');
+    const isActive = active === pageKey || smartAllocActive || (active && p.href.includes(active));
     const muted = p.muted ? ' nav-muted' : '';
     return `<a href="${p.href}" class="${isActive ? 'active' : ''}${muted}">${p.label}</a>`;
   }).join('');

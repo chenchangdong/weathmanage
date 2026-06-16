@@ -50,11 +50,12 @@ resolve_*_targets(product_category, risk_profile, loss_key?)
 
 ```text
 ① 算总资产 total = 持仓合计 + idle_cash（投资规划排除保障类）
-② 查模型 → 每大类有：基准占比、区间 [下限, 上限]
-③ 大类求解 → 每类目标金额（见 algorithm.md）
-④ [可选] 产品触顶 → 冻结该类 → 其余类重算（最多 10 轮）
-⑤ 产品分配 → 大类目标拆到各产品（consolidate / spill）
-⑥ 校验 → validation_notes、category_summary、product_deltas
+② 追加持仓并入活钱大类 current（投资规划→cash，综合规划→spend，见 algorithm.md「口径」）
+③ 查模型 → 每大类有：基准占比、区间 [下限, 上限]
+④ 大类求解 → 每类目标金额（见 algorithm.md）
+⑤ [可选] 产品触顶 → 冻结该类 → 其余类重算（最多 10 轮）
+⑥ 产品分配 → 大类目标拆到各产品（consolidate / spill）
+⑦ 校验 → validation_notes、category_summary、product_deltas
 ```
 
 **核心原则（给理财经理的说法）：**
@@ -70,6 +71,7 @@ resolve_*_targets(product_category, risk_profile, loss_key?)
 
 | 说法 | 含义 | 字段 |
 |------|------|------|
+| 追加持仓 | 用户录入、待配置活钱；并入活钱大类 current 再求解 | `idle_cash`；投资→`cash`，综合→`spend` |
 | 在区间内 | 方案占比落在模型 band 内 | `category_summary[].in_band` |
 | 次优解 | 触产品限额或区间塞不下意图 | `validation_notes` |
 | 超配/低配 | 相对**基准**建议减/增 | `adjust_amount` 正/负 |
@@ -120,7 +122,7 @@ POST /api/allocation/auto_rebalance
 | 规则注入 | `core/allocation_config_service.py` |
 | 标志求解（独立） | `asset_allocation/flag_driven_solver.py` |
 | API | `api/routes.py` |
-| 前端 | `frontend/smart_allocation.html`, `js/plan_editor.js`, `js/model_selector.js`, `js/advisor_chat.js` |
+| 前端 | `frontend/smart_allocation_setup.html`（配置）、`frontend/smart_allocation.html`（配仓）、`js/plan_editor.js`, `js/model_selector.js`, `js/smart_allocation_addon.js` |
 
 配置从哪改 → `four-money-rules` Skill。
 
@@ -154,9 +156,11 @@ POST /api/allocation/auto_rebalance
 | 产品触下限卖不动 | `limit_hit` | min_amount |
 | 阈值不对 | resolve API + loss_key | 改配置或页面模型选择 |
 | 个性化与一键结果混淆 | `mode` | 两套大类求解器 |
+| 追加持仓被均分到多类 | `_current_with_addon` | 应并入 cash/spend；见 algorithm 口径节 |
 
 ```bash
 pytest tests/test_allocation.py -v
+pytest tests/test_allocation.py::TestIdleCashAddon -v
 pytest tests/test_flag_driven.py -v
 python demo_test.py --customer C20250602001
 ```

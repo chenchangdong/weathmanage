@@ -303,7 +303,7 @@ const AdvisorChat = {
       if (path === 'asset_diagnosis.html') {
         if (typeof diagnosisData === 'undefined') break;
         if (diagnosisData !== null) break;
-      } else if (path === 'smart_allocation.html') {
+      } else if (path === 'smart_allocation.html' || path === 'smart_allocation_setup.html') {
         if (typeof overviewData === 'undefined') break;
         if (overviewData !== null) break;
       } else {

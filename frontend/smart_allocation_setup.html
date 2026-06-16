@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能资配 · 配置准备 - 四笔钱智能投顾</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/advisor_chat_bootstrap.js"></script>
+</head>
+<body class="page-smart-allocation page-smart-allocation-setup" data-advisor-dock>
+  <div class="container container-smart-allocation">
+    <div class="page-header page-header-compact">
+      <h1>智能资配</h1>
+      <p id="pageSubtitle">配置准备 — 确认客户现状与投资目标</p>
+    </div>
+
+    <div id="navBar" class="nav-bar"></div>
+
+    <div class="journey-step-bar" id="journeyStepBar">
+      <a href="wealth_inventory.html" class="journey-step link">① 财富盘点</a>
+      <span class="journey-step-arrow">→</span>
+      <a href="#" class="journey-step link" id="linkDiagnosis">② 资产诊断</a>
+      <span class="journey-step-arrow">→</span>
+      <span class="journey-step active">③ 智能资配 · 配置</span>
+      <span class="journey-step-arrow">→</span>
+      <span class="journey-step muted">方案配仓</span>
+    </div>
+
+    <select id="customerSelect" class="setup-visually-hidden" tabindex="-1" aria-hidden="true"></select>
+    <select id="planningTypeSelect" class="setup-visually-hidden" tabindex="-1" aria-hidden="true"></select>
+    <select id="modelSelectorSelect" class="setup-visually-hidden" tabindex="-1" aria-hidden="true"></select>
+
+    <div id="setupLoading" class="loading">加载中...</div>
+
+    <div id="setupPanel" style="display:none">
+      <section class="diagnosis-metrics-card setup-customer-card">
+        <div class="diagnosis-metrics-top setup-customer-top">
+          <div class="setup-customer-head">
+            <div class="diagnosis-customer-block">
+              <div class="diagnosis-customer-title-row">
+                <div class="setup-customer-name-group">
+                  <h2 id="setupCustomerName">--</h2>
+                  <div class="setup-customer-switch-wrap">
+                    <button type="button" class="setup-switch-btn" id="btnSwitchCustomer"
+                      aria-label="切换客户" aria-haspopup="listbox" aria-expanded="false" title="切换客户">
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                        <path fill="currentColor" d="M16 3h5v5h-2V6.41l-4.3 4.3-1.4-1.42L17.59 5H16V3zM3 16h2v2.59l4.3-4.3 1.4 1.42L6.41 20H9v2H4v-5z"/>
+                      </svg>
+                    </button>
+                    <div id="customerSwitchPopover" class="setup-switch-popover" hidden role="listbox" aria-label="选择客户">
+                      <div class="setup-switch-popover-title">切换客户</div>
+                      <div id="customerSwitchList" class="setup-switch-list"></div>
+                    </div>
+                  </div>
+                </div>
+                <span id="overviewHealthFlags" class="diagnosis-inline-flags diagnosis-customer-flags"></span>
+              </div>
+              <p id="setupCustomerMeta" class="diagnosis-customer-meta">--</p>
+            </div>
+          </div>
+          <div class="diagnosis-metric-group">
+            <div class="diagnosis-metric">
+              <span class="diagnosis-metric-label">可配置总资产</span>
+              <span class="diagnosis-metric-value" id="setupMetricTotal">--</span>
+              <span class="diagnosis-metric-sub" id="setupMetricSub">--</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="setup-dual-panels">
+        <section class="setup-pref-card">
+          <h3 class="setup-pref-card-title">明确客户的投资状况</h3>
+          <div class="setup-pref-rows">
+            <div class="setup-pref-row setup-pref-row--readonly">
+              <div class="setup-pref-row-label">
+                <span>客户的风险偏好</span>
+                <span class="setup-pref-info" title="客户风险测评结果，来自客户档案，不可修改">ⓘ</span>
+              </div>
+              <div class="setup-pref-row-value-wrap">
+                <strong id="setupRiskValue" class="setup-pref-value">--</strong>
+              </div>
+            </div>
+            <div class="setup-pref-row setup-pref-row--readonly">
+              <div class="setup-pref-row-label">
+                <span>客户的投资偏好组合</span>
+                <span class="setup-pref-info" title="按客户风险测评映射的投资组合偏好，来自客户档案，不可修改">ⓘ</span>
+              </div>
+              <div class="setup-pref-row-value-wrap">
+                <strong id="setupLossValue" class="setup-pref-value">--</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="setup-pref-card">
+          <h3 class="setup-pref-card-title">设置客户的投资目标</h3>
+          <div class="setup-pref-rows">
+            <div class="setup-pref-row">
+              <div class="setup-pref-row-label">
+                <span>客户接受的投资时长</span>
+                <span class="setup-pref-info" title="可接受的资金占用期限">ⓘ</span>
+              </div>
+              <div class="setup-pref-row-value-wrap">
+                <strong id="setupHorizonValue" class="setup-pref-value">--</strong>
+                <button type="button" class="setup-picker-trigger" id="btnEditHorizon"
+                  aria-label="修改投资时长" aria-haspopup="listbox" aria-expanded="false">
+                  <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+                    <path fill="currentColor" d="M14.85 3.15a1.5 1.5 0 0 1 0 2.12l-1.08 1.08-2.12-2.12 1.08-1.08a1.5 1.5 0 0 1 2.12 0zM3 17v-2.83l8.04-8.04 2.12 2.12L5.12 17H3z"/>
+                  </svg>
+                </button>
+                <div id="horizonPickerPopover" class="setup-picker-popover" hidden role="listbox">
+                  <div id="horizonPickerList" class="setup-picker-list"></div>
+                </div>
+              </div>
+            </div>
+            <div class="setup-pref-row">
+              <div class="setup-pref-row-label">
+                <span>客户的预期年化收益</span>
+                <span class="setup-pref-info" title="按目标年化收益区间选择对应模型，五档与模型一一对应">ⓘ</span>
+              </div>
+              <div class="setup-pref-row-value-wrap">
+                <strong id="setupReturnValue" class="setup-pref-value">--</strong>
+                <button type="button" class="setup-picker-trigger" id="btnEditReturn"
+                  aria-label="修改预期年化收益" aria-haspopup="listbox" aria-expanded="false">
+                  <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+                    <path fill="currentColor" d="M14.85 3.15a1.5 1.5 0 0 1 0 2.12l-1.08 1.08-2.12-2.12 1.08-1.08a1.5 1.5 0 0 1 2.12 0zM3 17v-2.83l8.04-8.04 2.12 2.12L5.12 17H3z"/>
+                  </svg>
+                </button>
+                <div id="returnPickerPopover" class="setup-picker-popover" hidden role="listbox">
+                  <div id="returnPickerList" class="setup-picker-list"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="diagnosis-metrics-card setup-bottom-metrics-card">
+        <div class="diagnosis-metrics-grid diagnosis-metrics-grid-duo">
+          <div class="diagnosis-metric-panel">
+            <div class="diagnosis-panel-title">规划类型</div>
+            <div class="setup-planning-chips" id="planningTypeChips"></div>
+          </div>
+          <div class="diagnosis-metric-panel">
+            <div class="diagnosis-panel-title">追加持仓（可选）</div>
+            <div class="diagnosis-panel-row setup-addon-panel-row">
+              <span class="setup-addon-panel-label">
+                启用追加持仓
+                <span class="addon-holding-info" tabindex="0" aria-describedby="addonHoldingTip">
+                  <svg class="addon-holding-info-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                    <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.2"/>
+                    <path d="M8 7v4M8 5h.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                  </svg>
+                  <span id="addonHoldingTip" class="addon-holding-info-tip" role="tooltip">打开后可录入追加金额（单位：万），计入可配置总资产</span>
+                </span>
+              </span>
+              <div class="setup-addon-controls">
+                <label class="switch addon-holding-switch" for="addonHoldingSwitch" aria-label="启用追加持仓">
+                  <input type="checkbox" id="addonHoldingSwitch">
+                  <span class="slider"></span>
+                </label>
+                <span id="addonHoldingInputWrap" class="addon-holding-input-wrap" hidden>
+                  <input type="text" id="addonHoldingInput" class="addon-holding-input" inputmode="decimal" value="0" placeholder="0" autocomplete="off" aria-label="追加持仓金额（万）">
+                  <span class="addon-holding-unit">万</span>
+                </span>
+                <span id="addonHoldingError" class="addon-holding-error" style="display:none">请输入有效数值</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="smart-alloc-setup-forms">
+        <section class="setup-section">
+          <h2 class="setup-section-title">配置链路</h2>
+          <div id="mappingBanner" class="mapping-banner setup-mapping-banner" style="display:none"></div>
+          <p id="mappingPlaceholder" class="setup-mapping-placeholder">确认上方选项后将展示配置链路</p>
+        </section>
+
+        <div class="setup-actions">
+          <button type="button" class="btn btn-primary btn-large" id="btnProceedAllocation">下一步：查看资产与配仓 →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="flagTooltip" class="flag-tooltip" style="display:none" role="tooltip"></div>
+  <div id="toast" class="toast"></div>
+
+  <script src="js/common.js"></script>
+  <script src="js/wealth_journey.js"></script>
+  <script src="js/model_selector.js"></script>
+  <script src="js/smart_allocation_addon.js"></script>
+  <script src="js/smart_allocation_setup.js"></script>
+  <script src="js/advisor_chat.js?v=20260614b"></script>
+  <script>
+    let diagnosisData = null;
+    let previewOverview = null;
+    let holdingsBaseTotal = 0;
+
+    renderNav('smart_allocation_setup');
+    bindAddonHoldingInput();
+    SetupPage.bindInteractions();
+
+    function refreshSetupMetricsFromAddon() {
+      if (previewOverview) renderSetupCustomerCard();
+    }
+    ['addonHoldingSwitch', 'addonHoldingInput'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', refreshSetupMetricsFromAddon);
+    });
+    document.getElementById('addonHoldingInput')?.addEventListener('blur', refreshSetupMetricsFromAddon);
+
+    document.getElementById('linkDiagnosis').onclick = (e) => {
+      e.preventDefault();
+      const cid = getCustomerId();
+      if (cid) navigateWithCustomer('asset_diagnosis.html', cid);
+      else showToast('请先选择客户');
+    };
+
+    function renderPlanningChips() {
+      const wrap = document.getElementById('planningTypeChips');
+      const sel = document.getElementById('planningTypeSelect');
+      if (!wrap || !sel) return;
+      const current = getProductCategory();
+      wrap.innerHTML = PLANNING_TYPES.map(t => `
+        <button type="button" class="setup-planning-chip${t === current ? ' active' : ''}" data-value="${t}">${t}</button>
+      `).join('');
+      wrap.querySelectorAll('.setup-planning-chip').forEach(btn => {
+        btn.onclick = async () => {
+          if (btn.dataset.value === getProductCategory()) return;
+          sel.value = btn.dataset.value;
+          sessionStorage.setItem(PRODUCT_CATEGORY_KEY, btn.dataset.value);
+          await onSetupContextChange();
+        };
+      });
+    }
+
+    function renderHealthFlags() {
+      const el = document.getElementById('overviewHealthFlags');
+      if (!el) return;
+      if (!diagnosisData || !(diagnosisData.flags || []).length) {
+        el.innerHTML = '';
+        return;
+      }
+      el.innerHTML = WealthJourney.renderFlags(diagnosisData.flags || [], { interactive: true });
+      WealthJourney.bindFlagTooltips(el);
+    }
+
+    function renderSetupCustomerCard() {
+      const ov = previewOverview;
+      if (!ov) return;
+      const d = diagnosisData;
+      const customer = SetupPage.currentCustomer();
+      const addon = getCommittedAddonIdleCash();
+      const displayTotal = holdingsBaseTotal + addon;
+
+      document.getElementById('setupCustomerName').textContent =
+        customer?.displayName || ov.customer_name || d?.name || '--';
+      document.getElementById('setupCustomerMeta').textContent =
+        `客户编号 ${getCustomerId()}`;
+
+      document.getElementById('setupMetricTotal').textContent =
+        `${WealthJourney.formatWan(displayTotal)} 万`;
+      const subParts = [];
+      if (d?.diagnosis_date) subParts.push(`数据日期 ${d.diagnosis_date}`);
+      if (addon > 0.01) subParts.push(`含追加持仓 ${WealthJourney.formatWan(addon)} 万`);
+      document.getElementById('setupMetricSub').textContent = subParts.join(' · ') || '--';
+
+      SetupPage.updateStatusDisplays();
+      SetupPage.updateGoalDisplays();
+      renderHealthFlags();
+      renderPlanningChips();
+    }
+
+    async function loadDiagnosis(cid) {
+      try {
+        const res = await apiGet(`/api/wealth/diagnosis?customer_id=${encodeURIComponent(cid)}`);
+        diagnosisData = res.data;
+      } catch (e) {
+        diagnosisData = null;
+      }
+    }
+
+    function renderMappingPreview(data) {
+      const banner = document.getElementById('mappingBanner');
+      const placeholder = document.getElementById('mappingPlaceholder');
+      if (!banner) return;
+      if (data && data.allocation_mapping) {
+        banner.style.display = 'block';
+        banner.innerHTML = renderMappingBannerHtml(data);
+        if (placeholder) placeholder.style.display = 'none';
+      } else {
+        banner.style.display = 'none';
+        banner.innerHTML = '';
+        if (placeholder) {
+          placeholder.style.display = 'block';
+          placeholder.textContent = '暂无配置链路数据';
+        }
+      }
+    }
+
+    async function refreshSetupPreview() {
+      const loading = document.getElementById('setupLoading');
+      const panel = document.getElementById('setupPanel');
+      loading.style.display = 'block';
+      panel.style.display = 'none';
+      try {
+        const cid = getCustomerId();
+        if (!cid) throw new Error('请选择客户');
+        loadAddonFromStorage();
+        const cat = encodeURIComponent(getProductCategory());
+        const url = ModelSelector.appendQuery(
+          `/api/asset/overview?customer_id=${cid}&product_category=${cat}`
+        );
+        const res = await apiGet(url);
+        previewOverview = res.data;
+        holdingsBaseTotal = (previewOverview.total_assets || 0) - (previewOverview.idle_cash || 0);
+        await loadDiagnosis(cid);
+        ModelSelector.renderSelect();
+        renderSetupCustomerCard();
+        renderMappingPreview(previewOverview);
+        loading.style.display = 'none';
+        panel.style.display = 'block';
+      } catch (e) {
+        loading.textContent = '加载失败: ' + e.message;
+      }
+    }
+
+    async function onSetupContextChange() {
+      if (typeof AdvisorChat !== 'undefined') await AdvisorChat.reloadForCustomer();
+      await ModelSelector.reloadForCategory({ resetMode: true });
+      await refreshSetupPreview();
+    }
+    window.onSetupContextChange = onSetupContextChange;
+
+    async function onSetupModelChange() {
+      await refreshSetupPreview();
+    }
+    window.onSetupModelChange = onSetupModelChange;
+
+    document.getElementById('btnProceedAllocation').onclick = () => {
+      const cid = getCustomerId();
+      if (!cid) {
+        showToast('请先选择客户');
+        return;
+      }
+      if (!applyAddonHoldingInput()) return;
+      ModelSelector.persistSelection();
+      sessionStorage.setItem(PRODUCT_CATEGORY_KEY, getProductCategory());
+      setSelectedCustomerId(cid);
+      navigateWithCustomer('smart_allocation.html', cid);
+    };
+
+    AdvisorChat.initDockPage();
+
+    ModelSelector.init({ onChange: () => { onSetupModelChange(); } }).then(() => {
+      initCustomerSelect(onSetupContextChange);
+    });
+  </script>
+</body>
+</html>

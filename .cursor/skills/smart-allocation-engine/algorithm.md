@@ -12,6 +12,11 @@
          │
          ▼
   ┌──────────────────┐
+  │ 追加持仓并入活钱  │  _current_with_addon
+  │ 投资→cash 综合→spend │
+  └────────┬─────────┘
+           ▼
+  ┌──────────────────┐
   │ 解析模型阈值      │  resolve_*_targets(risk, loss_key?)
   │ 每类: 基准 + band │
   └────────┬─────────┘
@@ -98,6 +103,31 @@ band   = [下限占比, 上限占比]
 
 **直觉：** 像把多出来或少了的钱，在还能动的类里分摊，且不能越界。
 
+**追加持仓口径（2026-06）：** 求解前 idle 已并入活钱大类 current（投资 `cash` / 综合 `spend`）。若各大类均在 band 内，追加持仓会留在活钱类，**不会**再被 normalize 均分到固收/权益等类（改前旧行为）。
+
+---
+
+## 追加持仓口径 `_current_with_addon`（必读）
+
+实现：`AutoRebalanceEngine._current_with_addon(current_cat, idle_cash, addon_category)`
+
+| 规划类型 | 求解器 | addon 并入 | 展示 current |
+|----------|--------|------------|--------------|
+| **投资规划** 一键 / 微调 / 单类 | `_solve_category_targets` | `cash` | `display_current`（含 idle） |
+| **综合规划** 四笔钱 | `_solve_category_targets` | `spend` | `solver_current`（含 idle） |
+| **个性化** flag_personalized | `FlagDrivenSolver`（**独立，不共用**） | Solver 内 `_cash_pool` 并入 cash | `display_current`（含 idle） |
+
+统一规则：
+
+- **total** = 持仓合计 + `idle_cash`（投资规划不含保障类）
+- **活钱 current** = 对应大类产品持仓 + `idle_cash`（用于 `_solve_category_targets` 与 `category_summary`）
+- **产品层** 仍只从已有持仓产品分配；追加持仓通过大类目标增加落到买入（如 P000 活钱存款展示层）
+- **`RebalanceResult.idle_cash`** 仍单独返回，供前端/API 展示录入值
+
+前端：追加持仓录入**万**，API 传**元**。
+
+回归：`pytest tests/test_allocation.py::TestIdleCashAddon -v`
+
 ---
 
 ## 第 3 步：产品触顶迭代 `_solve_allocate_with_limit_freeze`
@@ -169,19 +199,11 @@ notes 会出现：「XX 因产品触顶，已冻结在可落地金额…」
 
 ---
 
-## 口径注意：idle 与现金类
-
-- **total** = 投资类持仓 + `idle_cash`（不含保障类）
-- 一键路径：`idle_cash` 单独传入，**不**并入 cash 类 current 再求解（与 flag 求解器不同）
-- 前端追加持仓：录入**万**，API 传**元**；会改变 total 与 idle
-- 方案态「本次已配置闲置资金」来自 `product_deltas` 汇总，与 idle 字段口径可能不一致 → 排查时分开看
-
----
-
 ## 关键函数索引
 
 | 函数 | 作用 |
 |------|------|
+| `_current_with_addon` | 追加持仓并入活钱大类 current（求解+展示） |
 | `_solve_category_targets` | 大类目标（含单类/全账户） |
 | `_normalize_targets` | 凑平 total |
 | `_solve_allocate_with_limit_freeze` | 触顶冻结循环 |

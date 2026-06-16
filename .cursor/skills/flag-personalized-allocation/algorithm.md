@@ -201,16 +201,23 @@ product_targets = engine._allocate_products_asset_type(target_cat=target_cat, ..
 
 ---
 
-## 口径差异（排查必读）
+## 口径：追加持仓（与一键 / 综合规划一致）
 
-| 层级 | idle 怎么处理 |
-|------|---------------|
-| FlagDrivenSolver | idle **并入** cash 当前值参与求解 |
-| smart_one_click | idle **单独字段**，不并入 cash current |
-| RebalanceResult | `idle_cash` 仍单独返回 |
-| 前端方案态 | 「本次已配置闲置资金」= deltas 汇总，可能与 solver 现金池不一致 |
+三条路径 **共用业务语义**（追加持仓 = 待配置活钱），**不共用求解器**：
 
-调整 idle/现金展示时，需同时看 Solver、产品层、PlanEditor，避免只改一处。
+| 路径 | 求解 | idle 并入 |
+|------|------|-----------|
+| `flag_personalized` | `FlagDrivenSolver._cash_pool` | cash（Solver 内部） |
+| `smart_one_click` 等 | `_solve_category_targets` + `_current_with_addon` | 投资→cash |
+| 综合规划 | `_solve_category_targets` + `_current_with_addon` | spend |
+
+| 字段 | 说明 |
+|------|------|
+| `RebalanceResult.idle_cash` | 用户录入值，单独返回 |
+| `category_summary` 活钱类 `current_amount` | 产品持仓 + idle（展示与求解一致） |
+| 产品层 `current_holdings` | 仍仅含已买产品；addon 经大类目标 → 买入 delta |
+
+回归：`pytest tests/test_allocation.py::TestIdleCashAddon -v`
 
 ---
 

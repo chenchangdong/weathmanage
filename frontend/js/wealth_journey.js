@@ -85,6 +85,78 @@ const WealthJourney = {
     }).join('');
   },
 
+  _overviewBarScaleMax(curRatio, tgtRatio, band) {
+    const hi = Array.isArray(band) ? Number(band[1] || 0) : 0;
+    // 柱高按总资产占比绝对刻度：100% = 满柱，与柱顶百分比一致
+    return Math.max(1, Number(curRatio) || 0, Number(tgtRatio) || 0, hi);
+  },
+
+  _overviewBarPctLabel(ratio) {
+    return `${(Number(ratio || 0) * 100).toFixed(1)}%`;
+  },
+
+  _overviewBarStatus(curRatio, band) {
+    if (!Array.isArray(band) || band.length < 2) return null;
+    const cur = Number(curRatio) || 0;
+    const lo = Number(band[0]) || 0;
+    const hi = Number(band[1]) || 0;
+    if (cur > hi) return { code: 'over', label: '超配', cls: 'fm-overview-bar-badge--over' };
+    if (cur < lo) return { code: 'under', label: '低配', cls: 'fm-overview-bar-badge--under' };
+    return null;
+  },
+
+  renderCategoryOverviewBars(data, options = {}) {
+    const targetCaption = options.targetCaption || '智能建议';
+    const curRatio = Number(data.current_ratio) || 0;
+    const tgtRatio = Number(options.targetRatio != null ? options.targetRatio : data.target_ratio) || 0;
+    const scaleMax = this._overviewBarScaleMax(curRatio, tgtRatio, data.band);
+    const shellH = 96;
+    const toBarH = (ratio) => {
+      const h = Math.round(((Number(ratio) || 0) / scaleMax) * shellH);
+      return Math.min(shellH, Math.max(ratio > 0 ? 2 : 0, h));
+    };
+    const curH = toBarH(curRatio);
+    const tgtH = toBarH(tgtRatio);
+    const diffPct = (tgtRatio - curRatio) * 100;
+    const diffLabel = this.formatSignedPct(diffPct, 1);
+    const status = this._overviewBarStatus(curRatio, data.band);
+    const bandTip = typeof formatBandTooltip === 'function' ? formatBandTooltip(data.band) : '';
+
+    const badgeHtml = status
+      ? `<span class="fm-overview-bar-badge ${status.cls}">${status.label}</span>`
+      : '';
+
+    return `
+      <div class="fm-overview-bars${data.in_band ? '' : ' fm-overview-bars--warn'}" title="${this._escapeAttr(bandTip)}">
+        <div class="fm-overview-bars-chart">
+          <div class="fm-overview-bar-col">
+            <span class="fm-overview-bar-pct">${this._overviewBarPctLabel(curRatio)}</span>
+            <div class="fm-overview-bar-shell fm-overview-bar-shell--current" style="height:${shellH}px">
+              ${badgeHtml}
+              <div class="fm-overview-bar-fill fm-overview-bar-fill--current" style="height:${curH}px"></div>
+            </div>
+            <span class="fm-overview-bar-caption">当前实际</span>
+          </div>
+          <div class="fm-overview-bar-deviation">
+            <span class="fm-overview-bar-deviation-label">偏离</span>
+            <strong class="fm-overview-bar-deviation-value ${diffPct >= 0 ? 'deviation-buy' : 'deviation-sell'}">${diffLabel}</strong>
+          </div>
+          <div class="fm-overview-bar-col">
+            <span class="fm-overview-bar-pct">${this._overviewBarPctLabel(tgtRatio)}</span>
+            <div class="fm-overview-bar-shell fm-overview-bar-shell--target" style="height:${shellH}px">
+              <div class="fm-overview-bar-fill fm-overview-bar-fill--target" style="height:${tgtH}px"></div>
+            </div>
+            <span class="fm-overview-bar-caption">${targetCaption}</span>
+          </div>
+        </div>
+        <div class="fm-overview-bars-meta">
+          <span>当前持仓 <strong>${formatMoney(data.current_amount)}</strong></span>
+          <span>目标配置额 <strong>${formatMoney(data.target_amount)}</strong></span>
+          <span>模型区间 <strong>${typeof formatBandRange === 'function' ? formatBandRange(data.band) : '--'}</strong></span>
+        </div>
+      </div>`;
+  },
+
   renderRadar(dimensions) {
     const defs = [
       { key: 'assets', label: '资产', cls: 'radar-label-top' },

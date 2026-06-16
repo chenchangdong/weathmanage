@@ -44,7 +44,7 @@ class AssetOverviewService:
             raise ValueError(f"No holdings for customer: {customer_id}")
 
         holdings = data["holdings"]
-        idle_cash = data["idle_cash"]
+        idle_cash = 0.0
         risk_profile = customer["risk_profile"]
         product_category = product_category or customer.get("product_category", "投资规划")
         view_mode = get_allocation_view_mode(product_category)

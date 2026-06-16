@@ -30,23 +30,24 @@
     </div>
 
     <div id="content" style="display:none">
-      <!-- 顶部指标区（参照资产诊断模板） -->
       <section class="diagnosis-metrics-card">
         <div class="diagnosis-metrics-top">
           <div class="diagnosis-customer-block">
-            <h2 id="customerName">--</h2>
+            <div class="diagnosis-customer-title-row">
+              <h2 id="customerName">--</h2>
+              <span id="metricFlags" class="diagnosis-inline-flags diagnosis-customer-flags"></span>
+            </div>
             <p id="customerMeta" class="diagnosis-customer-meta">--</p>
           </div>
-          <div class="diagnosis-metric-group diagnosis-metric-group-with-ai">
+          <div class="diagnosis-metric-group">
             <div class="diagnosis-metric">
               <span class="diagnosis-metric-label">总资产</span>
               <span class="diagnosis-metric-value" id="metricTotal">--</span>
               <span class="diagnosis-metric-sub" id="metricDate">--</span>
             </div>
-            <button type="button" class="btn btn-ai-explain" id="btnAiAssetDiagnose">AI资产诊断</button>
           </div>
         </div>
-        <div class="diagnosis-metrics-grid">
+        <div class="diagnosis-metrics-grid diagnosis-metrics-grid-duo">
           <div class="diagnosis-metric-panel">
             <div class="diagnosis-panel-title">收益指标</div>
             <div class="diagnosis-panel-row">
@@ -75,21 +76,6 @@
             <div class="diagnosis-panel-row muted">
               <span>模型预期波动 / 本金损失阈值</span>
               <span id="metricExpectRisk">--</span>
-            </div>
-          </div>
-          <div class="diagnosis-metric-panel">
-            <div class="diagnosis-panel-title">模型基准</div>
-            <div class="diagnosis-panel-row">
-              <span>配置模型</span>
-              <strong id="metricModel">--</strong>
-            </div>
-            <div class="diagnosis-panel-row">
-              <span>规划类型</span>
-              <strong>投资规划</strong>
-            </div>
-            <div class="diagnosis-panel-row">
-              <span>财富健康标志</span>
-              <span id="metricFlags" class="diagnosis-inline-flags">--</span>
             </div>
           </div>
         </div>
@@ -147,7 +133,7 @@
   <script>
     renderNav('asset_diagnosis');
     let diagnosisData = null;
-    WealthJourney.initAdvisor({ bindAssetDiagnose: true });
+    AdvisorChat.initDockPage();
 
     const customerId = getSelectedCustomerId();
 
@@ -160,7 +146,7 @@
           return;
         }
         sessionStorage.setItem(PRODUCT_CATEGORY_KEY, '投资规划');
-        navigateWithCustomer('smart_allocation.html', customerId);
+        navigateWithCustomer('smart_allocation_setup.html', customerId);
       };
     }
 
@@ -170,7 +156,7 @@
         return;
       }
       sessionStorage.setItem(PRODUCT_CATEGORY_KEY, '投资规划');
-      navigateWithCustomer('smart_allocation.html', customerId);
+      navigateWithCustomer('smart_allocation_setup.html', customerId);
     };
 
     async function loadDiagnosis() {
@@ -200,6 +186,14 @@
         `${WealthJourney.formatWan(d.total_assets)} 万`;
       document.getElementById('metricDate').textContent = `数据日期 ${d.diagnosis_date}`;
 
+      const flagsEl = document.getElementById('metricFlags');
+      if (d.flags && d.flags.length) {
+        flagsEl.innerHTML = WealthJourney.renderFlags(d.flags, { interactive: true });
+        WealthJourney.bindFlagTooltips(flagsEl);
+      } else {
+        flagsEl.innerHTML = '<span class="diagnosis-flags-empty">暂无标志</span>';
+      }
+
       const p = d.performance;
       const m = d.model_benchmark;
       const annEl = document.getElementById('metricAnnual');
@@ -219,11 +213,6 @@
       document.getElementById('metricVol').textContent = `${p.volatility_pct}%`;
       document.getElementById('metricExpectRisk').textContent =
         `波动 ${m.expect_volatility_pct}% · 损失阈值 ${d.loss_threshold_pct}%`;
-      document.getElementById('metricModel').textContent = m.model_code || '--';
-
-      const flagsEl = document.getElementById('metricFlags');
-      flagsEl.innerHTML = WealthJourney.renderFlags(d.flags, { interactive: true });
-      WealthJourney.bindFlagTooltips(flagsEl);
 
       document.getElementById('compositeScore').textContent = `${d.composite_score} 分`;
       document.getElementById('beatInvestors').textContent =

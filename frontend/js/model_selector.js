@@ -1,9 +1,9 @@
-/** 智能资配页 — 模型指派选择（投资组合偏好 / 预期年化收益，二选一） */
+/** 智能资配页 — 模型指派（配置准备页按预期年化收益区间选模） */
 
 const ModelSelector = {
   rows: [],
   riskLossDefault: {},
-  mode: 'loss',
+  mode: 'return',
   selectedLossKey: null,
   _onChange: null,
   _bound: false,
@@ -20,8 +20,84 @@ const ModelSelector = {
     return (this.riskLossDefault[cat] || {})[risk] || this.rows[0]?.loss_key || null;
   },
 
+  getDefaultLossRow() {
+    const key = this.defaultLossKey();
+    return this.rows.find(r => r.loss_key === key) || null;
+  },
+
   getSelectedLossKey() {
     return this.selectedLossKey || this.defaultLossKey();
+  },
+
+  getSelectedRow() {
+    const key = this.getSelectedLossKey();
+    return this.rows.find(r => r.loss_key === key) || null;
+  },
+
+  _formatRetNum(ret) {
+    const v = Number(ret);
+    if (!Number.isFinite(v)) return '--';
+    return v.toFixed(2).replace(/\.?0+$/, '');
+  },
+
+  buildReturnRanges(rows = this.rows) {
+    const sorted = [...rows].sort((a, b) => (Number(a.ret) || 0) - (Number(b.ret) || 0));
+    return sorted.map((row, i) => {
+      const ret = Number(row.ret);
+      let label;
+      if (i === 0) {
+        label = `小于${this._formatRetNum(ret)}%`;
+      } else if (i === sorted.length - 1) {
+        const prev = Number(sorted[i - 1].ret);
+        label = `${this._formatRetNum(prev)}%以上`;
+      } else {
+        const prev = Number(sorted[i - 1].ret);
+        label = `${this._formatRetNum(prev)}%～${this._formatRetNum(ret)}%`;
+      }
+      return { loss_key: row.loss_key, label, row };
+    });
+  },
+
+  getReturnRangeLabel(lossKey) {
+    const key = lossKey || this.getSelectedLossKey();
+    const range = this.buildReturnRanges().find(r => r.loss_key === key);
+    return range?.label || '--';
+  },
+
+  selectLossKey(lossKey, mode) {
+    if (mode) this.setMode(mode, { persist: false });
+    this.selectedLossKey = lossKey;
+    const sel = document.getElementById('modelSelectorSelect');
+    if (sel) sel.value = lossKey;
+    this.persistSelection();
+    if (this._onChange) this._onChange();
+  },
+
+  _goalModeStorageKey() {
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    return cid ? `setupGoalMode_${cid}` : 'setupGoalMode';
+  },
+
+  getMode() {
+    return this.mode;
+  },
+
+  setMode(mode, { persist = true } = {}) {
+    this._setMode(mode);
+    if (persist) this.persistMode();
+  },
+
+  persistMode() {
+    sessionStorage.setItem(this._goalModeStorageKey(), this.mode);
+  },
+
+  restoreMode() {
+    const saved = sessionStorage.getItem(this._goalModeStorageKey());
+    if (saved === 'loss' || saved === 'return') {
+      this._setMode(saved);
+    } else {
+      this._setMode('return');
+    }
   },
 
   async loadOptions() {
@@ -32,14 +108,13 @@ const ModelSelector = {
   },
 
   _resetToDefaults() {
-    this.mode = 'loss';
+    this.mode = 'return';
     this.selectedLossKey = this.defaultLossKey();
   },
 
   _optionLabel(row) {
     if (this.mode === 'return') {
-      const ret = row.ret != null ? Number(row.ret).toFixed(2) : '--';
-      return `${ret}%`;
+      return this.getReturnRangeLabel(row.loss_key);
     }
     return row.loss_label || row.loss_key;
   },
@@ -93,6 +168,7 @@ const ModelSelector = {
     await this.loadOptions();
     if (resetMode) {
       this._resetToDefaults();
+      this.persistMode();
     } else if (!this.rows.some(r => r.loss_key === this.selectedLossKey)) {
       this.selectedLossKey = this.defaultLossKey();
     }
@@ -110,6 +186,25 @@ const ModelSelector = {
     const lk = this.getSelectedLossKey();
     if (lk) body.loss_key = lk;
     return body;
+  },
+
+  persistSelection() {
+    sessionStorage.setItem('allocationLossKey', this.getSelectedLossKey() || '');
+    this.persistMode();
+  },
+
+  restoreSelection() {
+    const saved = sessionStorage.getItem('allocationLossKey');
+    if (saved) this.selectedLossKey = saved;
+  },
+
+  async initHeadless() {
+    await this.loadOptions();
+    this.restoreSelection();
+    this.restoreMode();
+    if (!this.selectedLossKey || !this.rows.some(r => r.loss_key === this.selectedLossKey)) {
+      this.selectedLossKey = this.defaultLossKey();
+    }
   },
 
   bindEvents() {
@@ -139,7 +234,11 @@ const ModelSelector = {
     this._onChange = onChange || null;
     this.bindEvents();
     await this.loadOptions();
-    this._resetToDefaults();
+    this.restoreSelection();
+    this.restoreMode();
+    if (!this.selectedLossKey || !this.rows.some(r => r.loss_key === this.selectedLossKey)) {
+      this.selectedLossKey = this.defaultLossKey();
+    }
     this.renderSelect();
   },
 };

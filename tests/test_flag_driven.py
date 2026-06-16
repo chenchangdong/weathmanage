@@ -204,6 +204,9 @@ class TestFlagPersonalizedRebalance:
         assert result.view_mode == "asset_type"
         assert len(result.category_summary) == len(INVESTMENT_CARD_KEYS)
         assert any("个性化配仓依据" in n for n in result.validation_notes)
+        assert all(abs(d.delta_amount) < 0.01 for d in result.product_deltas)
+        assert any(abs(s["adjust_amount"]) >= 1 for s in result.category_summary)
+        assert any("待落实" in n for n in result.validation_notes)
 
     def test_smart_one_click_unchanged(self):
         customer_id = "C20250602001"
@@ -219,6 +222,62 @@ class TestFlagPersonalizedRebalance:
             product_category=INVESTMENT_PLANNING,
         )
         assert result.mode == "smart_one_click"
+        assert any(abs(d.delta_amount) >= 1 for d in result.product_deltas)
+
+    def test_manual_add_p005_with_idle_no_false_shortfall(self):
+        """新增大额存单且追加持仓尚未全部落产品时不应误报差额。"""
+        customer_id = "C20250602001"
+        customer = get_demo_customer(customer_id)
+        data = get_customer_holdings(customer_id)
+        engine = AutoRebalanceEngine()
+        idle = 200_000.0
+        base = engine.rebalance(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=idle,
+            risk_profile=customer["risk_profile"],
+            mode="flag_personalized",
+            product_category=INVESTMENT_PLANNING,
+            flag_codes=["return_above_expected"],
+        )
+        baseline = {d.product_code: d.target_amount for d in base.product_deltas}
+        baseline["P005"] = 200_000.0
+
+        funded = engine.apply_manual_product_targets(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=idle,
+            risk_profile=customer["risk_profile"],
+            product_category=INVESTMENT_PLANNING,
+            product_targets={"P005": 200_000.0},
+            baseline_product_targets=baseline,
+        )
+        assert not any("差额" in n or "不一致" in n for n in funded.validation_notes)
+
+        baseline2 = {d.product_code: d.target_amount for d in base.product_deltas}
+        baseline2["P005"] = 200_000.0
+        baseline2["P006"] = 0.0
+        rebalanced = engine.apply_manual_product_targets(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=idle,
+            risk_profile=customer["risk_profile"],
+            product_category=INVESTMENT_PLANNING,
+            product_targets={"P005": 200_000.0, "P006": 0.0},
+            baseline_product_targets=baseline2,
+        )
+        assert not any("差额" in n or "不一致" in n for n in rebalanced.validation_notes)
+
+        unfunded = engine.apply_manual_product_targets(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=0.0,
+            risk_profile=customer["risk_profile"],
+            product_category=INVESTMENT_PLANNING,
+            product_targets={"P005": 200_000.0},
+            baseline_product_targets=baseline,
+        )
+        assert any("超出" in n for n in unfunded.validation_notes)
 
 
 class TestFlagPersonalizedAPI:
@@ -250,3 +309,80 @@ class TestFlagPersonalizedAPI:
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert data["rebalance"]["mode"] == "flag_personalized"
+
+
+class TestFlagCategorySuggest:
+    def test_flag_category_suggest_returns_deltas(self):
+        from fastapi.testclient import TestClient
+
+        from main import app
+
+        customer_id = "C20250602007"
+        customer = get_demo_customer(customer_id)
+        data = get_customer_holdings(customer_id)
+        engine = AutoRebalanceEngine()
+        result = engine.rebalance(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=data["idle_cash"],
+            risk_profile=customer["risk_profile"],
+            mode="flag_personalized",
+            product_category=INVESTMENT_PLANNING,
+            flag_codes=["return_above_expected"],
+        )
+        actionable = next(
+            s for s in result.category_summary if abs(s["adjust_amount"]) >= 1
+        )
+        client = TestClient(app)
+        resp = client.post("/api/allocation/flag_category_suggest", json={
+            "customer_id": customer_id,
+            "category": actionable["category"],
+            "category_targets": result.category_targets,
+            "product_category": "投资规划",
+        })
+        assert resp.status_code == 200
+        deltas = resp.json()["data"]["product_deltas"]
+        assert deltas
+        assert any(abs(d["delta_amount"]) >= 1 for d in deltas)
+
+    def test_flag_category_suggest_respects_baseline(self):
+        customer_id = "C20250602007"
+        customer = get_demo_customer(customer_id)
+        data = get_customer_holdings(customer_id)
+        engine = AutoRebalanceEngine()
+        result = engine.rebalance(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=data["idle_cash"],
+            risk_profile=customer["risk_profile"],
+            mode="flag_personalized",
+            product_category=INVESTMENT_PLANNING,
+            flag_codes=["return_above_expected"],
+        )
+        actionable = next(
+            s for s in result.category_summary if abs(s["adjust_amount"]) >= 1
+        )
+        cat = actionable["category"]
+        baseline = {
+            d.product_code: d.current_amount + max(d.delta_amount, 0)
+            for d in result.product_deltas
+            if d.category == cat
+        }
+        if baseline:
+            code = next(iter(baseline))
+            baseline[code] = baseline.get(code, 0) + min(actionable["adjust_amount"], 10000)
+
+        plain, _ = engine.suggest_flag_category_products(
+            holdings=data["holdings"],
+            category=cat,
+            category_targets=result.category_targets,
+        )
+        with_base, _ = engine.suggest_flag_category_products(
+            holdings=data["holdings"],
+            category=cat,
+            category_targets=result.category_targets,
+            baseline_product_targets=baseline,
+        )
+        plain_buy = sum(max(d.delta_amount, 0) for d in plain)
+        base_buy = sum(max(d.delta_amount, 0) for d in with_base)
+        assert base_buy <= plain_buy + 0.01

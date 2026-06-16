@@ -19,7 +19,7 @@ products:
     product_subtype: demand_deposit
     rebalance_priority: 0
     min_amount: 1
-    max_amount: 500000
+    max_amount: 5000000
     liquidity_days: 0
     risk_level: 1
   - code: P001

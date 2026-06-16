@@ -250,9 +250,10 @@ class AdvisorChatService:
         ]
         if ov.get("available"):
             health = (ov.get("health") or {}).get("label", "")
+            addon = ov.get("idle_cash") or 0
+            addon_text = f"，追加持仓 {addon:,.0f} 元" if addon > 0.01 else ""
             lines.append(
-                f"资产检视：总资产 {ov.get('total_assets', 0):,.0f} 元，"
-                f"闲置资金 {ov.get('idle_cash', 0):,.0f} 元，配置健康度 {health}。"
+                f"资产检视：总资产 {ov.get('total_assets', 0):,.0f} 元{addon_text}，配置健康度 {health}。"
             )
             off_band = [
                 c["category_name"]

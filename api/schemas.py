@@ -29,6 +29,17 @@ class ManualAdjustRequest(BaseModel):
     loss_key: Optional[str] = None
 
 
+class FlagCategorySuggestRequest(BaseModel):
+    customer_id: str
+    category: str
+    category_targets: Dict[str, float]
+    baseline_product_targets: Optional[Dict[str, float]] = None
+    product_category: Optional[str] = None
+    holdings: Optional[Dict[str, float]] = None
+    idle_cash: Optional[float] = None
+    loss_key: Optional[str] = None
+
+
 class ModelCodeRename(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

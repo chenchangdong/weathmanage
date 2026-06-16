@@ -35,7 +35,7 @@
         <div class="label">总资产</div>
         <div class="amount" id="totalAssets">--</div>
         <div class="meta">
-          <span id="idleCash">闲置资金 --</span>
+          <span id="idleCash" style="display:none">追加持仓 --</span>
           <button type="button" class="btn btn-ai-explain" id="btnAiHealthDiagnose">AI资配解读</button>
         </div>
       </div>
@@ -106,7 +106,7 @@
       }
 
       document.getElementById('totalAssets').textContent = formatMoney(data.total_assets);
-      document.getElementById('idleCash').textContent = '闲置资金 ' + formatMoney(data.idle_cash);
+      document.getElementById('idleCash').textContent = '追加持仓 ' + formatMoney(data.idle_cash || 0);
       const status = document.getElementById('healthStatus');
       status.style.color = data.health.color;
       document.getElementById('healthLabel').textContent = data.health.label;

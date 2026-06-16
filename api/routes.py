@@ -14,6 +14,7 @@ from api.schemas import (
     AftercareItemGenerateRequest,
     AftercareSystemSaveRequest,
     AutoRebalanceRequest,
+    FlagCategorySuggestRequest,
     ManualAdjustRequest,
     ModelDeleteRequest,
     ModelSaveRequest,
@@ -174,7 +175,7 @@ def auto_rebalance(req: AutoRebalanceRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"No holdings: {req.customer_id}")
 
     holdings = req.holdings or data["holdings"]
-    idle_cash = req.idle_cash if req.idle_cash is not None else data["idle_cash"]
+    idle_cash = req.idle_cash if req.idle_cash is not None else 0.0
 
     product_category = req.product_category or customer.get("product_category", "投资规划")
 
@@ -311,7 +312,7 @@ def manual_adjust(req: ManualAdjustRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"No holdings: {req.customer_id}")
 
     holdings = req.holdings or data["holdings"]
-    idle_cash = req.idle_cash if req.idle_cash is not None else data["idle_cash"]
+    idle_cash = req.idle_cash if req.idle_cash is not None else 0.0
     product_category = req.product_category or customer.get("product_category", "投资规划")
 
     engine = AutoRebalanceEngine()
@@ -337,6 +338,60 @@ def manual_adjust(req: ManualAdjustRequest) -> Dict[str, Any]:
         "data": {
             "rebalance": _rebalance_to_dict(result),
             "explanation": explain,
+        },
+    }
+
+
+@router.post("/allocation/flag_category_suggest")
+def flag_category_suggest(req: FlagCategorySuggestRequest) -> Dict[str, Any]:
+    """个性化配仓：单个大类产品层智能建议（参考分配，不改动大类处方）。"""
+    customer = get_demo_customer(req.customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail=f"Customer not found: {req.customer_id}")
+
+    product_category = req.product_category or customer.get("product_category", "投资规划")
+    if product_category != "投资规划":
+        raise HTTPException(status_code=400, detail="个性化配仓仅支持投资规划")
+
+    data = get_customer_holdings(req.customer_id)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"No holdings: {req.customer_id}")
+
+    holdings = req.holdings or data["holdings"]
+    engine = AutoRebalanceEngine()
+    try:
+        cat_deltas, notes = engine.suggest_flag_category_products(
+            holdings=holdings,
+            category=req.category,
+            category_targets=req.category_targets,
+            baseline_product_targets=req.baseline_product_targets,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    pmap = get_product_map()
+    return {
+        "code": 0,
+        "message": "ok",
+        "data": {
+            "category": req.category,
+            "product_deltas": [
+                {
+                    "product_code": d.product_code,
+                    "product_name": d.product_name,
+                    "category": d.category,
+                    "min_amount": pmap.get(d.product_code, {}).get("min_amount", 0),
+                    "max_amount": pmap.get(d.product_code, {}).get("max_amount"),
+                    "current_amount": d.current_amount,
+                    "target_amount": d.target_amount,
+                    "delta_amount": d.delta_amount,
+                    "action": d.action,
+                    "limit_hit": d.limit_hit,
+                    "limit_side": d.limit_side,
+                }
+                for d in cat_deltas
+            ],
+            "notes": notes,
         },
     }
 

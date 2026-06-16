@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>智能资配 - 四笔钱智能投顾</title>
+  <title>智能资配 · 方案配仓 - 四笔钱智能投顾</title>
   <link rel="stylesheet" href="css/style.css">
   <script src="js/advisor_chat_bootstrap.js"></script>
 </head>
-<body class="page-smart-allocation" data-advisor-dock>
+<body class="page-smart-allocation page-smart-allocation-workspace" data-advisor-dock>
   <div class="container container-smart-allocation">
     <div class="page-header">
       <h1>智能资配</h1>
@@ -21,44 +21,15 @@
       <span class="journey-step-arrow">→</span>
       <a href="#" class="journey-step link" id="linkDiagnosis">② 资产诊断</a>
       <span class="journey-step-arrow">→</span>
-      <span class="journey-step active">③ 智能资配</span>
+      <a href="#" class="journey-step link" id="linkSetup">③ 配置</a>
+      <span class="journey-step-arrow">→</span>
+      <span class="journey-step active">方案配仓</span>
     </div>
 
-    <div class="smart-alloc-toolbar">
-      <label for="customerSelect" class="toolbar-label">选择客户：</label>
-      <select id="customerSelect" class="toolbar-field"></select>
-      <span class="toolbar-label toolbar-right">财富健康标志：</span>
-      <span id="overviewHealthFlags" class="diagnosis-inline-flags toolbar-flags toolbar-right"></span>
-
-      <label for="planningTypeSelect" class="toolbar-label">规划类型：</label>
-      <select id="planningTypeSelect" class="toolbar-field"></select>
-      <label for="addonHoldingInput" class="toolbar-label toolbar-right">追加持仓：</label>
-      <div class="toolbar-addon-field toolbar-right">
-        <span class="addon-holding-info" tabindex="0" aria-describedby="addonHoldingTip">
-          <svg class="addon-holding-info-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.2"/>
-            <path d="M8 7v4M8 5h.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>
-          <span id="addonHoldingTip" class="addon-holding-info-tip" role="tooltip">录入金额（单位：万）即为总资产卡片中的闲置资金，可为 0 或负数</span>
-        </span>
-        <span class="addon-holding-input-wrap">
-          <input type="text" id="addonHoldingInput" class="addon-holding-input" inputmode="decimal" value="0" placeholder="0" autocomplete="off">
-          <span class="addon-holding-unit">万</span>
-        </span>
-        <span id="addonHoldingError" class="addon-holding-error" style="display:none">请输入有效数值</span>
-      </div>
-
-      <div class="model-selector-row toolbar-model-row">
-        <div class="model-selector-wrap">
-          <div class="model-selector-mode-tabs" role="tablist" aria-label="模型选择方式">
-            <button type="button" class="model-selector-tab active" role="tab" id="modelSelectorTabLoss" data-mode="loss" aria-selected="true" aria-controls="modelSelectorSelect">投资组合偏好</button>
-            <button type="button" class="model-selector-tab" role="tab" id="modelSelectorTabReturn" data-mode="return" aria-selected="false" aria-controls="modelSelectorSelect">预期年化收益</button>
-          </div>
-          <select id="modelSelectorSelect" class="model-selector-select" title="选择资产配置模型"></select>
-        </div>
-      </div>
+    <div class="smart-alloc-context-bar" id="contextBar">
+      <a href="smart_allocation_setup.html" class="btn btn-link smart-alloc-back-setup" id="linkBackSetup">← 返回配置</a>
+      <span id="contextSummary" class="smart-alloc-context-summary">--</span>
     </div>
-    <div id="mappingBanner" class="mapping-banner" style="display:none"></div>
 
     <div id="loading" class="loading">加载中...</div>
 
@@ -72,9 +43,9 @@
         <div class="amount" id="totalAssets">--</div>
         <div class="meta">
           <div class="idle-cash-group" id="idleCashGroup">
-            <span id="idleCash">闲置资金 --</span>
-            <span id="configuredIdle" class="idle-cash-extra" style="display:none">本次已配置闲置资金 --</span>
-            <span id="remainingIdle" class="idle-cash-extra" style="display:none">剩余可配置闲置资金 --</span>
+            <span id="idleCash">追加持仓 --</span>
+            <span id="configuredIdle" class="idle-cash-extra" style="display:none">本次已配置追加持仓 --</span>
+            <span id="remainingIdle" class="idle-cash-extra" style="display:none">剩余可追加 --</span>
           </div>
           <button type="button" class="btn btn-ai-explain" id="btnAiHealthDiagnose">AI资配解读</button>
         </div>
@@ -85,6 +56,7 @@
       <div class="category-grid" id="categoryGrid"></div>
 
       <div id="planSection" style="display:none">
+        <div id="flagContextPanel" class="flag-context-panel" style="display:none"></div>
         <div id="planEditHint" class="plan-edit-hint" style="display:none">
           可在上方四笔钱卡片「本类产品调仓明细」中修改增减仓，或点击「选择产品」新增未持仓产品（可删除）；已有持仓产品请通过卖出至 0 表示不再持有；输入完成后按回车或点击其他区域确认，方案将联动更新
         </div>
@@ -171,6 +143,45 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="idleCashGuideModal">
+    <div class="modal modal-idle-guide">
+      <h3>追加持仓不足</h3>
+      <p id="idleCashGuideMessage" class="idle-guide-message"></p>
+      <div id="idleCashGuideInputPanel" class="form-group" style="display:none">
+        <label for="idleCashGuideInput">追加追加持仓（万）</label>
+        <input type="text" id="idleCashGuideInput" class="edit-input" inputmode="decimal" placeholder="0" autocomplete="off">
+        <p class="idle-guide-input-hint">确认后将计入本方案可配置总资产</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="idleCashGuideConfirm" style="display:none">确认追加</button>
+        <button type="button" class="btn btn-primary" id="idleCashGuideYes">是，追加追加持仓</button>
+        <button type="button" class="btn btn-secondary" id="idleCashGuideNo">否</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="idleCashRevertModal">
+    <div class="modal modal-idle-guide">
+      <h3>取消追加持仓追加？</h3>
+      <p id="idleCashRevertMessage" class="idle-guide-message"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="idleCashRevertYes">是，取消追加</button>
+        <button type="button" class="btn btn-secondary" id="idleCashRevertNo">否，保留追加</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="prescriptionRegenModal">
+    <div class="modal modal-rx-regen">
+      <h3>重新生成大类处方？</h3>
+      <p id="prescriptionRegenMessage" class="idle-guide-message"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="prescriptionRegenConfirm">重新生成</button>
+        <button type="button" class="btn btn-secondary" id="prescriptionRegenCancel">继续落实当前处方</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="tweakModal">
     <div class="modal">
       <h3>人工微调 — <span id="tweakCategoryName"></span></h3>
@@ -180,7 +191,7 @@
       </div>
       <div class="modal-actions">
         <button class="btn btn-primary" id="tweakConfirm">确认并重算</button>
-        <button class="btn btn-secondary" id="tweakCancel">取消</button>
+        <button type="button" class="btn btn-secondary" id="tweakCancel">取消</button>
       </div>
     </div>
   </div>
@@ -191,6 +202,7 @@
   <script src="js/common.js"></script>
   <script src="js/wealth_journey.js"></script>
   <script src="js/model_selector.js"></script>
+  <script src="js/smart_allocation_addon.js"></script>
   <script src="js/plan_editor.js"></script>
   <script src="js/advisor_chat.js?v=20260614b"></script>
   <script>
@@ -200,56 +212,30 @@
     let viewMode = 'overview';
     let tweakCategory = null;
     let holdingsBaseTotal = 0;
-    let lastAppliedAddon = 0;
 
-    function addonStorageKey() {
-      return `smartAllocation_addon_${getCustomerId()}_${getProductCategory()}`;
+    if (!getSelectedCustomerId()) {
+      window.location.replace('smart_allocation_setup.html');
     }
 
-    const ADDON_WAN_FACTOR = 10000;
+    renderNav('smart_allocation');
 
-    function yuanToWan(yuan) {
-      const wan = Number(yuan) / ADDON_WAN_FACTOR;
-      if (!Number.isFinite(wan)) return '0';
-      return String(parseFloat(wan.toFixed(4)));
+    const linkSetup = document.getElementById('linkBackSetup');
+    const cid = getSelectedCustomerId();
+    if (linkSetup && cid) {
+      linkSetup.href = `smart_allocation_setup.html?customer_id=${encodeURIComponent(cid)}`;
+    }
+    const linkSetupStep = document.getElementById('linkSetup');
+    if (linkSetupStep && cid) {
+      linkSetupStep.href = `smart_allocation_setup.html?customer_id=${encodeURIComponent(cid)}`;
+      linkSetupStep.onclick = null;
     }
 
-    function parseAddonInput(raw) {
-      const trimmed = String(raw ?? '').trim();
-      if (trimmed === '') return { ok: true, value: 0 };
-      if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return { ok: false, value: null };
-      const wan = parseFloat(trimmed);
-      if (!Number.isFinite(wan)) return { ok: false, value: null };
-      return { ok: true, value: wan * ADDON_WAN_FACTOR };
-    }
-
-    function setAddonInputError(show) {
-      const input = document.getElementById('addonHoldingInput');
-      const err = document.getElementById('addonHoldingError');
-      if (input) input.classList.toggle('invalid', show);
-      if (err) err.style.display = show ? 'inline' : 'none';
-    }
-
-    function getCommittedAddonIdleCash() {
-      return lastAppliedAddon;
-    }
-
-    function loadAddonFromStorage() {
-      const stored = sessionStorage.getItem(addonStorageKey());
-      let value = 0;
-      if (stored != null && stored !== '') {
-        const yuan = parseFloat(stored);
-        value = Number.isFinite(yuan) ? yuan : 0;
-      }
-      lastAppliedAddon = value;
-      const input = document.getElementById('addonHoldingInput');
-      if (input) input.value = yuanToWan(value);
-      setAddonInputError(false);
-    }
-
-    function saveAddonToStorage(value) {
-      sessionStorage.setItem(addonStorageKey(), String(value));
-    }
+    document.getElementById('linkDiagnosis').onclick = (e) => {
+      e.preventDefault();
+      const cid = getSelectedCustomerId();
+      if (cid) navigateWithCustomer('asset_diagnosis.html', cid);
+      else showToast('请先选择客户');
+    };
 
     function syncAddonToOverviewData() {
       const addon = getCommittedAddonIdleCash();
@@ -267,6 +253,70 @@
       updateIdleCashDisplay({ idle_cash: overviewData.idle_cash, category_summary: [], product_deltas: [] }, false);
     }
 
+    function savePlanResult(data) {
+      PlanEditor.attachPrescriptionSnapshot(data);
+      saveResult(data);
+    }
+
+    function discardStalePersonalizedPlan(message) {
+      PlanEditor.resetManualState();
+      sessionStorage.removeItem('rebalanceResult');
+      planData = null;
+      viewMode = 'overview';
+      hidePlanSection();
+      if (overviewData) renderOverview(overviewData);
+      if (message) showToast(message);
+    }
+
+    function restorePersonalizedPlanIfAny() {
+      const cached = loadResult();
+      if (!cached?.rebalance) return false;
+      const cid = getSelectedCustomerId();
+      if (cached.rebalance.customer_id !== cid) return false;
+      if (cached.product_category && cached.product_category !== getProductCategory()) return false;
+      if (!cached.categoryPrescription && cached.rebalance.mode !== 'flag_personalized') return false;
+
+      const addon = syncAddonToOverviewData();
+      if (!PlanEditor.isSavedPrescriptionRestorable(cached, addon, holdingsBaseTotal)) {
+        discardStalePersonalizedPlan('追加持仓已关闭或不足，原处方已失效，请重新发起个性化配仓');
+        return false;
+      }
+
+      PlanEditor.restorePrescriptionSnapshot(cached);
+      PlanEditor.syncPlanIdleCash(cached.rebalance, addon, holdingsBaseTotal);
+      planData = cached;
+      viewMode = 'plan';
+      refreshPlanView(cached);
+      document.getElementById('planSection').style.display = 'block';
+      document.getElementById('globalActions').style.display = 'none';
+      return true;
+    }
+
+    async function maybeConfirmRestorePersonalizedPlan() {
+      if (!PlanEditor.hasSavedPersonalizedPlan()) return false;
+
+      const cached = loadResult();
+      const addon = getCommittedAddonIdleCash();
+      if (!PlanEditor.isSavedPrescriptionRestorable(cached, addon, holdingsBaseTotal)) {
+        discardStalePersonalizedPlan('追加持仓已关闭或不足，原处方已失效，请重新发起个性化配仓');
+        return false;
+      }
+
+      const oldTotal = cached?.categoryPrescription?.frozenAtTotal ?? cached?.rebalance?.total_assets;
+      const newTotal = holdingsBaseTotal + addon;
+      PlanEditor.initPrescriptionRegenModal();
+      const regenerate = await PlanEditor.promptRegeneratePrescription(oldTotal, newTotal);
+
+      if (regenerate) {
+        discardStalePersonalizedPlan(null);
+        return false;
+      }
+      if (restorePersonalizedPlanIfAny()) {
+        showToast('已恢复当前大类处方，请继续落实');
+      }
+      return true;
+    }
+
     function returnToOverviewFromAddonChange() {
       planData = null;
       viewMode = 'overview';
@@ -274,56 +324,15 @@
       sessionStorage.removeItem('rebalanceResult');
       if (overviewData) renderOverview(overviewData);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      showToast('追加持仓已更新，请重新生成配置方案');
+      showToast('追加持仓已更新，请返回配置页修改');
     }
 
-    function applyAddonHoldingInput() {
-      const input = document.getElementById('addonHoldingInput');
-      if (!input) return false;
-      const parsed = parseAddonInput(input.value);
-      if (!parsed.ok) {
-        setAddonInputError(true);
-        showToast('追加持仓请输入有效数值（单位：万，可为 0 或负数）');
-        input.value = yuanToWan(lastAppliedAddon);
-        return false;
-      }
-      setAddonInputError(false);
-      const prev = lastAppliedAddon;
-      lastAppliedAddon = parsed.value;
-      input.value = yuanToWan(parsed.value);
-      saveAddonToStorage(parsed.value);
-      applyAddonIdleToDisplay();
-      if (viewMode === 'plan' && prev !== parsed.value) {
-        returnToOverviewFromAddonChange();
-      }
-      return true;
-    }
-
-    function bindAddonHoldingInput() {
-      const input = document.getElementById('addonHoldingInput');
-      if (!input || input.dataset.bound) return;
-      input.dataset.bound = '1';
-      input.addEventListener('change', () => { applyAddonHoldingInput(); });
-      input.addEventListener('blur', () => { applyAddonHoldingInput(); });
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          input.blur();
-        }
-      });
-    }
-    bindAddonHoldingInput();
-
-    renderNav('smart_allocation');
-
-    const linkDiagnosis = document.getElementById('linkDiagnosis');
-    if (linkDiagnosis) {
-      linkDiagnosis.onclick = (e) => {
-        e.preventDefault();
-        const cid = getCustomerId();
-        if (cid) navigateWithCustomer('asset_diagnosis.html', cid);
-        else showToast('请先选择客户');
-      };
+    function updateContextSummary(data) {
+      const el = document.getElementById('contextSummary');
+      if (!el || !data) return;
+      const m = data.allocation_mapping;
+      const modelPart = m ? ` · ${m.model_code}` : '';
+      el.textContent = `${data.customer_name || ''} · ${data.product_category || getProductCategory()}${modelPart}`;
     }
 
     function updateGlobalActionsLayout() {
@@ -334,38 +343,6 @@
       }
     }
 
-    function onModelSelectorChange() {
-      if (viewMode === 'plan') {
-        planData = null;
-        viewMode = 'overview';
-        hidePlanSection();
-        sessionStorage.removeItem('rebalanceResult');
-      }
-      loadOverview();
-    }
-
-    async function onCustomerChange() {
-      planData = null;
-      diagnosisData = null;
-      viewMode = 'overview';
-      hidePlanSection();
-      updateGlobalActionsLayout();
-      if (typeof AdvisorChat !== 'undefined') await AdvisorChat.reloadForCustomer();
-      await ModelSelector.reloadForCategory();
-      loadOverview();
-    }
-
-    function renderHealthFlags() {
-      const el = document.getElementById('overviewHealthFlags');
-      if (!el) return;
-      if (!diagnosisData) {
-        el.innerHTML = '';
-        return;
-      }
-      el.innerHTML = WealthJourney.renderFlags(diagnosisData.flags || [], { interactive: true });
-      WealthJourney.bindFlagTooltips(el);
-    }
-
     async function loadDiagnosis(cid) {
       try {
         const res = await apiGet(`/api/wealth/diagnosis?customer_id=${encodeURIComponent(cid)}`);
@@ -373,14 +350,17 @@
       } catch (e) {
         diagnosisData = null;
       }
-      renderHealthFlags();
     }
 
     async function loadOverview() {
       document.getElementById('loading').style.display = 'block';
       document.getElementById('content').style.display = 'none';
       try {
-        const cid = getCustomerId();
+        const cid = getSelectedCustomerId();
+        if (!cid) {
+          window.location.replace('smart_allocation_setup.html');
+          return;
+        }
         const cat = encodeURIComponent(getProductCategory());
         const url = ModelSelector.appendQuery(
           `/api/asset/overview?customer_id=${cid}&product_category=${cat}`
@@ -388,33 +368,23 @@
         const res = await apiGet(url);
         overviewData = res.data;
         holdingsBaseTotal = (overviewData.total_assets || 0) - (overviewData.idle_cash || 0);
-        loadAddonFromStorage();
+        syncAddonToOverviewData();
         await loadDiagnosis(cid);
         renderOverview(overviewData);
+        updateContextSummary(overviewData);
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
+        await maybeConfirmRestorePersonalizedPlan();
       } catch (e) {
         document.getElementById('loading').textContent = '加载失败: ' + e.message;
       }
     }
 
-    function renderMappingBanner(data) {
-      const m = data.allocation_mapping;
-      const banner = document.getElementById('mappingBanner');
-      if (m) {
-        banner.style.display = 'block';
-        banner.innerHTML = renderMappingBannerHtml(data);
-      } else {
-        banner.style.display = 'none';
-      }
-    }
-
     function updateIdleCashDisplay(rb, showPlanStats) {
-      PlanEditor.updateIdleCashPanel(rb, { showPlanStats, fromSummary: false });
+      PlanEditor.updateIdleCashPanel(rb, { showPlanStats });
     }
 
     function renderOverview(data) {
-      renderMappingBanner(data);
       PlanEditor.hidePlanBanner();
       document.getElementById('pageSubtitle').textContent = '人人都是专业财富顾问';
 
@@ -429,13 +399,10 @@
           <div class="card-title">
             <span>${cat.category_name}</span>
             <span class="card-title-meta ${cat.in_band ? 'deviation-ok' : 'deviation-warn'}" title="当前占比（模型区间）">
-              <span class="card-title-ratio">${formatPct(cat.current_ratio)}</span>
-              <span class="card-title-band">(${formatBandRange(cat.band)})</span>
+              ${cat.in_band ? '✓ 在区间内' : '△ 需调整'}
             </span>
           </div>
-          <div class="field"><span>当前持仓</span><span class="value">${formatMoney(cat.current_amount)}</span></div>
-          <div class="field"><span>目标配置额</span><span class="value">${formatMoney(cat.target_amount)}</span></div>
-          <div class="field"><span>配比偏差</span><span class="value ${cat.in_band ? 'deviation-ok' : 'deviation-warn'}">${cat.deviation_pct}</span></div>
+          ${WealthJourney.renderCategoryOverviewBars(cat)}
           <div class="product-summary" onclick="toggleProducts('${cat.category}')">
             ▶ ${cat.product_summary.count}只产品 · 合计 ${formatMoney(cat.product_summary.total)}
           </div>
@@ -467,7 +434,7 @@
       } else {
         refreshPlanView(data);
       }
-      saveResult(planData);
+      savePlanResult(planData);
       showToast('方案已联动更新');
     }
 
@@ -475,15 +442,31 @@
       const rb = data.rebalance;
       const ex = data.explanation;
       const isManual = rb.mode === 'manual_product_edit';
-      if (!isManual) PlanEditor.resetManualState();
+      const isFlagPersonalized = rb.mode === 'flag_personalized';
+      const isPersonalized = isFlagPersonalized || PlanEditor.hasCategoryPrescription();
+      if (!isManual && !isFlagPersonalized) PlanEditor.resetManualState();
+      if (isFlagPersonalized) PlanEditor.cacheCategoryPrescription(rb);
       PlanEditor.cacheProductLimitsFromDeltas(rb.product_deltas);
 
       PlanEditor.updatePlanBanner(rb);
       document.getElementById('pageSubtitle').textContent = '人人都是专业财富顾问';
       document.getElementById('totalAssets').textContent = formatMoney(rb.total_assets);
       updateIdleCashDisplay(rb, true);
-      document.getElementById('planEditHint').style.display = 'block';
-      document.getElementById('categoryGrid').innerHTML = PlanEditor.renderPlanCards(rb, { smartAllocation: true });
+      const hintEl = document.getElementById('planEditHint');
+      const detailTitle = document.querySelector('#planSection .section-title');
+      if (isPersonalized) {
+        PlanEditor.renderFlagContextPanel(diagnosisData, rb.validation_notes);
+        hintEl.style.display = 'none';
+        if (detailTitle) detailTitle.textContent = '产品落实汇总（只读）';
+        document.getElementById('categoryGrid').innerHTML = PlanEditor.renderPersonalizedPlanCards(rb);
+        PlanEditor.syncCategorySuggestButtons(rb);
+      } else {
+        PlanEditor.hideFlagContextPanel();
+        hintEl.style.display = 'block';
+        hintEl.textContent = '可在上方四笔钱卡片「本类产品调仓明细」中修改增减仓，或点击「选择产品」新增未持仓产品（可删除）；已有持仓产品请通过卖出至 0 表示不再持有；输入完成后按回车或点击其他区域确认，方案将联动更新';
+        if (detailTitle) detailTitle.textContent = '底层产品明细';
+        document.getElementById('categoryGrid').innerHTML = PlanEditor.renderPlanCards(rb, { smartAllocation: true });
+      }
       document.getElementById('detailBody').innerHTML = PlanEditor.renderReadonlyDetailRows(rb);
       PlanEditor.updateExplanation(ex);
     }
@@ -494,7 +477,7 @@
       refreshPlanView(data);
       document.getElementById('planSection').style.display = 'block';
       document.getElementById('globalActions').style.display = 'none';
-      saveResult(data);
+      savePlanResult(data);
       if (scrollToExplain) {
         setTimeout(() => {
           document.getElementById('aiSection').scrollIntoView({ behavior: 'smooth' });
@@ -520,6 +503,7 @@
     function hidePlanSection() {
       document.getElementById('planSection').style.display = 'none';
       PlanEditor.hidePlanBanner();
+      PlanEditor.hideFlagContextPanel();
       document.getElementById('planEditHint').style.display = 'none';
       document.getElementById('globalActions').style.display = '';
     }
@@ -529,11 +513,10 @@
     }
 
     async function runRebalance(payload, scrollToExplain) {
-      if (!applyAddonHoldingInput()) return;
       showToast('智能配仓计算中...');
       try {
         const res = await apiPost('/api/allocation/auto_rebalance', withLossKey({
-          customer_id: getCustomerId(),
+          customer_id: getSelectedCustomerId(),
           product_category: getProductCategory(),
           idle_cash: syncAddonToOverviewData(),
           ...payload,
@@ -582,6 +565,26 @@
         showToast('财富健康，请用全账户一键配仓');
         return;
       }
+      if (PlanEditor.hasSavedPersonalizedPlan() || PlanEditor.hasCategoryPrescription()) {
+        const cached = loadResult();
+        const addon = getCommittedAddonIdleCash();
+        if (cached && !PlanEditor.isSavedPrescriptionRestorable(cached, addon, holdingsBaseTotal)) {
+          discardStalePersonalizedPlan(null);
+        } else if (PlanEditor.hasSavedPersonalizedPlan()) {
+          const oldTotal = cached?.categoryPrescription?.frozenAtTotal ?? cached?.rebalance?.total_assets;
+          const newTotal = holdingsBaseTotal + addon;
+          const regenerate = await PlanEditor.promptRegeneratePrescription(oldTotal, newTotal);
+          if (!regenerate) {
+            if (restorePersonalizedPlanIfAny()) {
+              showToast('已恢复当前大类处方，请继续落实');
+            }
+            return;
+          }
+          discardStalePersonalizedPlan(null);
+        } else {
+          PlanEditor.resetManualState();
+        }
+      }
       showToast(`依据财富健康标志（${effective.map(f => f.label).join('、')}）执行个性化智能配仓…`);
       await runRebalance({ mode: 'flag_personalized' });
     };
@@ -591,12 +594,11 @@
         showToast('请先选择客户');
         return;
       }
-      if (!applyAddonHoldingInput()) return;
       syncAddonToOverviewData();
       showToast('进入手工配置…');
       try {
         const data = await PlanEditor.beginManualConfig(
-          getCustomerId(),
+          getSelectedCustomerId(),
           getProductCategory(),
           overviewData
         );
@@ -624,10 +626,24 @@
 
     AdvisorChat.initDockPage();
 
-    ModelSelector.init({ onChange: onModelSelectorChange }).then(() => {
-      initCustomerSelect(onCustomerChange);
+    ModelSelector.initHeadless().then(() => {
+      loadOverview();
     });
     PlanEditor.loadPageConstraints();
+    PlanEditor.setLocalPlanSync(() => {
+      if (planData) savePlanResult(planData);
+    });
+    PlanEditor.initPrescriptionRegenModal();
+    const onIdleCashSynced = () => {
+      syncAddonToOverviewData();
+      if (planData) {
+        document.getElementById('totalAssets').textContent = formatMoney(planData.rebalance.total_assets);
+        updateIdleCashDisplay(planData.rebalance, true);
+        savePlanResult(planData);
+      }
+    };
+    PlanEditor.initIdleCashGuideModal(onIdleCashSynced);
+    PlanEditor.initIdleCashRevertModal(onIdleCashSynced);
   </script>
 </body>
 </html>

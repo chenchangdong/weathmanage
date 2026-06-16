@@ -48,7 +48,7 @@ single_category_optimize:
 
 # 全账户优化约束
 full_account_optimize:
-  include_idle_cash: true              # 闲置资金纳入总配置
+  include_idle_cash: true              # 追加持仓（用户录入）纳入总配置
   min_total_assets: 10000              # 最低可优化资产门槛
   max_single_product_ratio: 0.40       # 单产品不超过总资产40%
 

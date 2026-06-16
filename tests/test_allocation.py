@@ -522,6 +522,69 @@ class TestAutoRebalanceEngine:
         assert "spend" in result.locked_categories
 
 
+class TestIdleCashAddon:
+    """追加持仓并入活钱大类 current（投资规划→cash，综合规划→spend）。"""
+
+    ADDON = 100_000.0
+
+    def setup_method(self):
+        self.engine = AutoRebalanceEngine()
+        self.customer_id = "C20250602002"
+        self.data = get_customer_holdings(self.customer_id)
+        self.customer = get_demo_customer(self.customer_id)
+
+    def test_investment_addon_absorbed_by_cash_when_in_band(self):
+        base = self.engine.rebalance(
+            customer_id=self.customer_id,
+            holdings=self.data["holdings"],
+            idle_cash=0,
+            risk_profile=self.customer["risk_profile"],
+            product_category=INVESTMENT_PLANNING,
+            loss_key="loss_3pct",
+        )
+        result = self.engine.rebalance(
+            customer_id=self.customer_id,
+            holdings=self.data["holdings"],
+            idle_cash=self.ADDON,
+            risk_profile=self.customer["risk_profile"],
+            product_category=INVESTMENT_PLANNING,
+            loss_key="loss_3pct",
+        )
+        cash_base = next(s for s in base.category_summary if s["category"] == "cash")
+        cash = next(s for s in result.category_summary if s["category"] == "cash")
+        assert cash["current_amount"] == pytest.approx(
+            cash_base["current_amount"] + self.ADDON, abs=0.01
+        )
+        assert cash["target_amount"] == pytest.approx(cash["current_amount"], abs=0.01)
+        for cat in ("fixed_income", "equity", "alternative"):
+            row = next(s for s in result.category_summary if s["category"] == cat)
+            base_row = next(s for s in base.category_summary if s["category"] == cat)
+            assert row["adjust_amount"] == pytest.approx(0, abs=0.01)
+            assert row["target_amount"] == pytest.approx(base_row["target_amount"], abs=0.01)
+
+    def test_four_money_spend_current_includes_addon(self):
+        spend_holdings = sum(
+            amt
+            for code, amt in self.data["holdings"].items()
+            if get_product_map()[code]["category"] == "spend"
+        )
+        result = self.engine.rebalance(
+            customer_id=self.customer_id,
+            holdings=self.data["holdings"],
+            idle_cash=self.ADDON,
+            risk_profile=self.customer["risk_profile"],
+            product_category=FOUR_MONEY_PLANNING,
+            loss_key="loss_3pct",
+        )
+        spend = next(s for s in result.category_summary if s["category"] == "spend")
+        assert spend["current_amount"] == pytest.approx(
+            spend_holdings + self.ADDON, abs=0.01
+        )
+        assert result.total_assets == pytest.approx(
+            sum(self.data["holdings"].values()) + self.ADDON, abs=0.01
+        )
+
+
 class TestHealthLevel:
     def test_green_when_in_band(self):
         level, label, color = compute_health_level(True)

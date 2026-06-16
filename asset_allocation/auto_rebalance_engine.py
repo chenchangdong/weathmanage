@@ -48,6 +48,19 @@ class AutoRebalanceEngine:
             filtered[code] = amount
         return filtered
 
+    @staticmethod
+    def _current_with_addon(
+        current_cat: dict[str, float],
+        idle_cash: float,
+        addon_category: str,
+    ) -> dict[str, float]:
+        """追加持仓并入活钱大类当前额（一键/综合规划求解与展示口径一致）。"""
+        if idle_cash <= 0:
+            return current_cat
+        merged = dict(current_cat)
+        merged[addon_category] = merged.get(addon_category, 0.0) + idle_cash
+        return merged
+
     def rebalance(
         self,
         customer_id: str,
@@ -68,7 +81,7 @@ class AutoRebalanceEngine:
         Args:
             customer_id: 客户ID
             holdings: 当前各产品持仓 {product_code: amount}
-            idle_cash: 闲置资金
+            idle_cash: 追加持仓（用户录入，纳入可配置总资产）
             risk_profile: 风险画像 conservative/balanced/aggressive
             mode: smart_one_click | manual_tweak | flag_personalized
             locked_categories: 人工微调时锁定的大类
@@ -104,8 +117,9 @@ class AutoRebalanceEngine:
         if total <= 0:
             raise ValueError("Total assets must be positive")
 
-        # 计算当前大类金额
+        # 计算当前大类金额（追加持仓并入 spend，与个性化 cash 池口径一致）
         current_cat = self._aggregate_by_category(holdings)
+        solver_current = self._current_with_addon(current_cat, idle_cash, "spend")
 
         prefer_existing = self.solver.get("prefer_existing_holdings", True)
         consolidate = self.solver.get("consolidate_category_rebalance", False)
@@ -115,7 +129,7 @@ class AutoRebalanceEngine:
             target_cat, product_targets, alloc_notes, limit_hits = (
                 self._solve_allocate_with_limit_freeze(
                     total=total,
-                    current_cat=current_cat,
+                    current_cat=solver_current,
                     profile_targets=profile_targets["targets"],
                     holdings=holdings,
                     locked=locked,
@@ -135,7 +149,7 @@ class AutoRebalanceEngine:
         else:
             target_cat = self._solve_category_targets(
                 total=total,
-                current_cat=current_cat,
+                current_cat=solver_current,
                 profile_targets=profile_targets["targets"],
                 locked=locked,
                 overrides=overrides,
@@ -153,7 +167,7 @@ class AutoRebalanceEngine:
         product_deltas = self._build_deltas(holdings, product_targets, limit_hits)
         actual_target_cat = self._target_cat_from_products(product_targets)
         category_summary = self._build_category_summary(
-            total, current_cat, actual_target_cat, profile_targets["targets"]
+            total, solver_current, actual_target_cat, profile_targets["targets"]
         )
         notes = list(alloc_notes)
         if target_category:
@@ -218,6 +232,7 @@ class AutoRebalanceEngine:
             raise ValueError("Total assets must be positive")
 
         current_cat = self._aggregate_by_asset_type(invest_holdings)
+        display_current = self._current_with_addon(current_cat, idle_cash, "cash")
         prefer_existing = self.solver.get("prefer_existing_holdings", True)
         consolidate = self.solver.get("consolidate_category_rebalance", False)
         names = get_asset_type_aliases()
@@ -236,42 +251,38 @@ class AutoRebalanceEngine:
                 )
             except FlagDrivenSolverError:
                 raise
-            product_targets, alloc_notes, limit_hits = self._allocate_products_asset_type(
-                target_cat=target_cat,
-                current_holdings=invest_holdings,
-                prefer_existing=prefer_existing,
-                consolidate=consolidate,
-                only_category=None,
-            )
+            product_targets = dict(invest_holdings)
             product_deltas = self._build_deltas(
-                invest_holdings, product_targets, limit_hits, use_asset_type_key=True
+                invest_holdings, product_targets, {}, use_asset_type_key=True
             )
-            actual_target_cat = self._target_cat_from_asset_type(product_targets)
             category_summary = self._build_category_summary(
                 total,
-                current_cat,
-                actual_target_cat,
+                display_current,
+                target_cat,
                 profile_targets,
                 categories=list(INVESTMENT_CARD_KEYS),
                 names=names,
             )
-            notes = flag_notes + list(alloc_notes)
-            notes.extend(
-                self._validate(
-                    total,
-                    actual_target_cat,
-                    profile_targets,
-                    product_deltas,
-                    categories=list(INVESTMENT_CARD_KEYS),
-                    names=names,
-                )
+            val_notes = self._validate(
+                total,
+                target_cat,
+                profile_targets,
+                product_deltas,
+                categories=list(INVESTMENT_CARD_KEYS),
+                names=names,
             )
+            ok_msg = "配置方案已落在模型区间内，校验通过"
+            if all(abs(d.delta_amount) < 0.01 for d in product_deltas):
+                val_notes = [n for n in val_notes if n != ok_msg]
+                if not any("待落实" in n for n in val_notes):
+                    val_notes.append("大类调仓建议已生成，产品层待落实")
+            notes = flag_notes + val_notes
             return RebalanceResult(
                 customer_id=customer_id,
                 risk_profile=risk_profile,
                 total_assets=total,
                 idle_cash=idle_cash,
-                category_targets=actual_target_cat,
+                category_targets=target_cat,
                 category_summary=category_summary,
                 product_deltas=product_deltas,
                 validation_notes=notes,
@@ -285,7 +296,7 @@ class AutoRebalanceEngine:
             target_cat, product_targets, alloc_notes, limit_hits = (
                 self._solve_allocate_with_limit_freeze(
                     total=total,
-                    current_cat=current_cat,
+                    current_cat=display_current,
                     profile_targets=profile_targets,
                     holdings=invest_holdings,
                     locked=locked,
@@ -305,7 +316,7 @@ class AutoRebalanceEngine:
         else:
             target_cat = self._solve_category_targets(
                 total=total,
-                current_cat=current_cat,
+                current_cat=display_current,
                 profile_targets=profile_targets,
                 locked=locked,
                 overrides=overrides,
@@ -326,7 +337,7 @@ class AutoRebalanceEngine:
         actual_target_cat = self._target_cat_from_asset_type(product_targets)
         category_summary = self._build_category_summary(
             total,
-            current_cat,
+            display_current,
             actual_target_cat,
             profile_targets,
             categories=list(INVESTMENT_CARD_KEYS),
@@ -433,22 +444,25 @@ class AutoRebalanceEngine:
                 limit_hits[code] = "liquidate"
 
         current_cat = self._aggregate_by_category(holdings)
+        display_current = self._current_with_addon(current_cat, idle_cash, "spend")
         target_cat = self._target_cat_from_products(clamped)
 
         product_deltas = self._build_deltas(
             holdings, clamped, limit_hits, include_target_codes=True
         )
         category_summary = self._build_category_summary(
-            total, current_cat, target_cat, profile_targets
+            total, display_current, target_cat, profile_targets
         )
 
         notes: list[str] = []
         targets_sum = sum(clamped.values())
-        if abs(targets_sum - total) > 0.01:
-            notes.append(
-                f"产品目标合计{targets_sum:,.0f}元与总资产{total:,.0f}元不一致，"
-                f"差额{targets_sum - total:+,.0f}元，请继续调整"
-            )
+        self._note_product_targets_vs_total(
+            notes,
+            targets_sum=targets_sum,
+            total=total,
+            idle_cash=idle_cash,
+            total_label="总资产",
+        )
         notes.extend(clamp_notes)
         val_notes = self._validate(
             total, target_cat, profile_targets, product_deltas
@@ -527,6 +541,7 @@ class AutoRebalanceEngine:
                 limit_hits[code] = "liquidate"
 
         current_cat = self._aggregate_by_asset_type(invest_holdings)
+        display_current = self._current_with_addon(current_cat, idle_cash, "cash")
         target_cat = self._target_cat_from_asset_type(clamped)
         names = get_asset_type_aliases()
         product_deltas = self._build_deltas(
@@ -534,17 +549,18 @@ class AutoRebalanceEngine:
             include_target_codes=True, use_asset_type_key=True,
         )
         category_summary = self._build_category_summary(
-            total, current_cat, target_cat, profile_targets,
+            total, display_current, target_cat, profile_targets,
             categories=list(INVESTMENT_CARD_KEYS), names=names,
         )
 
         notes: list[str] = []
         targets_sum = sum(clamped.values())
-        if abs(targets_sum - total) > 0.01:
-            notes.append(
-                f"产品目标合计{targets_sum:,.0f}元与可配置总资产{total:,.0f}元不一致，"
-                f"差额{targets_sum - total:+,.0f}元，请继续调整"
-            )
+        self._note_product_targets_vs_total(
+            notes,
+            targets_sum=targets_sum,
+            total=total,
+            idle_cash=idle_cash,
+        )
         notes.extend(clamp_notes)
         val_notes = self._validate(
             total, target_cat, profile_targets, product_deltas,
@@ -568,6 +584,44 @@ class AutoRebalanceEngine:
             view_mode="asset_type",
             product_category=product_category,
         )
+
+    def suggest_flag_category_products(
+        self,
+        *,
+        holdings: dict[str, float],
+        category: str,
+        category_targets: dict[str, float],
+        baseline_product_targets: dict[str, float] | None = None,
+    ) -> tuple[list[ProductDelta], list[str]]:
+        """个性化配仓：为单个大类生成产品层参考分配（不改动大类处方）。"""
+        if category not in INVESTMENT_CARD_KEYS:
+            raise ValueError(f"Unknown asset type category: {category}")
+        real_holdings = self._investment_holdings(holdings, self.products)
+        plan_holdings = dict(real_holdings)
+        if baseline_product_targets:
+            for code, amt in baseline_product_targets.items():
+                prod = self.products.get(code)
+                if not prod or prod.get("asset_type") == "insurance":
+                    continue
+                plan_holdings[code] = max(0.0, float(amt))
+        prefer_existing = self.solver.get("prefer_existing_holdings", True)
+        consolidate = self.solver.get("consolidate_category_rebalance", False)
+        product_targets, alloc_notes, limit_hits = self._allocate_products_asset_type(
+            target_cat=category_targets,
+            current_holdings=plan_holdings,
+            prefer_existing=prefer_existing,
+            consolidate=consolidate,
+            only_category=category,
+        )
+        product_deltas = self._build_deltas(
+            real_holdings,
+            product_targets,
+            limit_hits,
+            include_target_codes=True,
+            use_asset_type_key=True,
+        )
+        cat_deltas = [d for d in product_deltas if d.category == category]
+        return cat_deltas, list(alloc_notes)
 
     def _aggregate_by_category(self, holdings: dict[str, float]) -> dict[str, float]:
         result = {c: 0.0 for c in self.categories}
@@ -1187,6 +1241,32 @@ class AutoRebalanceEngine:
         if raw < mn - 0.01:
             return round(min(mn, mx), 2)
         return round(min(raw, mx), 2)
+
+    def _note_product_targets_vs_total(
+        self,
+        notes: list[str],
+        *,
+        targets_sum: float,
+        total: float,
+        idle_cash: float,
+        total_label: str = "可配置总资产",
+    ) -> None:
+        """产品目标合计校验：仅对超配告警；追加持仓未落实导致的合计偏低属正常。"""
+        if targets_sum > total + 0.01:
+            notes.append(
+                f"产品目标合计{targets_sum:,.0f}元超过{total_label}{total:,.0f}元，"
+                f"超出{targets_sum - total:,.0f}元，请继续调整"
+            )
+            return
+        shortfall = total - targets_sum
+        if shortfall <= 0.01:
+            return
+        if idle_cash > 0.01 and shortfall <= idle_cash + 0.01:
+            return
+        notes.append(
+            f"产品目标合计{targets_sum:,.0f}元与{total_label}{total:,.0f}元不一致，"
+            f"差额{targets_sum - total:+,.0f}元，请继续调整"
+        )
 
     def _build_deltas(
         self,

@@ -187,7 +187,7 @@ class WealthJourneyService:
             return None
 
         holdings = data["holdings"]
-        idle = data["idle_cash"]
+        idle = 0.0
         risk = customer["risk_profile"]
         product_map = get_product_map()
 

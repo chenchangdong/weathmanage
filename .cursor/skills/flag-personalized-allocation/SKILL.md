@@ -55,7 +55,7 @@ description: >-
 |------|------|
 | 四类 | 现金 / 固收 / 权益 / 另类（保障类不计入 total） |
 | total | 投资类持仓 + idle_cash |
-| 现金「当前」 | 现金类产品 + **idle 并入现金池**（与一键路径不同，见口径节） |
+| 现金「当前」 | 现金类产品 + **idle 并入现金池**（与一键求解口径一致；见下节） |
 | 每类边界 | 下限 band_lo、上限 band_hi、基准 bench |
 | 现金特殊规则 | **有效下限 = max(基准, band_lo)**，不能为了凑数把现金减到基准以下 |
 
@@ -74,6 +74,18 @@ description: >-
 ```
 
 **直觉：** 先按「病征」开药方（intent），再在模型区间里把总金额配平（normalize），最后落到产品。
+
+## 追加持仓口径（与一键对齐）
+
+| 层级 | idle 怎么处理 |
+|------|---------------|
+| **FlagDrivenSolver 求解** | `_cash_pool`：idle **并入** cash 参与 intent / normalize（**独立算法，一键不调用**） |
+| **一键 smart_one_click** | `_current_with_addon(..., "cash")` → `_solve_category_targets`（**不**调用 FlagDrivenSolver） |
+| **综合规划** | `_current_with_addon(..., "spend")` |
+| **category_summary 展示** | 各路径活钱类 current 均含 idle |
+| **RebalanceResult** | `idle_cash` 仍单独返回 |
+
+改 idle 口径时：**禁止**让一键走 FlagDrivenSolver；只改 `_current_with_addon` 或 Solver 内 `_cash_pool`。
 
 ## 两层逻辑：Intent 锚点 + Normalize 部署
 
@@ -196,7 +208,7 @@ POST /api/allocation/auto_rebalance
 | 健康客户仍能点？ | 诊断 flags 是否只有 four_money_mismatch |
 | 与一键结果一样？ | 确认 mode 是 flag_personalized |
 | 现金低于基准 | `_bounds` floor、Phase D/E 卖出顺序 |
-| 闲置资金显示异常 | idle 在 solver 并入 cash，产品层/前端单独统计 idle → 见 algorithm 口径节 |
+| 追加持仓未进活钱类 | `_current_with_addon` / `_cash_pool`；见 algorithm 口径节 |
 
 ```bash
 pytest tests/test_flag_driven.py -v
