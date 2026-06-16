@@ -21,9 +21,10 @@ description: >-
 |----------|------|------------|------|
 | 全账户一键 / 单类优化 / 人工微调 | `smart_one_click` / `manual_tweak` | `_solve_category_targets` | 默认；结构健康或综合规划 |
 | 个性化智能配仓 | `flag_personalized` | `FlagDrivenSolver`（**独立算法**） | 仅投资规划 + 有业绩/风险标志 |
+| 个性化智能配仓（新） | `optimal_personalized` | `_solve_category_targets` + 产品分步落实 | 仅投资规划；无标志要求 |
 | 方案里改产品金额 | `manual_product_edit` | 不重算大类，只校验区间 | 手工配置 / 编辑器 |
 
-个性化配仓见 `flag-personalized-allocation` Skill。**禁止**在 flag 路径里调用 `_solve_category_targets`。
+个性化（标志）见 `flag-personalized-allocation`；个性化（新）见 `optimal-personalized-allocation`。**禁止**在 flag 路径里调用 `_solve_category_targets`；optimal 路径**禁止**调用 `FlagDrivenSolver`。
 
 ## 规划类型：卡片长什么样
 
@@ -87,6 +88,7 @@ resolve_*_targets(product_category, risk_profile, loss_key?)
 | `smart_one_click` | 全账户或单类 | `target_category` 可选 |
 | `manual_tweak` | 锁定大类 + 指定金额 | `locked_categories`, `manual_overrides` |
 | `flag_personalized` | 标志驱动 | 服务端从诊断取 flag，需 `loss_key` 等同左 |
+| `optimal_personalized` | 最优大类 + 处方落实 | 仅投资规划；见 `optimal-personalized-allocation` |
 | `manual_product_edit` | 产品级手调 | `manual_adjust` API |
 
 ```json
@@ -171,6 +173,7 @@ python demo_test.py --customer C20250602001
 |-------|------|
 | `four-money-rules` | 阈值、模型、产品从哪来 |
 | `flag-personalized-allocation` | 标志驱动大类求解（独立）；演示场景见其 `scenarios.md` |
+| `optimal-personalized-allocation` | 最优大类 + 处方落实（`optimal_personalized`） |
 | ExplainAgent | 规则解读，非 LLM 配仓 |
 
 ## 验证清单

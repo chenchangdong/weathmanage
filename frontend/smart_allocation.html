@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>智能资配 · 方案配仓 - 四笔钱智能投顾</title>
+  <title>智能资配 · 配置方案 - 四笔钱智能投顾</title>
   <link rel="stylesheet" href="css/style.css">
   <script src="js/advisor_chat_bootstrap.js"></script>
 </head>
@@ -21,9 +21,9 @@
       <span class="journey-step-arrow">→</span>
       <a href="#" class="journey-step link" id="linkDiagnosis">② 资产诊断</a>
       <span class="journey-step-arrow">→</span>
-      <a href="#" class="journey-step link" id="linkSetup">③ 配置</a>
+      <a href="#" class="journey-step link" id="linkSetup">③ 智能资配 · 客户KYC</a>
       <span class="journey-step-arrow">→</span>
-      <span class="journey-step active">方案配仓</span>
+      <span class="journey-step active">配置方案</span>
     </div>
 
     <div class="smart-alloc-context-bar" id="contextBar">
@@ -112,6 +112,7 @@
         <div class="global-actions-primary">
           <button class="btn btn-primary btn-large" id="btnFullOptimize">全账户一键智能最优配置</button>
           <button class="btn btn-primary btn-large" id="btnPersonalizedOptimize">个性化智能配仓</button>
+          <button class="btn btn-primary btn-large" id="btnOptimalPersonalized">个性化智能配仓（新）</button>
           <button class="btn btn-primary btn-large" id="btnManualConfig">手工配置</button>
         </div>
         <div class="global-actions-secondary">
@@ -178,6 +179,17 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-primary" id="prescriptionRegenConfirm">重新生成</button>
         <button type="button" class="btn btn-secondary" id="prescriptionRegenCancel">继续落实当前处方</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="reduceCategoryAddModal">
+    <div class="modal modal-rx-regen">
+      <h3>确认新增产品？</h3>
+      <p id="reduceCategoryAddMessage" class="idle-guide-message">该笔钱建议减配，确认要新增产品么？</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="reduceCategoryAddConfirm">确认新增</button>
+        <button type="button" class="btn btn-secondary" id="reduceCategoryAddCancel">取消</button>
       </div>
     </div>
   </div>
@@ -274,7 +286,7 @@
       const cid = getSelectedCustomerId();
       if (cached.rebalance.customer_id !== cid) return false;
       if (cached.product_category && cached.product_category !== getProductCategory()) return false;
-      if (!cached.categoryPrescription && cached.rebalance.mode !== 'flag_personalized') return false;
+      if (!cached.categoryPrescription && !PlanEditor.isPrescriptionMode(cached.rebalance.mode)) return false;
 
       const addon = syncAddonToOverviewData();
       if (!PlanEditor.isSavedPrescriptionRestorable(cached, addon, holdingsBaseTotal)) {
@@ -289,6 +301,7 @@
       refreshPlanView(cached);
       document.getElementById('planSection').style.display = 'block';
       document.getElementById('globalActions').style.display = 'none';
+      syncViewOverviewClass();
       return true;
     }
 
@@ -337,10 +350,40 @@
 
     function updateGlobalActionsLayout() {
       const isInvestment = getProductCategory() === '投资规划';
-      const btnPersonalized = document.getElementById('btnPersonalizedOptimize');
-      if (btnPersonalized) {
-        btnPersonalized.style.display = isInvestment ? '' : 'none';
+      ['btnPersonalizedOptimize', 'btnOptimalPersonalized'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (btn) btn.style.display = isInvestment ? '' : 'none';
+      });
+    }
+
+    async function runPrescriptionRebalance(mode, toastPrefix) {
+      const expectedMode = mode;
+      if (PlanEditor.hasSavedPersonalizedPlan()) {
+        const cached = loadResult();
+        if (cached?.rebalance?.mode !== expectedMode) {
+          discardStalePersonalizedPlan(null);
+        } else {
+          const addon = getCommittedAddonIdleCash();
+          if (cached && !PlanEditor.isSavedPrescriptionRestorable(cached, addon, holdingsBaseTotal)) {
+            discardStalePersonalizedPlan(null);
+          } else {
+            const oldTotal = cached?.categoryPrescription?.frozenAtTotal ?? cached?.rebalance?.total_assets;
+            const newTotal = holdingsBaseTotal + addon;
+            const regenerate = await PlanEditor.promptRegeneratePrescription(oldTotal, newTotal);
+            if (!regenerate) {
+              if (restorePersonalizedPlanIfAny()) {
+                showToast('已恢复当前大类处方，请继续落实');
+              }
+              return;
+            }
+            discardStalePersonalizedPlan(null);
+          }
+        }
+      } else if (PlanEditor.hasCategoryPrescription()) {
+        PlanEditor.resetManualState();
       }
+      showToast(toastPrefix);
+      await runRebalance({ mode: expectedMode });
     }
 
     async function loadDiagnosis(cid) {
@@ -361,6 +404,7 @@
           window.location.replace('smart_allocation_setup.html');
           return;
         }
+        PlanEditor.discardPlanCacheIfWrongContext();
         const cat = encodeURIComponent(getProductCategory());
         const url = ModelSelector.appendQuery(
           `/api/asset/overview?customer_id=${cid}&product_category=${cat}`
@@ -375,6 +419,7 @@
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
         await maybeConfirmRestorePersonalizedPlan();
+        syncViewOverviewClass();
       } catch (e) {
         document.getElementById('loading').textContent = '加载失败: ' + e.message;
       }
@@ -402,7 +447,7 @@
               ${cat.in_band ? '✓ 在区间内' : '△ 需调整'}
             </span>
           </div>
-          ${WealthJourney.renderCategoryOverviewBars(cat)}
+          ${WealthJourney.renderCategoryOverviewBars(cat, { compact: true })}
           <div class="product-summary" onclick="toggleProducts('${cat.category}')">
             ▶ ${cat.product_summary.count}只产品 · 合计 ${formatMoney(cat.product_summary.total)}
           </div>
@@ -442,10 +487,10 @@
       const rb = data.rebalance;
       const ex = data.explanation;
       const isManual = rb.mode === 'manual_product_edit';
-      const isFlagPersonalized = rb.mode === 'flag_personalized';
-      const isPersonalized = isFlagPersonalized || PlanEditor.hasCategoryPrescription();
-      if (!isManual && !isFlagPersonalized) PlanEditor.resetManualState();
-      if (isFlagPersonalized) PlanEditor.cacheCategoryPrescription(rb);
+      const isPrescriptionMode = PlanEditor.isPrescriptionMode(rb.mode);
+      const isPersonalized = isPrescriptionMode || PlanEditor.hasCategoryPrescription();
+      if (!isManual && !isPrescriptionMode) PlanEditor.resetManualState();
+      if (isPrescriptionMode) PlanEditor.cacheCategoryPrescription(rb);
       PlanEditor.cacheProductLimitsFromDeltas(rb.product_deltas);
 
       PlanEditor.updatePlanBanner(rb);
@@ -455,7 +500,7 @@
       const hintEl = document.getElementById('planEditHint');
       const detailTitle = document.querySelector('#planSection .section-title');
       if (isPersonalized) {
-        PlanEditor.renderFlagContextPanel(diagnosisData, rb.validation_notes);
+        PlanEditor.renderPersonalizedContextPanel(diagnosisData, rb.validation_notes, rb);
         hintEl.style.display = 'none';
         if (detailTitle) detailTitle.textContent = '产品落实汇总（只读）';
         document.getElementById('categoryGrid').innerHTML = PlanEditor.renderPersonalizedPlanCards(rb);
@@ -474,6 +519,7 @@
     function renderPlan(data, scrollToExplain) {
       planData = data;
       viewMode = 'plan';
+      syncViewOverviewClass();
       refreshPlanView(data);
       document.getElementById('planSection').style.display = 'block';
       document.getElementById('globalActions').style.display = 'none';
@@ -500,12 +546,17 @@
       () => (planData ? { rb: planData.rebalance } : null)
     );
 
+    function syncViewOverviewClass() {
+      document.body.classList.toggle('view-overview', viewMode === 'overview');
+    }
+
     function hidePlanSection() {
       document.getElementById('planSection').style.display = 'none';
       PlanEditor.hidePlanBanner();
       PlanEditor.hideFlagContextPanel();
       document.getElementById('planEditHint').style.display = 'none';
       document.getElementById('globalActions').style.display = '';
+      syncViewOverviewClass();
     }
 
     function toggleProducts(id) {
@@ -565,28 +616,17 @@
         showToast('财富健康，请用全账户一键配仓');
         return;
       }
-      if (PlanEditor.hasSavedPersonalizedPlan() || PlanEditor.hasCategoryPrescription()) {
-        const cached = loadResult();
-        const addon = getCommittedAddonIdleCash();
-        if (cached && !PlanEditor.isSavedPrescriptionRestorable(cached, addon, holdingsBaseTotal)) {
-          discardStalePersonalizedPlan(null);
-        } else if (PlanEditor.hasSavedPersonalizedPlan()) {
-          const oldTotal = cached?.categoryPrescription?.frozenAtTotal ?? cached?.rebalance?.total_assets;
-          const newTotal = holdingsBaseTotal + addon;
-          const regenerate = await PlanEditor.promptRegeneratePrescription(oldTotal, newTotal);
-          if (!regenerate) {
-            if (restorePersonalizedPlanIfAny()) {
-              showToast('已恢复当前大类处方，请继续落实');
-            }
-            return;
-          }
-          discardStalePersonalizedPlan(null);
-        } else {
-          PlanEditor.resetManualState();
-        }
-      }
-      showToast(`依据财富健康标志（${effective.map(f => f.label).join('、')}）执行个性化智能配仓…`);
-      await runRebalance({ mode: 'flag_personalized' });
+      await runPrescriptionRebalance(
+        'flag_personalized',
+        `依据财富健康标志（${effective.map(f => f.label).join('、')}）执行个性化智能配仓…`
+      );
+    };
+
+    document.getElementById('btnOptimalPersonalized').onclick = async () => {
+      await runPrescriptionRebalance(
+        'optimal_personalized',
+        '依据全账户最优比例执行个性化智能配仓（新）…'
+      );
     };
 
     document.getElementById('btnManualConfig').onclick = async () => {

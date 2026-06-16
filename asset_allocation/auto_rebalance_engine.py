@@ -83,7 +83,7 @@ class AutoRebalanceEngine:
             holdings: 当前各产品持仓 {product_code: amount}
             idle_cash: 追加持仓（用户录入，纳入可配置总资产）
             risk_profile: 风险画像 conservative/balanced/aggressive
-            mode: smart_one_click | manual_tweak | flag_personalized
+            mode: smart_one_click | manual_tweak | flag_personalized | optimal_personalized
             locked_categories: 人工微调时锁定的大类
             manual_overrides: 人工指定的大类目标金额
             target_category: 单类优化时指定的大类
@@ -238,19 +238,33 @@ class AutoRebalanceEngine:
         names = get_asset_type_aliases()
         invest_cats = list(INVESTMENT_CARD_KEYS)
 
-        if mode == "flag_personalized":
+        if mode in ("flag_personalized", "optimal_personalized"):
             if target_category is not None:
                 raise ValueError("个性化配仓不支持单类优化")
-            solver = FlagDrivenSolver()
-            try:
-                target_cat, flag_notes = solver.solve(
-                    current_cat=current_cat,
-                    idle_cash=idle_cash,
+            if mode == "flag_personalized":
+                solver = FlagDrivenSolver()
+                try:
+                    target_cat, preamble_notes = solver.solve(
+                        current_cat=current_cat,
+                        idle_cash=idle_cash,
+                        profile_targets=profile_targets,
+                        flag_codes=flag_codes or [],
+                    )
+                except FlagDrivenSolverError:
+                    raise
+            else:
+                target_cat = self._solve_category_targets(
+                    total=total,
+                    current_cat=display_current,
                     profile_targets=profile_targets,
-                    flag_codes=flag_codes or [],
+                    locked=locked,
+                    overrides=overrides,
+                    target_category=None,
+                    categories=invest_cats,
                 )
-            except FlagDrivenSolverError:
-                raise
+                preamble_notes = [
+                    "个性化智能配仓（新）：依据全账户最优比例生成大类处方"
+                ]
             product_targets = dict(invest_holdings)
             product_deltas = self._build_deltas(
                 invest_holdings, product_targets, {}, use_asset_type_key=True
@@ -276,7 +290,7 @@ class AutoRebalanceEngine:
                 val_notes = [n for n in val_notes if n != ok_msg]
                 if not any("待落实" in n for n in val_notes):
                     val_notes.append("大类调仓建议已生成，产品层待落实")
-            notes = flag_notes + val_notes
+            notes = preamble_notes + val_notes
             return RebalanceResult(
                 customer_id=customer_id,
                 risk_profile=risk_profile,

@@ -11,10 +11,10 @@ EXPECTED_EFFECTIVE_FLAGS: dict[str, list[str]] = {
     "C20250602002": [],
     "C20250602003": ["volatility_exceeded"],
     "C20250602004": ["return_below_expected"],
-    "C20250602005": ["return_above_expected"],
-    "C20250602006": ["return_above_expected", "principal_loss_exceeded"],
+    "C20250602005": ["return_below_expected"],
+    "C20250602006": ["return_below_expected", "principal_loss_exceeded"],
     "C20250602007": ["principal_loss_exceeded"],
-    "C20250602008": ["return_above_expected", "volatility_exceeded"],
+    "C20250602008": ["return_below_expected", "volatility_exceeded"],
 }
 
 

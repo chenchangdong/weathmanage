@@ -710,6 +710,68 @@ body {
   margin-top: 6px;
 }
 
+.plan-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.modal-report-export {
+  max-width: 520px;
+}
+
+.report-export-hint {
+  font-size: 13px;
+  color: #595959;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.report-export-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.report-chapter-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px 0 12px;
+  border-top: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
+.report-chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.report-chapter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 4px;
+  background: #8b6f3e;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 2px;
+}
+
+.report-chapter-title {
+  color: #262626;
+}
+
 .rx-progress-head {
   display: flex;
   justify-content: space-between;
@@ -3143,13 +3205,106 @@ body[data-advisor-dock] .advisor-chat-panel.open {
   white-space: nowrap;
 }
 
+.fm-overview-bar-bridge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 54px;
+}
+
+.fm-overview-bar-pct--ghost {
+  visibility: hidden;
+  user-select: none;
+}
+
+.fm-overview-bar-bridge-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.fm-trend-arrow {
+  --arrow-deg: 0deg;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+}
+
+.fm-trend-arrow--up {
+  --arrow-deg: -32deg;
+}
+
+.fm-trend-arrow--down {
+  --arrow-deg: 32deg;
+}
+
+.fm-trend-arrow--flat {
+  --arrow-deg: 0deg;
+}
+
+.fm-trend-arrow--compact {
+  width: 36px;
+  height: 36px;
+}
+
+.fm-trend-arrow-shaft {
+  display: block;
+  position: relative;
+  width: 36px;
+  height: 3px;
+  background: currentColor;
+  border-radius: 2px;
+  transform: rotate(var(--arrow-deg));
+}
+
+.fm-trend-arrow--compact .fm-trend-arrow-shaft {
+  width: 28px;
+  height: 2.5px;
+}
+
+.fm-trend-arrow-shaft::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 3px solid currentColor;
+  border-top: 3px solid currentColor;
+  transform: translateY(-50%) rotate(45deg);
+  box-sizing: border-box;
+}
+
+.fm-trend-arrow--compact .fm-trend-arrow-shaft::after {
+  width: 7px;
+  height: 7px;
+  border-width: 2.5px;
+}
+
+.fm-trend-arrow.deviation-buy {
+  color: #389e0d;
+}
+
+.fm-trend-arrow.deviation-sell {
+  color: #cf1322;
+}
+
+.fm-trend-arrow.deviation-flat {
+  color: #8c8c8c;
+}
+
 .fm-overview-bar-deviation {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  margin-top: 6px;
   min-width: 52px;
-  padding-bottom: 28px;
   text-align: center;
 }
 
@@ -3171,6 +3326,10 @@ body[data-advisor-dock] .advisor-chat-panel.open {
 
 .fm-overview-bar-deviation-value.deviation-sell {
   color: #cf1322;
+}
+
+.fm-overview-bar-deviation-value.deviation-flat {
+  color: #8c8c8c;
 }
 
 .fm-overview-bars-meta {
@@ -3494,13 +3653,35 @@ body[data-advisor-dock] .advisor-chat-panel.open {
 .setup-dual-panels {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-rows: auto repeat(2, minmax(48px, auto));
+  column-gap: 16px;
+  row-gap: 10px;
   margin-bottom: 20px;
+  align-items: stretch;
 }
 
 @media (max-width: 768px) {
   .setup-dual-panels {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .setup-pref-card {
+    display: flex;
+    flex-direction: column;
+    grid-row: auto;
+    grid-template-rows: none;
+    gap: 10px;
+  }
+
+  .setup-pref-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .setup-pref-row {
+    height: auto;
   }
 }
 
@@ -3510,20 +3691,22 @@ body[data-advisor-dock] .advisor-chat-panel.open {
   border-radius: 14px;
   padding: 18px 18px 14px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
 }
 
 .setup-pref-card-title {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 16px;
   font-weight: 700;
   color: #1a2744;
   letter-spacing: -0.01em;
+  align-self: end;
 }
 
 .setup-pref-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: contents;
 }
 
 .setup-pref-row {
@@ -3531,11 +3714,13 @@ body[data-advisor-dock] .advisor-chat-panel.open {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 12px 16px;
   background: linear-gradient(180deg, #f8fafd 0%, #f3f6fb 100%);
   border: 1px solid #e8edf5;
   border-radius: 10px;
-  min-height: 52px;
+  min-height: 48px;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .setup-pref-row-label {
@@ -3544,7 +3729,9 @@ body[data-advisor-dock] .advisor-chat-panel.open {
   gap: 6px;
   font-size: 14px;
   color: #6b7280;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
 }
 
 .setup-pref-info {
@@ -3579,6 +3766,14 @@ body[data-advisor-dock] .advisor-chat-panel.open {
 
 .setup-pref-row--readonly .setup-pref-value {
   color: #4b5563;
+}
+
+.setup-pref-row--readonly .setup-pref-row-value-wrap::after {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
 }
 
 .setup-pref-row--readonly .setup-picker-trigger {
@@ -3792,4 +3987,257 @@ body[data-advisor-dock] .advisor-chat-panel.open {
 .smart-alloc-context-summary {
   font-size: 14px;
   color: var(--text-secondary);
+}
+
+/* KYC 配置页 & 资产检视概览 — 一屏紧凑布局 */
+.page-smart-allocation-setup .page-header-compact,
+.page-smart-allocation-workspace.view-overview .page-header {
+  padding: 10px 0 4px;
+}
+
+.page-smart-allocation-setup .page-header-compact h1,
+.page-smart-allocation-workspace.view-overview .page-header h1 {
+  font-size: 20px;
+}
+
+.page-smart-allocation-setup .page-header-compact p,
+.page-smart-allocation-workspace.view-overview .page-header p {
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.page-smart-allocation-setup .nav-bar,
+.page-smart-allocation-workspace.view-overview .nav-bar {
+  margin-bottom: 10px;
+}
+
+.page-smart-allocation-setup .journey-step-bar,
+.page-smart-allocation-workspace.view-overview .journey-step-bar {
+  margin-bottom: 10px;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
+.page-smart-allocation-workspace.view-overview .smart-alloc-context-bar {
+  margin-bottom: 10px;
+  padding: 7px 12px;
+}
+
+.page-smart-allocation-setup .setup-customer-card {
+  margin-bottom: 12px;
+}
+
+.page-smart-allocation-setup .setup-customer-card .diagnosis-metrics-top {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.page-smart-allocation-setup .diagnosis-metrics-card {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.page-smart-allocation-setup .diagnosis-customer-title-row h2,
+.page-smart-allocation-setup .setup-customer-name-group h2 {
+  font-size: 18px;
+}
+
+.page-smart-allocation-setup .diagnosis-metric-value {
+  font-size: 22px;
+}
+
+.page-smart-allocation-setup .diagnosis-metrics-top {
+  gap: 12px;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.page-smart-allocation-setup .setup-dual-panels {
+  grid-template-rows: auto repeat(2, minmax(44px, auto));
+  column-gap: 12px;
+  row-gap: 8px;
+  margin-bottom: 12px;
+}
+
+.page-smart-allocation-setup .setup-pref-card {
+  padding: 12px 14px 10px;
+  border-radius: 12px;
+}
+
+.page-smart-allocation-setup .setup-pref-card-title {
+  font-size: 15px;
+}
+
+.page-smart-allocation-setup .setup-pref-row {
+  padding: 10px 12px;
+  min-height: 44px;
+  border-radius: 8px;
+}
+
+.page-smart-allocation-setup .setup-pref-row-label {
+  font-size: 13px;
+}
+
+.page-smart-allocation-setup .setup-pref-value {
+  font-size: 14px;
+}
+
+.page-smart-allocation-setup .diagnosis-metric-panel {
+  padding: 8px 10px;
+}
+
+.page-smart-allocation-setup .diagnosis-panel-title {
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.page-smart-allocation-setup .setup-planning-chip {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.page-smart-allocation-setup .smart-alloc-setup-forms {
+  margin-bottom: 16px;
+}
+
+.page-smart-allocation-setup .setup-section {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+}
+
+.page-smart-allocation-setup .setup-section-title {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.page-smart-allocation-setup .setup-mapping-placeholder {
+  font-size: 13px;
+}
+
+.page-smart-allocation-setup .setup-actions {
+  margin-top: 12px;
+}
+
+.page-smart-allocation-setup .setup-actions .btn-large {
+  padding: 11px 16px;
+  font-size: 14px;
+  margin-bottom: 0;
+}
+
+.page-smart-allocation-workspace.view-overview .total-card {
+  padding: 16px 18px;
+  margin-bottom: 10px;
+}
+
+.page-smart-allocation-workspace.view-overview .total-card-health-status {
+  top: 14px;
+  right: 18px;
+  font-size: 12px;
+}
+
+.page-smart-allocation-workspace.view-overview .total-card .amount {
+  font-size: 26px;
+  margin: 4px 0;
+}
+
+.page-smart-allocation-workspace.view-overview .total-card .label {
+  font-size: 13px;
+}
+
+.page-smart-allocation-workspace.view-overview .total-card .meta {
+  font-size: 12px;
+}
+
+.page-smart-allocation-workspace.view-overview .category-grid {
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.page-smart-allocation-workspace.view-overview .category-card {
+  padding: 12px 14px;
+}
+
+.page-smart-allocation-workspace.view-overview .category-card .card-title {
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.page-smart-allocation-workspace.view-overview .category-card .card-title-ratio {
+  font-size: 14px;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bars {
+  margin: 2px 0 6px;
+  padding: 8px 8px 6px;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bars-chart {
+  min-height: 88px;
+  gap: 8px;
+  padding-top: 0;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bar-col {
+  width: 56px;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bar-shell {
+  width: 42px;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bar-pct {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bar-caption {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bar-bridge {
+  min-width: 52px;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bar-deviation-label {
+  font-size: 10px;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bar-deviation-value {
+  font-size: 13px;
+}
+
+.page-smart-allocation-workspace.view-overview .fm-overview-bars-meta {
+  font-size: 11px;
+  gap: 6px 10px;
+  margin-top: 4px;
+}
+
+.page-smart-allocation-workspace.view-overview .product-summary {
+  margin-top: 4px;
+  padding-top: 6px;
+  font-size: 11px;
+}
+
+.page-smart-allocation-workspace.view-overview .card-actions {
+  margin-top: 8px;
+  gap: 6px;
+}
+
+.page-smart-allocation-workspace.view-overview .card-actions .btn {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.page-smart-allocation-workspace.view-overview .global-actions {
+  padding: 10px 0 8px;
+  gap: 8px;
+}
+
+.page-smart-allocation-workspace.view-overview .global-actions-primary .btn-large,
+.page-smart-allocation-workspace.view-overview .global-actions-secondary .btn-large {
+  padding: 11px 14px;
+  font-size: 14px;
+  margin-bottom: 0;
 }

@@ -454,7 +454,7 @@ class FlagDrivenSolver:
     def _flag_labels(codes: set[str]) -> str:
         labels = {
             "return_below_expected": "收益不达预期",
-            "return_above_expected": "收益超预期",
+            "return_above_expected": "收益良好",
             "principal_loss_exceeded": "本金损失超阈值",
             "volatility_exceeded": "波动率超预期",
         }

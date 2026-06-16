@@ -105,12 +105,25 @@ const WealthJourney = {
     return null;
   },
 
+  _renderTrendArrow(diffPct, compact) {
+    const isFlat = Math.abs(diffPct) < 0.05;
+    const isUp = diffPct > 0;
+    const dir = isFlat ? 'flat' : (isUp ? 'up' : 'down');
+    const tone = isFlat ? 'deviation-flat' : (isUp ? 'deviation-buy' : 'deviation-sell');
+    const title = isFlat ? '基本持平' : (isUp ? '建议增配' : '建议减配');
+    const compactCls = compact ? ' fm-trend-arrow--compact' : '';
+    return `<div class="fm-trend-arrow fm-trend-arrow--${dir} ${tone}${compactCls}" title="${title}" aria-hidden="true">
+      <span class="fm-trend-arrow-shaft"></span>
+    </div>`;
+  },
+
   renderCategoryOverviewBars(data, options = {}) {
     const targetCaption = options.targetCaption || '智能建议';
+    const compact = !!options.compact;
     const curRatio = Number(data.current_ratio) || 0;
     const tgtRatio = Number(options.targetRatio != null ? options.targetRatio : data.target_ratio) || 0;
     const scaleMax = this._overviewBarScaleMax(curRatio, tgtRatio, data.band);
-    const shellH = 96;
+    const shellH = compact ? 68 : 96;
     const toBarH = (ratio) => {
       const h = Math.round(((Number(ratio) || 0) / scaleMax) * shellH);
       return Math.min(shellH, Math.max(ratio > 0 ? 2 : 0, h));
@@ -119,6 +132,10 @@ const WealthJourney = {
     const tgtH = toBarH(tgtRatio);
     const diffPct = (tgtRatio - curRatio) * 100;
     const diffLabel = this.formatSignedPct(diffPct, 1);
+    const trendArrow = this._renderTrendArrow(diffPct, compact);
+    const deviationCls = Math.abs(diffPct) < 0.05
+      ? 'deviation-flat'
+      : (diffPct >= 0 ? 'deviation-buy' : 'deviation-sell');
     const status = this._overviewBarStatus(curRatio, data.band);
     const bandTip = typeof formatBandTooltip === 'function' ? formatBandTooltip(data.band) : '';
 
@@ -137,9 +154,15 @@ const WealthJourney = {
             </div>
             <span class="fm-overview-bar-caption">当前实际</span>
           </div>
-          <div class="fm-overview-bar-deviation">
-            <span class="fm-overview-bar-deviation-label">偏离</span>
-            <strong class="fm-overview-bar-deviation-value ${diffPct >= 0 ? 'deviation-buy' : 'deviation-sell'}">${diffLabel}</strong>
+          <div class="fm-overview-bar-bridge">
+            <span class="fm-overview-bar-pct fm-overview-bar-pct--ghost" aria-hidden="true">&#8203;</span>
+            <div class="fm-overview-bar-bridge-track" style="height:${shellH}px">
+              ${trendArrow}
+            </div>
+            <div class="fm-overview-bar-deviation">
+              <span class="fm-overview-bar-deviation-label">偏离</span>
+              <strong class="fm-overview-bar-deviation-value ${deviationCls}">${diffLabel}</strong>
+            </div>
           </div>
           <div class="fm-overview-bar-col">
             <span class="fm-overview-bar-pct">${this._overviewBarPctLabel(tgtRatio)}</span>

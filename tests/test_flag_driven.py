@@ -386,3 +386,106 @@ class TestFlagCategorySuggest:
         plain_buy = sum(max(d.delta_amount, 0) for d in plain)
         base_buy = sum(max(d.delta_amount, 0) for d in with_base)
         assert base_buy <= plain_buy + 0.01
+
+
+class TestOptimalPersonalizedRebalance:
+    def test_engine_optimal_personalized_hold_only(self):
+        customer_id = "C20250602001"
+        customer = get_demo_customer(customer_id)
+        data = get_customer_holdings(customer_id)
+        engine = AutoRebalanceEngine()
+        result = engine.rebalance(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=data["idle_cash"],
+            risk_profile=customer["risk_profile"],
+            mode="optimal_personalized",
+            product_category=INVESTMENT_PLANNING,
+        )
+        assert result.mode == "optimal_personalized"
+        assert result.view_mode == "asset_type"
+        assert len(result.category_summary) == len(INVESTMENT_CARD_KEYS)
+        assert any("个性化智能配仓（新）" in n for n in result.validation_notes)
+        assert all(abs(d.delta_amount) < 0.01 for d in result.product_deltas)
+        assert any("待落实" in n for n in result.validation_notes)
+
+    def test_optimal_differs_from_flag_when_both_available(self):
+        customer_id = "C20250602007"
+        customer = get_demo_customer(customer_id)
+        data = get_customer_holdings(customer_id)
+        journey = WealthJourneyService()
+        diagnosis = journey.build_diagnosis(customer_id)
+        flag_codes = [
+            f["code"]
+            for f in diagnosis["flags"]
+            if f["code"] != "four_money_mismatch"
+        ]
+        assert flag_codes
+        engine = AutoRebalanceEngine()
+        flag_result = engine.rebalance(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=data["idle_cash"],
+            risk_profile=customer["risk_profile"],
+            mode="flag_personalized",
+            product_category=INVESTMENT_PLANNING,
+            flag_codes=flag_codes,
+        )
+        optimal_result = engine.rebalance(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=data["idle_cash"],
+            risk_profile=customer["risk_profile"],
+            mode="optimal_personalized",
+            product_category=INVESTMENT_PLANNING,
+        )
+        flag_targets = {s["category"]: s["target_amount"] for s in flag_result.category_summary}
+        optimal_targets = {
+            s["category"]: s["target_amount"] for s in optimal_result.category_summary
+        }
+        assert flag_targets != optimal_targets
+
+    def test_smart_one_click_unchanged_with_new_mode(self):
+        customer_id = "C20250602001"
+        customer = get_demo_customer(customer_id)
+        data = get_customer_holdings(customer_id)
+        engine = AutoRebalanceEngine()
+        result = engine.rebalance(
+            customer_id=customer_id,
+            holdings=data["holdings"],
+            idle_cash=data["idle_cash"],
+            risk_profile=customer["risk_profile"],
+            mode="smart_one_click",
+            product_category=INVESTMENT_PLANNING,
+        )
+        assert result.mode == "smart_one_click"
+        assert any(abs(d.delta_amount) >= 1 for d in result.product_deltas)
+
+    def test_optimal_personalized_api_success_without_flags(self):
+        from fastapi.testclient import TestClient
+
+        from main import app
+
+        client = TestClient(app)
+        resp = client.post("/api/allocation/auto_rebalance", json={
+            "customer_id": "C20250602002",
+            "mode": "optimal_personalized",
+            "product_category": "投资规划",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["rebalance"]["mode"] == "optimal_personalized"
+
+    def test_optimal_personalized_rejects_comprehensive_planning(self):
+        from fastapi.testclient import TestClient
+
+        from main import app
+
+        client = TestClient(app)
+        resp = client.post("/api/allocation/auto_rebalance", json={
+            "customer_id": "C20250602001",
+            "mode": "optimal_personalized",
+            "product_category": "综合规划",
+        })
+        assert resp.status_code == 400
+        assert "投资规划" in resp.json()["detail"]

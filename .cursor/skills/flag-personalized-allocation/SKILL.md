@@ -14,17 +14,18 @@ description: >-
 
 客户**收益或风险**出了问题（有对应标志）时，按预设「处方」调整四类资产占比；**不是**简单的模型区间一键配平。
 
-## 和「全账户一键」的关系
+## 和「全账户一键」「个性化（新）」的关系
 
 ```text
-全账户一键 smart_one_click     →  尽量在模型区间内、最小异动
-个性化 flag_personalized       →  按标志主动加/减某几类（仍受 band 约束）
+全账户一键 smart_one_click           →  尽量在模型区间内、最小异动 + 产品一次配满
+个性化（新） optimal_personalized     →  同上大类算法 + 产品分步落实（见 optimal-personalized-allocation）
+个性化 flag_personalized             →  按标志主动加/减某几类（仍受 band 约束）+ 产品分步落实
 
-共用：产品怎么分到具体产品（_allocate_products_asset_type）
+共用：产品怎么分到具体产品（_allocate_products_asset_type / flag_category_suggest）
 不共用：大类目标怎么算（FlagDrivenSolver ≠ _solve_category_targets）
 ```
 
-**改个性化算法只动 `flag_driven_solver.py` + 引擎 flag 分支；禁止改 smart_one_click 求解路径。**
+**改个性化（标志）算法只动 `flag_driven_solver.py` + 引擎 flag 分支；禁止改 smart_one_click / optimal_personalized 求解路径。**
 
 ## 什么时候能点「个性化智能配仓」
 
@@ -229,4 +230,5 @@ pytest tests/test_allocation.py -k investment -v
 - 逐步算法：[algorithm.md](algorithm.md)  
 - 产品层与字段解读：`../smart-allocation-engine/SKILL.md`  
 - 模型阈值：`../four-money-rules/SKILL.md`  
+- **姊妹模式（最优大类 + 分步落实）：** `../optimal-personalized-allocation/SKILL.md`  
 - **典型演示场景**：[scenarios.md](scenarios.md)

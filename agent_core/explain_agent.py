@@ -66,6 +66,20 @@ class ExplainAgent:
                 f"{self._addon_holding_clause(result.idle_cash)}，",
                 "根据财富健康标志诊断结果，采用「个性化智能配仓」策略，生成资产类型配置方案：",
             ]
+        elif result.mode == "optimal_personalized":
+            scope_note = (
+                "（保障类持仓不计入投资规划可配置总资产）"
+                if result.view_mode == "asset_type"
+                else ""
+            )
+            strategy = self._describe_solver_strategy()
+            lines = [
+                f"基于客户{risk_name}风险画像，"
+                f"可配置总资产{result.total_assets:,.0f}元{scope_note}"
+                f"{self._addon_holding_clause(result.idle_cash)}，",
+                f"采用「{strategy}」策略下的「个性化智能配仓（新）」，"
+                "生成资产类型大类处方（产品层待落实）：",
+            ]
         else:
             strategy = self._describe_solver_strategy()
             plan_label = (
@@ -103,6 +117,7 @@ class ExplainAgent:
             "manual_tweak": "人工微调",
             "manual_product_edit": "人工配置",
             "flag_personalized": "个性化智能配仓",
+            "optimal_personalized": "个性化智能配仓（新）",
         }
         return labels.get(mode, mode)
 

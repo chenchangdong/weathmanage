@@ -26,10 +26,10 @@ PLANNING_CATEGORY = "投资规划"
 #   C002 李先生  （无）
 #   C003 王先生  volatility_exceeded
 #   C004 赵女士  return_below_expected
-#   C005 陈先生  return_above_expected
-#   C006 刘女士  return_above_expected + principal_loss_exceeded
+#   C005 陈先生  return_below_expected
+#   C006 刘女士  return_below_expected + principal_loss_exceeded
 #   C007 周先生  principal_loss_exceeded（未持仓 P000 活钱存款）
-#   C008 孙女士  return_above_expected + volatility_exceeded
+#   C008 孙女士  return_below_expected + volatility_exceeded
 _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
     "C20250602001": {
         "annual_return_pct": 9.0,
@@ -56,15 +56,15 @@ _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
         "volatility_pct": 2.5,
     },
     "C20250602005": {
-        "annual_return_pct": 10.0,
-        "month_return_pct": 1.0,
+        "annual_return_pct": 5.5,
+        "month_return_pct": -0.1,
         "principal_loss_pct": -5.0,
         "volatility_pct": 6.5,
     },
-    # 刘女士：收益超预期 + 本金损失超阈值（复合场景，优先本金亏）
+    # 刘女士：收益不达预期 + 本金损失超阈值（复合场景，优先本金亏）
     "C20250602006": {
-        "annual_return_pct": 9.5,
-        "month_return_pct": 0.6,
+        "annual_return_pct": 5.0,
+        "month_return_pct": -0.2,
         "principal_loss_pct": -7.5,
         "volatility_pct": 4.5,
     },
@@ -74,10 +74,10 @@ _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
         "principal_loss_pct": -3.8,
         "volatility_pct": 2.9,
     },
-    # 孙女士：收益超预期 + 波动率超预期（复合场景，优先波动高）
+    # 孙女士：收益不达预期 + 波动率超预期（复合场景，优先波动高）
     "C20250602008": {
-        "annual_return_pct": 10.5,
-        "month_return_pct": 1.0,
+        "annual_return_pct": 5.5,
+        "month_return_pct": -0.1,
         "principal_loss_pct": -5.0,
         "volatility_pct": 8.5,
     },
@@ -93,7 +93,7 @@ _FLAG_DEFS: dict[str, dict[str, str]] = {
         "severity": "warn",
     },
     "return_above_expected": {
-        "label": "收益超预期",
+        "label": "收益良好",
         "severity": "info",
     },
     "principal_loss_exceeded": {

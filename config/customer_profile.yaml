@@ -107,7 +107,7 @@ demo_customers:
     invest_experience: 4
     invest_horizon_years: 8
     family_dependents: 1
-    notes: 仅持有现金、固收、权益类产品，无保单持仓；演示收益超预期+本金亏复合标志
+    notes: 仅持有现金、固收、权益类产品，无保单持仓；演示收益不达预期+本金亏复合标志
 
   - customer_id: C20250602007
     name: 周先生
@@ -133,4 +133,4 @@ demo_customers:
     invest_experience: 7
     invest_horizon_years: 15
     family_dependents: 0
-    notes: 成长型纯投资客户，资产集中于基金与理财；演示收益超预期+波动高复合标志
+    notes: 成长型纯投资客户，资产集中于基金与理财；演示收益不达预期+波动高复合标志

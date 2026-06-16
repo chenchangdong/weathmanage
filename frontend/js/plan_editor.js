@@ -4,6 +4,10 @@ const PlanEditor = {
   _pending: false,
   _lastEditedCode: null,
   _manualAddedCodes: new Set(),
+  /** 个性化配仓：用户手工改过增减仓的大类（不含一键自动调仓填入） */
+  _manualDeltaEditedCategories: new Set(),
+  /** 进入配置方案时的产品目标快照 product_code -> target_amount */
+  _entryProductTargets: null,
   /** 新增产品草稿校验失败时锁定 code -> 'idle' | 'max_over' | 'min' | 'zero_delta' */
   _manualValidationBlocked: new Map(),
   _pickerCategory: null,
@@ -14,7 +18,7 @@ const PlanEditor = {
   _categoryCandidatesCache: {},
   _productLimits: {},
   _productLimitValidationEnabled: false,
-  /** 个性化配仓：大类 adjust_amount 处方（mode 变为 manual_product_edit 后仍保留） */
+  /** 个性化配仓（标志驱动 / 最优比例）：大类 adjust_amount 处方 */
   _categoryPrescription: null,
   _categoryPrescriptionMeta: null,
   _categoryTargets: null,
@@ -43,12 +47,19 @@ const PlanEditor = {
     if (this._localPlanSync) this._localPlanSync();
   },
 
+  PRESCRIPTION_MODES: ['flag_personalized', 'optimal_personalized'],
+
+  isPrescriptionMode(mode) {
+    return this.PRESCRIPTION_MODES.includes(mode);
+  },
+
   modeLabel(mode) {
     const labels = {
       smart_one_click: '智能一键',
       manual_tweak: '人工微调',
       manual_product_edit: '人工配置',
       flag_personalized: '个性化智能配仓',
+      optimal_personalized: '个性化智能配仓（新）',
     };
     return labels[mode] || mode;
   },
@@ -66,6 +77,8 @@ const PlanEditor = {
 
   resetManualState() {
     this._manualAddedCodes = new Set();
+    this._manualDeltaEditedCategories = new Set();
+    this._entryProductTargets = null;
     this._manualValidationBlocked = new Map();
     this._categoryCandidatesCache = {};
     this._productLimits = {};
@@ -81,7 +94,7 @@ const PlanEditor = {
   },
 
   cacheCategoryPrescription(rb, force = false) {
-    if (!rb || rb.mode !== 'flag_personalized') return;
+    if (!rb || !this.isPrescriptionMode(rb.mode)) return;
     if (this.hasCategoryPrescription() && !force) return;
     this._categoryPrescription = {};
     this._categoryPrescriptionMeta = {};
@@ -99,6 +112,18 @@ const PlanEditor = {
         in_band: s.in_band,
       };
     });
+    this.captureEntryProductPlan(rb);
+  },
+
+  captureEntryProductPlan(rb) {
+    if (!rb?.product_deltas?.length) {
+      this._entryProductTargets = {};
+      return;
+    }
+    this._entryProductTargets = {};
+    rb.product_deltas.forEach((d) => {
+      this._entryProductTargets[d.product_code] = d.target_amount;
+    });
   },
 
   exportPrescriptionSnapshot() {
@@ -109,6 +134,8 @@ const PlanEditor = {
       targets: { ...(this._categoryTargets || {}) },
       frozenAtTotal: this._prescriptionFrozenTotal,
       manualAddedCodes: [...this._manualAddedCodes],
+      manualDeltaEditedCategories: [...this._manualDeltaEditedCategories],
+      entryProductTargets: { ...(this._entryProductTargets || {}) },
       productIdleTopUps: { ...this._productIdleTopUps },
       savedIdleCash: null,
     };
@@ -132,10 +159,17 @@ const PlanEditor = {
       this._categoryTargets = { ...(snap.targets || {}) };
       this._prescriptionFrozenTotal = snap.frozenAtTotal ?? null;
       this._manualAddedCodes = new Set(snap.manualAddedCodes || []);
+      this._manualDeltaEditedCategories = new Set(snap.manualDeltaEditedCategories || []);
+      this._entryProductTargets = snap.entryProductTargets
+        ? { ...snap.entryProductTargets }
+        : null;
       this._productIdleTopUps = { ...(snap.productIdleTopUps || {}) };
+      if (!this._entryProductTargets && data?.rebalance) {
+        this.captureEntryProductPlan(data.rebalance);
+      }
       return true;
     }
-    if (data?.rebalance?.mode === 'flag_personalized') {
+    if (data?.rebalance && this.isPrescriptionMode(data.rebalance.mode)) {
       this.cacheCategoryPrescription(data.rebalance, true);
       return true;
     }
@@ -148,12 +182,36 @@ const PlanEditor = {
     rb.total_assets = (holdingsBaseTotal || 0) + idleCash;
   },
 
-  hasSavedPersonalizedPlan() {
+  isPersonalizedPlanCache(cached) {
+    if (!cached?.rebalance) return false;
+    if (cached.categoryPrescription) return true;
+    return this.isPrescriptionMode(cached.rebalance.mode);
+  },
+
+  isPlanCacheForCurrentContext(cached) {
+    if (!cached?.rebalance) return false;
+    const cid = typeof getSelectedCustomerId === 'function' ? getSelectedCustomerId() : null;
+    const cat = typeof getProductCategory === 'function' ? getProductCategory() : null;
+    if (cid && cached.rebalance.customer_id !== cid) return false;
+    if (cat && cached.product_category && cached.product_category !== cat) return false;
+    return true;
+  },
+
+  discardPlanCacheIfWrongContext() {
     if (typeof loadResult !== 'function') return false;
     const cached = loadResult();
     if (!cached?.rebalance) return false;
-    if (cached.categoryPrescription) return true;
-    return cached.rebalance.mode === 'flag_personalized';
+    if (this.isPlanCacheForCurrentContext(cached)) return false;
+    this.resetManualState();
+    sessionStorage.removeItem('rebalanceResult');
+    return true;
+  },
+
+  hasSavedPersonalizedPlan() {
+    if (typeof loadResult !== 'function') return false;
+    const cached = loadResult();
+    if (!this.isPersonalizedPlanCache(cached)) return false;
+    return this.isPlanCacheForCurrentContext(cached);
   },
 
   /**
@@ -162,7 +220,7 @@ const PlanEditor = {
    */
   isSavedPrescriptionRestorable(cached, newIdle, holdingsBaseTotal) {
     if (!cached?.rebalance) return false;
-    if (!cached.categoryPrescription && cached.rebalance.mode !== 'flag_personalized') {
+    if (!cached.categoryPrescription && !this.isPrescriptionMode(cached.rebalance.mode)) {
       return false;
     }
 
@@ -180,7 +238,7 @@ const PlanEditor = {
       product_deltas: rb.product_deltas || [],
     };
 
-    if (cached.categoryPrescription || rb.mode === 'flag_personalized') {
+    if (cached.categoryPrescription || this.isPrescriptionMode(rb.mode)) {
       return this.isIdleCashSufficient(this.calcIdleCashUsageFromDeltas(testRb));
     }
     return true;
@@ -274,6 +332,39 @@ const PlanEditor = {
     return ratio >= meta.band[0] - 0.0001 && ratio <= meta.band[1] + 0.0001;
   },
 
+  /** 个性化配仓：未落实产品前看处方 in_band，落实后按产品汇总占比实时判定 */
+  resolvePersonalizedBandInBand(rb, category) {
+    if (!this.hasCategoryPrescription()) return true;
+    if (this.hasCategoryProductActivity(rb, category)) {
+      return this.isCategoryPlannedInBand(rb, category);
+    }
+    const meta = this.getPrescriptionMeta(category);
+    return meta?.in_band !== false;
+  },
+
+  renderPersonalizedBandBadge(inBand) {
+    return inBand
+      ? '<span class="badge-yes rx-band-badge">✓ 在区间内</span>'
+      : '<span class="badge-no rx-band-badge">△ 次优解</span>';
+  },
+
+  syncPersonalizedBandUI(rb, category) {
+    if (!this.hasCategoryPrescription()) return;
+    const card = document.querySelector(`.personalized-card.${category}`);
+    if (!card) return;
+    const inBand = this.resolvePersonalizedBandInBand(rb, category);
+    const badge = card.querySelector('.rx-summary-meta .rx-band-badge');
+    if (badge) {
+      badge.className = inBand ? 'badge-yes rx-band-badge' : 'badge-no rx-band-badge';
+      badge.textContent = inBand ? '✓ 在区间内' : '△ 次优解';
+    }
+    const bandSlot = card.querySelector('.rx-band-warn-slot');
+    if (!bandSlot) return;
+    const bandHtml = this.renderCategoryBandWarning(rb, category);
+    bandSlot.innerHTML = bandHtml;
+    bandSlot.style.display = bandHtml ? 'block' : 'none';
+  },
+
   renderCategoryBandWarning(rb, category) {
     if (!this.hasCategoryProductActivity(rb, category)) return '';
     if (this.isCategoryPlannedInBand(rb, category)) return '';
@@ -284,24 +375,24 @@ const PlanEditor = {
     const hi = meta.band[1];
     let msg = '';
     if (ratio > hi + 0.0001) {
-      msg = `落实后占比 ${formatPct(ratio)} 高于模型上限 ${formatPct(hi)}`;
+      msg = `已落实产品占比 ${formatPct(ratio)} 高于模型上限 ${formatPct(hi)}，请继续落实`;
     } else if (ratio < lo - 0.0001) {
-      msg = `落实后占比 ${formatPct(ratio)} 低于模型下限 ${formatPct(lo)}`;
+      msg = `已落实产品占比 ${formatPct(ratio)} 低于模型下限 ${formatPct(lo)}，请继续落实`;
     }
     if (!msg) return '';
     return `<div class="rx-band-warn">${msg}</div>`;
   },
 
-  renderPersonalizedRxSummary(category) {
+  renderPersonalizedRxSummary(rb, category) {
     const meta = this.getPrescriptionMeta(category);
     if (!meta) return '';
     const adj = this.getPrescribedAdjust(category) ?? 0;
     const actionable = Math.abs(adj) >= 1;
     const bandTip = typeof formatBandTooltip === 'function' ? formatBandTooltip(meta.band) : '';
     const bandRange = typeof formatBandRange === 'function' ? formatBandRange(meta.band) : '--';
-    const bandBadge = meta.in_band
-      ? '<span class="badge-yes">✓ 在区间内</span>'
-      : '<span class="badge-no">△ 次优解</span>';
+    const bandBadge = this.renderPersonalizedBandBadge(
+      this.resolvePersonalizedBandInBand(rb, category)
+    );
 
     if (!actionable) {
       return `
@@ -380,7 +471,6 @@ const PlanEditor = {
       pct = Math.min(100, Math.max(0, Math.round((Math.abs(allocated) / Math.abs(prescribed)) * 100)));
     }
 
-    const bandWarn = this.renderCategoryBandWarning(rb, category);
     return `
       <div class="rx-progress-wrap ${wrapCls}">
         <div class="rx-progress-head">
@@ -392,13 +482,19 @@ const PlanEditor = {
           </span>
         </div>
         <div class="rx-progress-track"><div class="rx-progress-fill" style="width:${pct}%"></div></div>
-        ${bandWarn}
       </div>`;
   },
 
-  renderFlagContextPanel(diagnosis, validationNotes) {
+  renderPersonalizedContextPanel(diagnosis, validationNotes, rb) {
     const el = document.getElementById('flagContextPanel');
     if (!el) return;
+    if (rb?.mode === 'optimal_personalized') {
+      el.style.display = 'block';
+      el.innerHTML = `
+        <div class="flag-context-title">依据全账户最优比例生成大类处方</div>
+        <div class="flag-context-hint">各资产类型目标由模型区间与最小异动策略求解；需调整的大类会给出「现仓 → 处方目标」与调整金额。可点「一键自动调仓」快速填入参考分配，再按需微调。</div>`;
+      return;
+    }
     const flags = ((diagnosis && diagnosis.flags) || [])
       .filter((f) => f.code !== 'four_money_mismatch');
     const flagHtml = flags.length
@@ -411,6 +507,11 @@ const PlanEditor = {
       ${flagHtml ? `<div class="flag-context-chips">${flagHtml}</div>` : ''}
       ${note ? `<div class="flag-context-note">${note}</div>` : ''}
       <div class="flag-context-hint">需调整的大类会给出「现仓 → 处方目标」与调整金额；可点「一键自动调仓」快速填入参考分配，再按需微调。</div>`;
+  },
+
+  /** @deprecated use renderPersonalizedContextPanel */
+  renderFlagContextPanel(diagnosis, validationNotes, rb) {
+    this.renderPersonalizedContextPanel(diagnosis, validationNotes, rb);
   },
 
   hideFlagContextPanel() {
@@ -467,29 +568,97 @@ const PlanEditor = {
     );
   },
 
+  /** 本类产品目标是否与进入配置方案时一致（用于还原按钮） */
+  categoryProductPlanMatchesEntry(rb, category) {
+    if (!this._entryProductTargets) return true;
+    const inCategory = (rb.product_deltas || []).filter((d) => d.category === category);
+    for (const d of inCategory) {
+      if (this._manualAddedCodes.has(d.product_code)) continue;
+      const entry = this._entryProductTargets[d.product_code];
+      if (entry == null) {
+        if (Math.abs(d.target_amount) >= 0.01 || Math.abs(d.delta_amount) >= 0.01) {
+          return false;
+        }
+        continue;
+      }
+      if (Math.abs(d.target_amount - entry) >= 0.01) {
+        return false;
+      }
+    }
+    return true;
+  },
+
+  getCategoryOrchestrationButtonMode(rb, category) {
+    if (this.categoryHasManualAddedProducts(rb, category)) return 'disabled';
+    if (!this.categoryProductPlanMatchesEntry(rb, category)) return 'restore';
+    return 'suggest';
+  },
+
+  getCategoryOrchestrationButtonMeta(rb, category) {
+    const mode = this.getCategoryOrchestrationButtonMode(rb, category);
+    if (mode === 'restore') {
+      return {
+        mode,
+        label: '一键还原配仓',
+        action: 'category-restore',
+        disabled: false,
+        title: '还原至进入配置方案时的本类产品配仓',
+      };
+    }
+    if (mode === 'disabled') {
+      return {
+        mode,
+        label: '一键自动调仓',
+        action: 'category-suggest',
+        disabled: true,
+        title: '本类已手工添加产品，一键自动调仓不可用',
+      };
+    }
+    return {
+      mode,
+      label: '一键自动调仓',
+      action: 'category-suggest',
+      disabled: false,
+      title: '',
+    };
+  },
+
+  isCategorySuggestDisabled(rb, category) {
+    return this.getCategoryOrchestrationButtonMode(rb, category) === 'disabled';
+  },
+
+  categorySuggestDisabledReason(rb, category) {
+    if (this.categoryHasManualAddedProducts(rb, category)) {
+      return '本类已手工添加产品，一键自动调仓不可用';
+    }
+    return '';
+  },
+
   syncCategorySuggestButtons(rb) {
     if (!this.hasCategoryPrescription()) return;
-    document.querySelectorAll('[data-action="category-suggest"]').forEach((btn) => {
+    document.querySelectorAll('[data-action="category-suggest"], [data-action="category-restore"]').forEach((btn) => {
       const category = btn.dataset.category;
       if (!category) return;
-      const disabled = this.categoryHasManualAddedProducts(rb, category);
-      btn.disabled = disabled;
-      btn.title = disabled ? '本类已手工添加产品，一键自动调仓不可用' : '';
-      btn.classList.toggle('btn-category-suggest--disabled', disabled);
+      const meta = this.getCategoryOrchestrationButtonMeta(rb, category);
+      btn.disabled = meta.disabled;
+      btn.textContent = meta.label;
+      btn.dataset.action = meta.action;
+      btn.title = meta.title || '';
+      btn.classList.toggle('btn-category-suggest--disabled', meta.disabled);
     });
   },
 
   renderPersonalizedOrchestration(rb, category, actionable) {
-    const manualAdded = this.categoryHasManualAddedProducts(rb, category);
-    const suggestDisabled = manualAdded ? ' disabled' : '';
-    const suggestTitle = manualAdded
-      ? ' title="本类已手工添加产品，一键自动调仓不可用"'
+    const btnMeta = this.getCategoryOrchestrationButtonMeta(rb, category);
+    const suggestDisabledAttr = btnMeta.disabled ? ' disabled' : '';
+    const suggestTitle = btnMeta.title
+      ? ` title="${this._escapeAttr(btnMeta.title)}"`
       : '';
     const head = actionable
       ? `<div class="personalized-orchestration-head">
           <span class="product-section-label">产品落实</span>
-          <button type="button" class="btn btn-sm btn-secondary btn-category-suggest${manualAdded ? ' btn-category-suggest--disabled' : ''}"
-            data-action="category-suggest" data-category="${category}"${suggestDisabled}${suggestTitle}>一键自动调仓</button>
+          <button type="button" class="btn btn-sm btn-secondary btn-category-suggest${btnMeta.disabled ? ' btn-category-suggest--disabled' : ''}"
+            data-action="${btnMeta.action}" data-category="${category}"${suggestDisabledAttr}${suggestTitle}>${btnMeta.label}</button>
         </div>`
       : '<div class="product-section-label personalized-orchestration-label">本类产品调仓明细</div>';
     return `
@@ -508,16 +677,17 @@ const PlanEditor = {
       const actionable = Math.abs(adj) >= 1;
       const meta = this.getPrescriptionMeta(s.category);
       const name = meta?.category_name || s.category_name;
+      const bandWarn = this.renderCategoryBandWarning(rb, s.category);
       return `
         <div class="category-card plan-card personalized-card ${s.category}">
           <div class="card-title">
             <span>${name}</span>
             ${this.renderPrescriptionBadge(adj)}
           </div>
-          ${this.renderPersonalizedRxSummary(s.category)}
+          ${this.renderPersonalizedRxSummary(rb, s.category)}
           ${actionable ? this.renderPrescriptionProgressBar(rb, s.category) : ''}
+          <div class="rx-band-warn-slot" id="band-warn-${s.category}"${bandWarn ? '' : ' style="display:none"'}>${bandWarn}</div>
           ${this.renderPersonalizedOrchestration(rb, s.category, actionable)}
-          ${!actionable ? `<div class="rx-band-warn-slot" id="band-warn-${s.category}">${this.renderCategoryBandWarning(rb, s.category)}</div>` : ''}
         </div>`;
     }).join('');
   },
@@ -840,10 +1010,116 @@ const PlanEditor = {
     }
   },
 
-  shouldShowProductPicker(category) {
-    if (!this.hasCategoryPrescription()) return true;
+  async applyCategoryRestore(rb, category, onUpdated) {
+    if (this.categoryHasManualAddedProducts(rb, category)) {
+      showToast('本类已手工添加产品，无法一键还原');
+      return false;
+    }
+    if (!this._entryProductTargets) {
+      showToast('缺少进入时的配仓快照，请重新进入配置方案');
+      return false;
+    }
+    const baseline = this.buildFullProductTargets(rb);
+    const product_targets = { ...baseline };
+    let changed = false;
+    (rb.product_deltas || []).forEach((d) => {
+      if (d.category !== category) return;
+      const entry = this._entryProductTargets[d.product_code];
+      if (entry == null) return;
+      if (Math.abs((product_targets[d.product_code] || 0) - entry) >= 0.01) {
+        changed = true;
+      }
+      product_targets[d.product_code] = entry;
+    });
+    if (!changed) {
+      this._manualDeltaEditedCategories.delete(category);
+      this.syncCategorySuggestButtons(rb);
+      this.refreshPrescriptionProgressUI(rb);
+      showToast('本类已是进入时的配仓');
+      return true;
+    }
+    try {
+      const res = await apiPost('/api/allocation/manual_adjust', withLossKey({
+        customer_id: rb.customer_id,
+        product_category: typeof getProductCategory === 'function' ? getProductCategory() : undefined,
+        idle_cash: this.planIdleCash(rb),
+        product_targets,
+        baseline_product_targets: baseline,
+      }));
+      this._manualDeltaEditedCategories.delete(category);
+      if (typeof onUpdated === 'function') {
+        onUpdated(res.data);
+      }
+      showToast('已还原至进入时的配仓');
+      return true;
+    } catch (e) {
+      showToast('还原失败: ' + e.message);
+      return false;
+    }
+  },
+
+  shouldShowProductPicker(_category) {
+    return true;
+  },
+
+  initCategoryAddProductConfirmModal() {
+    const modal = document.getElementById('reduceCategoryAddModal');
+    const msgEl = document.getElementById('reduceCategoryAddMessage');
+    const confirmBtn = document.getElementById('reduceCategoryAddConfirm');
+    const cancelBtn = document.getElementById('reduceCategoryAddCancel');
+    if (!modal || modal.dataset.bound) return;
+    modal.dataset.bound = '1';
+
+    const close = (confirmed) => {
+      modal.classList.remove('open');
+      const resolve = this._categoryAddConfirmResolve;
+      this._categoryAddConfirmResolve = null;
+      if (resolve) resolve(!!confirmed);
+    };
+
+    if (confirmBtn) confirmBtn.onclick = () => close(true);
+    if (cancelBtn) cancelBtn.onclick = () => close(false);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) close(false);
+    });
+    this._categoryAddConfirmModal = modal;
+    this._categoryAddConfirmMessageEl = msgEl;
+  },
+
+  promptCategoryAddProductConfirm(message) {
+    this.initCategoryAddProductConfirmModal();
+    const modal = this._categoryAddConfirmModal;
+    const msgEl = this._categoryAddConfirmMessageEl;
+    if (!modal) return Promise.resolve(true);
+
+    if (msgEl) msgEl.textContent = message;
+
+    return new Promise((resolve) => {
+      this._categoryAddConfirmResolve = resolve;
+      modal.classList.add('open');
+    });
+  },
+
+  getCategoryAddProductConfirmMessage(category) {
+    if (!this.hasCategoryPrescription()) return null;
     const prescribed = this.getPrescribedAdjust(category);
-    return prescribed == null || prescribed >= -0.01;
+    if (prescribed == null) return null;
+    if (prescribed < -0.01) {
+      return '该笔钱建议减配，确认要新增产品么？';
+    }
+    if (Math.abs(prescribed) < 1) {
+      return '该笔钱建议保持不变，确认要新增产品么？';
+    }
+    return null;
+  },
+
+  async tryOpenProductPicker(category, rb, categoryName) {
+    const confirmMessage = this.getCategoryAddProductConfirmMessage(category);
+    if (confirmMessage) {
+      const confirmed = await this.promptCategoryAddProductConfirm(confirmMessage);
+      if (!confirmed) return;
+    }
+    await this.openProductPicker(category, rb, categoryName);
   },
 
   holdingsFromOverview(overview) {
@@ -1346,14 +1622,7 @@ const PlanEditor = {
           if (summary) summary.insertAdjacentHTML('afterend', html);
         }
       }
-      const bandSlot = card.querySelector('.rx-band-warn-slot');
-      const bandHtml = this.renderCategoryBandWarning(rb, s.category);
-      if (!actionable) {
-        if (bandSlot) {
-          bandSlot.innerHTML = bandHtml;
-          bandSlot.style.display = bandHtml ? 'block' : 'none';
-        }
-      }
+      this.syncPersonalizedBandUI(rb, s.category);
     });
   },
 
@@ -1836,12 +2105,17 @@ const PlanEditor = {
   bindPlanGrid(container, getContext, onUpdated) {
     if (!container) return;
     container.addEventListener('click', (e) => {
-      const suggestBtn = e.target.closest('[data-action="category-suggest"]');
-      if (suggestBtn) {
-        if (suggestBtn.disabled) return;
+      const orchestrationBtn = e.target.closest('[data-action="category-suggest"], [data-action="category-restore"]');
+      if (orchestrationBtn) {
+        if (orchestrationBtn.disabled) return;
         const ctx = getContext();
         if (!ctx) return;
-        this.applyCategorySuggest(ctx.rb, suggestBtn.dataset.category);
+        const category = orchestrationBtn.dataset.category;
+        if (orchestrationBtn.dataset.action === 'category-restore') {
+          this.applyCategoryRestore(ctx.rb, category, (data) => onUpdated(data));
+        } else {
+          this.applyCategorySuggest(ctx.rb, category);
+        }
         return;
       }
       const pickBtn = e.target.closest('[data-action="pick-product"]');
@@ -1855,7 +2129,8 @@ const PlanEditor = {
         }
         const category = pickBtn.dataset.category;
         const catSummary = ctx.rb.category_summary.find(s => s.category === category);
-        this.openProductPicker(category, ctx.rb, catSummary ? catSummary.category_name : category);
+        const categoryName = catSummary ? catSummary.category_name : category;
+        this.tryOpenProductPicker(category, ctx.rb, categoryName);
         return;
       }
       const removeBtn = e.target.closest('[data-action="remove-product"]');
@@ -2144,6 +2419,10 @@ const PlanEditor = {
       if (!rx.ok) {
         showToast(rx.message);
       }
+      if (Math.abs(item.delta_amount - committedDelta) >= 1) {
+        this._manualDeltaEditedCategories.add(item.category);
+        this.syncCategorySuggestButtons(ctx.rb);
+      }
     }
 
     this._submit(ctx, onUpdated);
@@ -2223,11 +2502,13 @@ const PlanEditor = {
     const el = document.getElementById('planBanner');
     if (!el || !rb) return;
     const isManual = rb.mode === 'manual_product_edit';
-    const isFlag = rb.mode === 'flag_personalized';
+    const isPrescription = this.isPrescriptionMode(rb.mode);
     let title = '配置方案已生成';
     if (isManual) title = '配置方案已更新';
-    else if (isFlag || this.isPersonalizedOrchestration()) {
-      title = '个性化智能配仓 · 大类处方已生成';
+    else if (isPrescription || this.isPersonalizedOrchestration()) {
+      title = rb.mode === 'optimal_personalized'
+        ? '个性化智能配仓（新）· 大类处方已生成'
+        : '个性化智能配仓 · 大类处方已生成';
     }
     const notes = (rb.validation_notes || []).filter(Boolean);
     el.style.display = 'block';

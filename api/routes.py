@@ -180,12 +180,13 @@ def auto_rebalance(req: AutoRebalanceRequest) -> Dict[str, Any]:
     product_category = req.product_category or customer.get("product_category", "投资规划")
 
     flag_codes: list[str] | None = None
-    if req.mode == "flag_personalized":
+    if req.mode in ("flag_personalized", "optimal_personalized"):
         if product_category != "投资规划":
             raise HTTPException(
                 status_code=400,
                 detail="个性化智能配仓仅支持投资规划",
             )
+    if req.mode == "flag_personalized":
         svc = WealthJourneyService()
         try:
             diagnosis = svc.build_diagnosis(req.customer_id)
