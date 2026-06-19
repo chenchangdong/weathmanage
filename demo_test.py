@@ -21,14 +21,13 @@ sys.path.insert(0, str(ROOT))
 
 from agent_core.explain_agent import ExplainAgent
 from asset_allocation.auto_rebalance_engine import AutoRebalanceEngine
-from core.aftercare_companion_service import AftercareCompanionService
 from core.asset_service import AssetOverviewService, overview_to_dict
 from core.config_loader import load_customer_profile
 from core.data_store import get_customer_holdings
 
 
 def run_single(customer_id: str, verbose: bool = True) -> dict:
-    """对单个客户运行完整流程：概览 → 配仓 → 解读 → 投后陪伴。"""
+    """对单个客户运行完整流程：概览 → 配仓 → 解读。"""
     customer = None
     for c in load_customer_profile().get("demo_customers", []):
         if c["customer_id"] == customer_id:
@@ -87,16 +86,6 @@ def run_single(customer_id: str, verbose: bool = True) -> dict:
         print(f"\n超配低配: {explain['over_under_reason']}")
         print(f"\n客户适配: {explain['customer_fit']}")
 
-    # 4. 投后陪伴
-    aftercare = AftercareCompanionService().generate(customer_id)
-    if verbose:
-        print(f"\n【投后陪伴】")
-        rz = aftercare["research_zone"]["items"]
-        pz = aftercare["product_zone"]["items"]
-        print(f"  投研预警: {len(rz)} 条 | 产品预警: {len(pz)} 条")
-        for item in (rz + pz)[:3]:
-            print(f"  - [{item.get('coverage')}] {item.get('mock_detail', '')[:40]}...")
-
     return {
         "customer": customer,
         "overview": overview_dict,
@@ -109,7 +98,6 @@ def run_single(customer_id: str, verbose: bool = True) -> dict:
             "validation_notes": result.validation_notes,
         },
         "explanation": explain,
-        "aftercare": aftercare,
     }
 
 

@@ -9,16 +9,19 @@ from fastapi.responses import StreamingResponse
 
 from agent_core.explain_agent import ExplainAgent
 from api.schemas import (
+    AllocationReportExportRequest,
     AdvisorChatRequest,
-    AftercareCompanionRequest,
-    AftercareItemGenerateRequest,
-    AftercareSystemSaveRequest,
     AutoRebalanceRequest,
     FlagCategorySuggestRequest,
     ManualAdjustRequest,
     ModelDeleteRequest,
     ModelSaveRequest,
     PortfolioMapSaveRequest,
+    SopAgentQueryRequest,
+    SopAgentRunRequest,
+    SopAgentRunBatchRequest,
+    SopRunBatchRequest,
+    SopSystemSaveRequest,
 )
 from agent_core.advisor_chat import AdvisorChatService
 from core.allocation_config_service import AllocationConfigService
@@ -30,23 +33,32 @@ from core.config_loader import (
     get_products_for_display_category,
     get_risk_level_name,
     is_product_limit_validation_enabled,
-    load_aftercare_system,
     load_customer_profile,
     load_model_config,
     load_portfolio_mapping,
+    load_sop_rule_system,
 )
 from core.config_writer import (
     delete_model,
-    save_aftercare_system,
     save_model_config,
     save_portfolio_mapping,
+    save_sop_rule_system,
 )
 from asset_allocation.auto_rebalance_engine import AutoRebalanceEngine
-from core.aftercare_companion_service import AftercareCompanionService
-from core.aftercare_monitor_service import AftercareMonitorService
+from core.config_loader import load_sop_agent_system
+from core.sop_agent_service import SopAgentService
+from core.sop_rule_engine import SopRuleEngine
+from core.sop_event_store import SopEventStore
 from core.asset_service import AssetOverviewService, overview_to_dict
 from core.data_store import get_customer_holdings
 from core.product_display import apply_demand_deposit_to_result
+from core.allocation_report_ppt import (
+    REPORT_CHAPTERS,
+    build_allocation_report_ppt,
+    content_disposition_attachment,
+    normalize_chapters,
+    report_filename,
+)
 from core.wealth_journey_service import WealthJourneyService
 
 router = APIRouter(prefix="/api")
@@ -605,89 +617,165 @@ def advisor_chat_stream(req: AdvisorChatRequest) -> StreamingResponse:
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-@router.get("/aftercare/system")
-def get_aftercare_system_config() -> Dict[str, Any]:
-    """读取投后陪伴体系配置。"""
-    return {"code": 0, "message": "ok", "data": load_aftercare_system()}
+@router.get("/allocation/report_chapters")
+def list_report_chapters() -> Dict[str, Any]:
+    """资产配置报告可选章节列表。"""
+    return {"code": 0, "message": "ok", "data": {"chapters": REPORT_CHAPTERS}}
 
 
-@router.post("/aftercare/system")
-def save_aftercare_system_config(req: AftercareSystemSaveRequest) -> Dict[str, Any]:
-    """保存投后陪伴体系配置。"""
+@router.post("/allocation/export_report_ppt")
+def export_allocation_report_ppt(req: AllocationReportExportRequest):
+    """导出资产配置报告 PPT（封面 + 目录 + 章节空白页）。"""
+    customer = get_demo_customer(req.customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail=f"Customer not found: {req.customer_id}")
+
+    chapters = normalize_chapters(req.chapters)
+    if not chapters:
+        raise HTTPException(status_code=400, detail="请至少选择一个有效章节")
+
     try:
-        save_aftercare_system(req.config, version=req.version)
-        return {"code": 0, "message": "ok", "data": load_aftercare_system()}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.get("/aftercare/monitor")
-def get_aftercare_monitor(
-    customer_id: str = Query(..., description="客户ID"),
-) -> Dict[str, Any]:
-    """模拟当日投研/产品监测预警（不含话术生成）。"""
-    try:
-        data = AftercareMonitorService().detect_all(customer_id)
-        return {"code": 0, "message": "ok", "data": data}
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.post("/aftercare/companion/generate")
-def generate_aftercare_companion(req: AftercareCompanionRequest) -> Dict[str, Any]:
-    """根据当日监测预警生成应对策略与客户沟通话术（非流式）。"""
-    try:
-        data = AftercareCompanionService().generate(req.customer_id)
-        return {"code": 0, "message": "ok", "data": data}
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.post("/aftercare/companion/generate/stream")
-def generate_aftercare_companion_stream(req: AftercareCompanionRequest) -> StreamingResponse:
-    """流式生成每条预警的应对策略与客户沟通话术。"""
-    import json
-
-    svc = AftercareCompanionService()
-
-    def event_stream():
-        try:
-            for chunk in svc.generate_stream(req.customer_id):
-                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-        except ValueError as e:
-            payload = {"type": "error", "message": str(e)}
-            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
-
-
-@router.post("/aftercare/companion/generate/item")
-def generate_aftercare_item(req: AftercareItemGenerateRequest) -> Dict[str, Any]:
-    """为单条预警的指定字段生成话术（非流式）。"""
-    try:
-        data = AftercareCompanionService().generate_item_field(
-            req.customer_id, req.zone, req.rule_id, req.field
+        content = build_allocation_report_ppt(
+            customer_name=customer.get("name") or req.customer_id,
+            selected_chapters=chapters,
+            branch_name=req.branch_name or "--",
+            advisor_name=req.advisor_name or "--",
+            contact_phone=req.contact_phone or "--",
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    filename = report_filename(customer.get("name") or req.customer_id)
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={
+            "Content-Disposition": content_disposition_attachment(filename),
+        },
+    )
+
+
+# ── SOP 6.1 / 6.2（独立于投后陪伴）────────────────────────────────────────
+
+
+@router.get("/sop/system")
+def get_sop_system_config() -> Dict[str, Any]:
+    return {"code": 0, "message": "ok", "data": load_sop_rule_system()}
+
+
+@router.post("/sop/system")
+def save_sop_system_config(req: SopSystemSaveRequest) -> Dict[str, Any]:
+    try:
+        save_sop_rule_system(req.config, version=req.version)
+        return {"code": 0, "message": "ok", "data": load_sop_rule_system()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/sop/events/run-batch")
+def sop_run_batch(req: SopRunBatchRequest = SopRunBatchRequest()) -> Dict[str, Any]:
+    """6.1.2 事件触发跑批（模拟每日扫描）。"""
+    from datetime import date
+
+    as_of = None
+    if req.as_of:
+        as_of = date.fromisoformat(req.as_of[:10])
+    engine = SopRuleEngine()
+    engine.reload()
+    result = engine.run_batch(as_of=as_of)
+    return {"code": 0, "message": "ok", "data": result}
+
+
+@router.get("/sop/rule-logs")
+def sop_rule_logs(
+    business_type: Optional[str] = Query(None),
+    limit: int = Query(200, ge=1, le=500),
+) -> Dict[str, Any]:
+    store = SopEventStore()
+    rows = store.list_rule_logs(business_type=business_type, limit=limit)
+    return {"code": 0, "message": "ok", "data": {"logs": rows}}
+
+
+@router.get("/sop/events")
+def sop_list_events(
+    since: Optional[str] = Query(None),
+    until: Optional[str] = Query(None),
+    big_class: Optional[str] = Query(None),
+    keyword: Optional[str] = Query(None),
+    drawdown_only: bool = Query(False),
+) -> Dict[str, Any]:
+    engine = SopRuleEngine()
+    events = engine.query_events(
+        since=since,
+        until=until,
+        big_class=big_class,
+        keyword=keyword,
+        drawdown_only=drawdown_only,
+    )
+    return {"code": 0, "message": "ok", "data": {"events": events}}
+
+
+@router.post("/sop/agent/query")
+def sop_agent_query(req: SopAgentQueryRequest) -> Dict[str, Any]:
+    """6.2 自然语言查询事件（演示）。"""
+    svc = SopAgentService()
+    data = svc.query_and_summarize(
+        req.question,
+        since=req.since,
+        drawdown_only=req.drawdown_only,
+    )
+    return {"code": 0, "message": "ok", "data": data}
+
+
+@router.post("/sop/agent/run")
+def sop_agent_run(req: SopAgentRunRequest) -> Dict[str, Any]:
+    """6.2 对指定事件运行投后智能体。"""
+    try:
+        data = SopAgentService().run_for_event(req.event_id)
         return {"code": 0, "message": "ok", "data": data}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
-@router.post("/aftercare/companion/generate/item/stream")
-def generate_aftercare_item_stream(req: AftercareItemGenerateRequest) -> StreamingResponse:
-    """为单条预警的指定字段流式生成话术。"""
-    import json
+@router.get("/sop/agent/output")
+def sop_agent_output(event_id: str = Query(...)) -> Dict[str, Any]:
+    output = SopEventStore().get_agent_output(event_id)
+    if not output:
+        raise HTTPException(status_code=404, detail=f"未找到智能体输出: {event_id}")
+    return {"code": 0, "message": "ok", "data": output}
 
-    svc = AftercareCompanionService()
 
-    def event_stream():
-        try:
-            for chunk in svc.generate_item_field_stream(
-                req.customer_id, req.zone, req.rule_id, req.field
-            ):
-                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-        except ValueError as e:
-            payload = {"type": "error", "message": str(e)}
-            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+@router.get("/sop/agent/config")
+def sop_agent_config() -> Dict[str, Any]:
+    """6.2 智能体配置（模板、调度、数据源降级说明）。"""
+    return {"code": 0, "message": "ok", "data": load_sop_agent_system()}
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+@router.get("/sop/agent/schedule/status")
+def sop_agent_schedule_status() -> Dict[str, Any]:
+    from core.sop_batch_scheduler import get_scheduler_status
+
+    return {"code": 0, "message": "ok", "data": get_scheduler_status()}
+
+
+@router.post("/sop/agent/run-batch")
+def sop_agent_run_batch(req: SopAgentRunBatchRequest = SopAgentRunBatchRequest()) -> Dict[str, Any]:
+    """6.2 批量运行智能体管道（pending 或指定 event_ids，默认每批 20 条）。"""
+    svc = SopAgentService()
+    limit = max(1, min(req.limit, 100))
+    use_llm = bool(req.use_llm)
+    if req.event_ids:
+        data = svc.run_batch_for_events(req.event_ids, limit=limit, use_llm=use_llm)
+    elif req.all_pending:
+        data = svc.run_batch_for_events(None, limit=limit, use_llm=use_llm)
+    else:
+        data = svc.run_batch_for_events(None, limit=limit, use_llm=use_llm)
+    return {"code": 0, "message": "ok", "data": data}
+
+
+@router.post("/sop/events/scheduled-batch")
+def sop_scheduled_batch(force: bool = Query(False)) -> Dict[str, Any]:
+    """手动触发定时跑批（6.1 + 可选 6.2）。"""
+    from core.sop_batch_scheduler import run_scheduled_batch
+
+    return {"code": 0, "message": "ok", "data": run_scheduled_batch(force=force)}

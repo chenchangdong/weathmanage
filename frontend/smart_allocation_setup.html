@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>智能资配 · 客户KYC - 四笔钱智能投顾</title>
+  <link rel="stylesheet" href="css/app-shell.css">
   <link rel="stylesheet" href="css/style.css">
   <script src="js/advisor_chat_bootstrap.js"></script>
 </head>
@@ -13,8 +14,6 @@
       <h1>智能资配</h1>
       <p id="pageSubtitle">配置准备 — 确认客户现状与投资目标</p>
     </div>
-
-    <div id="navBar" class="nav-bar"></div>
 
     <div class="journey-step-bar" id="journeyStepBar">
       <a href="wealth_inventory.html" class="journey-step link">① 财富盘点</a>
@@ -189,6 +188,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/common.js"></script>
+  <script src="js/app_shell.js"></script>
   <script src="js/wealth_journey.js"></script>
   <script src="js/model_selector.js"></script>
   <script src="js/smart_allocation_addon.js"></script>
@@ -199,7 +199,7 @@
     let previewOverview = null;
     let holdingsBaseTotal = 0;
 
-    renderNav('smart_allocation_setup');
+    initAppShell({ page: 'smart_allocation_setup', title: '智能资配', crumb: '智能资配' });
     bindAddonHoldingInput();
     SetupPage.bindInteractions();
 

@@ -1,0 +1,116 @@
+version: '1.0'
+page:
+  title: 规则策略
+  subtitle: 指标 · 规则 · 分组 · 组合事件 · 事件日志（SOP 独立模块，与投后陪伴无关）
+indicators:
+- code: MAX_DRAWDOWN
+  name: 最大回撤
+  business_type: 产品最大回撤
+  field: max_drawdown
+  remark: 产品最大回撤百分比
+- code: WEEKLY_DRAWDOWN
+  name: 单周最大回撤
+  business_type: 产品最大回撤
+  field: weekly_drawdown
+  remark: 近一周最大回撤
+- code: DAILY_DRAWDOWN
+  name: 单日最大回撤
+  business_type: 产品最大回撤
+  field: daily_drawdown
+  remark: 单日最大回撤
+- code: YIELD_RATE
+  name: 收益率
+  business_type: 产品收益预警
+  field: yield_rate
+  remark: 产品年化收益率
+- code: PRODUCT_ID
+  name: product_id
+  business_type: 持仓变动预警
+  field: product_id
+  remark: 产品代码
+groups:
+- sort: 0
+  code: product_id
+  name: product_id
+  remark: product_id 占位分组
+  enabled: true
+- sort: 1
+  code: product_drawdown
+  name: 产品最大回撤
+  remark: 产品净值最大回撤相关规则
+  enabled: true
+- sort: 2
+  code: product_yield
+  name: 产品收益预警
+  remark: 产品收益率相关规则
+  enabled: true
+- sort: 3
+  code: position_change
+  name: 持仓变动预警
+  remark: 产品持仓变动相关规则
+  enabled: true
+rules:
+- code: RISK_MAX_DD_5
+  name: 最大回撤大于5%触发
+  business_type: 产品最大回撤
+  group_code: product_drawdown
+  expression: max_drawdown > 5
+  level: 高
+  enabled: true
+- code: RISK_MAX_DD_3
+  name: 最大回撤大于3%触发
+  business_type: 产品最大回撤
+  group_code: product_drawdown
+  expression: max_drawdown > 3
+  level: 中
+  enabled: true
+- code: RISK_WEEKLY_DD_5
+  name: 单周回撤大于5%触发
+  business_type: 产品最大回撤
+  group_code: product_drawdown
+  expression: weekly_drawdown >= 5
+  level: 高
+  enabled: true
+- code: RISK_DAILY_DD_5
+  name: 单日回撤大于5%触发
+  business_type: 产品最大回撤
+  group_code: product_drawdown
+  expression: daily_drawdown > 5
+  level: 高
+  enabled: true
+- code: YIELD_LOW_2
+  name: 收益率低于2%触发
+  business_type: 产品收益预警
+  group_code: product_yield
+  expression: yield_rate < 2
+  level: 中
+  enabled: true
+composite_events:
+- code: EVT_DRAWDOWN
+  name: 产品回撤异常事件
+  big_class: 售后
+  scenario: 最大回撤超阈值
+  rule_codes:
+  - RISK_MAX_DD_5
+  - RISK_MAX_DD_3
+  - RISK_WEEKLY_DD_5
+  - RISK_DAILY_DD_5
+  match_mode: any
+  enabled: true
+- code: EVT_YIELD
+  name: 产品收益预警事件
+  big_class: 售后
+  scenario: 收益不达预期
+  rule_codes:
+  - YIELD_LOW_2
+  match_mode: any
+  enabled: true
+strategy_frameworks:
+  主观股票: 主动权益
+  量化指增: 量化策略
+  固定指增: 被动指数
+  多策略: 量化策略
+  CTA: 量化策略
+  固收+: 固收+
+  类固收: 固收（纯债/债券型）
+  default: 主动权益

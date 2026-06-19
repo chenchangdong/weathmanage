@@ -123,7 +123,7 @@ const WealthJourney = {
     const curRatio = Number(data.current_ratio) || 0;
     const tgtRatio = Number(options.targetRatio != null ? options.targetRatio : data.target_ratio) || 0;
     const scaleMax = this._overviewBarScaleMax(curRatio, tgtRatio, data.band);
-    const shellH = compact ? 68 : 96;
+    const shellH = compact ? 75 : 96;
     const toBarH = (ratio) => {
       const h = Math.round(((Number(ratio) || 0) / scaleMax) * shellH);
       return Math.min(shellH, Math.max(ratio > 0 ? 2 : 0, h));
@@ -173,9 +173,9 @@ const WealthJourney = {
           </div>
         </div>
         <div class="fm-overview-bars-meta">
-          <span>当前持仓 <strong>${formatMoney(data.current_amount)}</strong></span>
-          <span>目标配置额 <strong>${formatMoney(data.target_amount)}</strong></span>
-          <span>模型区间 <strong>${typeof formatBandRange === 'function' ? formatBandRange(data.band) : '--'}</strong></span>
+          <span class="fm-overview-meta-item">当前持仓 <strong>${formatMoney(data.current_amount)}</strong></span>
+          <span class="fm-overview-meta-item">目标配置额 <strong>${formatMoney(data.target_amount)}</strong></span>
+          <span class="fm-overview-meta-item">模型区间 <strong>${typeof formatBandRange === 'function' ? formatBandRange(data.band) : '--'}</strong></span>
         </div>
       </div>`;
   },

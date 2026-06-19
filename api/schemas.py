@@ -63,22 +63,6 @@ class PortfolioMapSaveRequest(BaseModel):
     customer_risk_levels: Optional[List[Dict[str, Any]]] = None
 
 
-class AftercareCompanionRequest(BaseModel):
-    customer_id: str
-
-
-class AftercareItemGenerateRequest(BaseModel):
-    customer_id: str
-    zone: str = Field(..., description="research | product")
-    rule_id: str
-    field: str = Field(..., description="advisor_strategy | customer_script")
-
-
-class AftercareSystemSaveRequest(BaseModel):
-    config: Dict[str, Any]
-    version: str = "1.0"
-
-
 class ExplainRequest(BaseModel):
     customer_id: str
     rebalance_result: Optional[Dict[str, Any]] = None
@@ -96,3 +80,37 @@ class AdvisorChatRequest(BaseModel):
     overview: Optional[Dict[str, Any]] = None
     plan: Optional[Dict[str, Any]] = None
     diagnosis: Optional[Dict[str, Any]] = None
+
+
+class AllocationReportExportRequest(BaseModel):
+    customer_id: str
+    chapters: List[str] = Field(..., min_length=1)
+    branch_name: Optional[str] = None
+    advisor_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+
+
+class SopSystemSaveRequest(BaseModel):
+    config: Dict[str, Any]
+    version: str = "1.0"
+
+
+class SopAgentQueryRequest(BaseModel):
+    question: str = ""
+    since: Optional[str] = None
+    drawdown_only: bool = True
+
+
+class SopAgentRunRequest(BaseModel):
+    event_id: str
+
+
+class SopAgentRunBatchRequest(BaseModel):
+    event_ids: Optional[List[str]] = None
+    all_pending: bool = False
+    limit: int = 20
+    use_llm: bool = False
+
+
+class SopRunBatchRequest(BaseModel):
+    as_of: Optional[str] = None

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>资产诊断 - 四笔钱智能投顾</title>
+  <link rel="stylesheet" href="css/app-shell.css">
   <link rel="stylesheet" href="css/style.css">
   <script src="js/advisor_chat_bootstrap.js"></script>
 </head>
@@ -14,7 +15,6 @@
       <p id="diagnosisSubtitle">结构化诊断 · 为智能资配做铺垫</p>
     </div>
 
-    <div id="navBar" class="nav-bar"></div>
 
     <div class="journey-step-bar">
       <a href="wealth_inventory.html" class="journey-step link">① 财富盘点</a>
@@ -39,12 +39,13 @@
             </div>
             <p id="customerMeta" class="diagnosis-customer-meta">--</p>
           </div>
-          <div class="diagnosis-metric-group">
+          <div class="diagnosis-metric-group diagnosis-metric-group-with-ai">
             <div class="diagnosis-metric">
               <span class="diagnosis-metric-label">总资产</span>
               <span class="diagnosis-metric-value" id="metricTotal">--</span>
               <span class="diagnosis-metric-sub" id="metricDate">--</span>
             </div>
+            <button type="button" class="btn btn-ai-explain" id="btnAiAssetDiagnose">AI资产诊断</button>
           </div>
         </div>
         <div class="diagnosis-metrics-grid diagnosis-metrics-grid-duo">
@@ -128,12 +129,13 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/common.js"></script>
+  <script src="js/app_shell.js"></script>
   <script src="js/wealth_journey.js"></script>
   <script src="js/advisor_chat.js?v=20260614b"></script>
   <script>
-    renderNav('asset_diagnosis');
+    initAppShell({ page: 'asset_diagnosis', title: '资产诊断', crumb: '资产诊断' });
     let diagnosisData = null;
-    AdvisorChat.initDockPage();
+    AdvisorChat.initDockPage({ bindAssetDiagnose: true, bindHealthDiagnose: false, bindPlanExplain: false });
 
     const customerId = getSelectedCustomerId();
 

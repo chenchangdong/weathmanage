@@ -80,7 +80,6 @@
         </div>
       </div>
 
-      <button class="btn btn-primary btn-large" id="btnAftercare">生成投后陪伴方案 →</button>
       <button class="btn btn-secondary btn-large" onclick="location.href='index.html'">返回客户资产首页</button>
     </div>
   </div>
@@ -137,10 +136,6 @@
     } else {
       document.getElementById('loading').textContent = '暂无配置方案，请先从首页发起配仓';
     }
-
-    document.getElementById('btnAftercare').onclick = () => {
-      window.location.href = 'aftercare.html';
-    };
 
     AdvisorChat.init({ planExplainEmptyMessage: '暂无配置方案' });
   </script>

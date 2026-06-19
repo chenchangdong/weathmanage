@@ -15,13 +15,11 @@ permissions:
     can_single_optimize: true
     can_manual_tweak: true
     can_generate_explanation: true
-    can_export_aftercare: true
   viewer:
     can_full_optimize: false
     can_single_optimize: false
     can_manual_tweak: false
     can_generate_explanation: true
-    can_export_aftercare: false
 
 # 人工微调规则
 manual_tweak:

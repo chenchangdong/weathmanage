@@ -132,33 +132,6 @@ class TestManualAdjustAPI:
         assert p011["action"] == "buy"
 
 
-class TestAftercareAPI:
-    def test_companion_item_generate(self):
-        monitor = client.get("/api/aftercare/monitor", params={"customer_id": CUSTOMER_ID})
-        assert monitor.status_code == 200
-        alerts = monitor.json()["data"]["research_alerts"]
-        assert alerts
-        rule_id = alerts[0]["rule_id"]
-        resp = client.post("/api/aftercare/companion/generate/item", json={
-            "customer_id": CUSTOMER_ID,
-            "zone": "research",
-            "rule_id": rule_id,
-            "field": "advisor_strategy",
-        })
-        assert resp.status_code == 200
-        data = resp.json()["data"]
-        assert data["field"] == "advisor_strategy"
-        assert data["content"]
-
-    def test_aftercare_system_config(self):
-        resp = client.get("/api/aftercare/system")
-        assert resp.status_code == 200
-        cfg = resp.json()["data"]
-        assert cfg.get("companion", {}).get("stream_enabled") is True
-        assert len(cfg["research_driven"]["rules"]) >= 10
-        assert len(cfg["product_driven"]["rules"]) >= 15
-
-
 class TestHealth:
     def test_health_check(self):
         resp = client.get("/api/health")

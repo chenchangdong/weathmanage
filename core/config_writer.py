@@ -121,9 +121,17 @@ def save_portfolio_mapping(
     reload_all_configs()
 
 
-def save_aftercare_system(config: Dict[str, Any], version: str = "1.0") -> None:
-    """投后陪伴体系配置 → aftercare_system.yaml"""
+def save_sop_product_library(config: Dict[str, Any], version: str = "1.0") -> None:
+    """SOP 产品信息库 → sop_product_library.yaml（独立于资配 product_constraint）"""
     payload = dict(config)
     payload["version"] = version
-    _dump_yaml(CONFIG_DIR / "aftercare_system.yaml", payload)
+    _dump_yaml(CONFIG_DIR / "sop_product_library.yaml", payload)
+    reload_all_configs()
+
+
+def save_sop_rule_system(config: Dict[str, Any], version: str = "1.0") -> None:
+    """SOP 规则策略配置 → sop_rule_system.yaml"""
+    payload = dict(config)
+    payload["version"] = version
+    _dump_yaml(CONFIG_DIR / "sop_rule_system.yaml", payload)
     reload_all_configs()

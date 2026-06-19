@@ -7,7 +7,6 @@
     'asset_diagnosis.html',
     'smart_allocation_setup.html',
     'smart_allocation.html',
-    'aftercare.html',
   ];
 
   const path = location.pathname.split('/').pop() || '';

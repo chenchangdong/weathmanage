@@ -1,0 +1,61 @@
+version: '1.0'
+frameworks:
+  主动权益:
+    label: 主动权益
+    dimensions:
+    - 现象描述
+    - 超额收益变化
+    - 持仓风格与行业暴露
+    - 市场 beta 与系统性风险
+    product_prompt: 结合产品策略与持仓风格，分析回撤是否源于选股、行业集中或风格漂移。
+    market_prompt: 关注权益市场波动、成交量、政策与行业轮动对主动权益产品的传导。
+    recommendation_default: 建议持有观察，跟踪超额修复与回撤收敛；若最大回撤继续扩大再评估减仓。
+  量化策略:
+    label: 量化策略
+    dimensions:
+    - 现象描述
+    - 因子暴露变化
+    - 指增/中性超额
+    - 市场流动性与基差
+    product_prompt: 分析量化因子失效、模型拥挤度及指增超额回撤是否超出历史波动区间。
+    market_prompt: 关注指数成分调整、成交量萎缩、基差走阔对量化产品的同步影响。
+    recommendation_default: 建议持有观察，重点跟踪超额回撤是否收敛及策略容量变化。
+  被动指数:
+    label: 被动指数
+    dimensions:
+    - 现象描述
+    - 跟踪误差
+    - 指数成分与权重
+    - 市场系统性波动
+    product_prompt: 评估跟踪误差是否异常扩大，回撤是否主要来自基准指数本身。
+    market_prompt: 关注基准指数波动、成分股调整及市场风格切换。
+    recommendation_default: 指数产品回撤多属市场系统性因素，建议与客户沟通长期配置逻辑。
+  固收+:
+    label: 固收+
+    dimensions:
+    - 现象描述
+    - 权益仓位贡献
+    - 信用与久期暴露
+    - 利率与信用环境
+    product_prompt: 拆解固收+中权益增强与信用债部分的回撤贡献。
+    market_prompt: 关注利率变动、信用利差与权益副仓对净值的影响。
+    recommendation_default: 固收+波动通常低于纯权益，建议关注回撤是否超出产品历史波动区间。
+  固收（纯债/债券型）:
+    label: 固收
+    dimensions:
+    - 现象描述
+    - 久期与信用暴露
+    - 利率敏感性
+    - 流动性环境
+    product_prompt: 分析久期、信用下沉及个券事件对回撤的贡献。
+    market_prompt: 关注央行政策、利率曲线与信用环境变化。
+    recommendation_default: 纯债产品回撤多为利率或信用因素，建议评估是否超出产品风险收益特征。
+  default:
+    label: 通用框架
+    dimensions:
+    - 现象描述
+    - 原因分析
+    - 前瞻判断
+    product_prompt: 结合产品策略类型与近期业绩，分析回撤驱动因素。
+    market_prompt: 结合宏观与市场环境，说明系统性与特异性因素。
+    recommendation_default: 建议持有观察，与客户充分沟通回撤原因及后续跟踪指标。

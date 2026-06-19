@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>规则策略</title>
+  <link rel="stylesheet" href="../css/app-shell.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .operation-header-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .tab-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 8px 12px 0;
+      border-bottom: 1px solid var(--divider);
+    }
+    .sub-tab-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .sub-tab-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--card);
+      color: var(--fg-3);
+      cursor: pointer;
+      font-size: 12.5px;
+      font-family: inherit;
+    }
+    .sub-tab-btn.active {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-soft);
+      font-weight: 600;
+    }
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .filter-bar select,
+    .filter-bar input {
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--card);
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--fg);
+    }
+    .form-grid {
+      display: grid;
+      gap: 14px;
+    }
+    .form-field label {
+      display: block;
+      font-size: 12px;
+      color: var(--fg-3);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .form-field input,
+    .form-field select,
+    .form-field textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--card);
+      color: var(--fg);
+    }
+    .form-field textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .form-field textarea.code-input {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      min-height: 120px;
+    }
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+      font-size: 12.5px;
+      color: var(--fg-3);
+    }
+    .table-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn-link.danger { color: var(--red); }
+    .empty-cell { text-align: center; color: var(--fg-4); padding: 24px !important; }
+    .expr-cell code {
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .help-panel h3 { margin: 20px 0 8px; font-size: 15px; }
+    .help-panel h4 { margin: 14px 0 6px; font-size: 13px; color: var(--fg-2); }
+    .help-panel p, .help-panel li { color: var(--fg-2); font-size: 13px; line-height: 1.7; }
+    .help-panel ul { padding-left: 20px; margin: 8px 0; }
+    .help-panel table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12.5px; }
+    .help-panel th, .help-panel td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+    .help-panel th { background: var(--bg-2); }
+    .toast-msg {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,.78);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 6px;
+      opacity: 0;
+      transition: opacity .2s;
+      z-index: 999;
+      pointer-events: none;
+      font-size: 13px;
+    }
+    .toast-msg.show { opacity: 1; }
+  </style>
+</head>
+<body class="has-app-shell">
+  <div class="app app-shell">
+    <div class="app-grid-bg"></div>
+    <aside id="sidebarMount"></aside>
+    <div class="main">
+      <header id="topbarMount"></header>
+      <div class="content">
+        <div class="card operation-header-card">
+          <div class="tab-row" id="mainTabs">
+            <button type="button" class="tab-btn active" data-tab="config">规则配置</button>
+            <button type="button" class="tab-btn" data-tab="metrics">指标管理</button>
+            <button type="button" class="tab-btn" data-tab="groups">规则分组</button>
+            <button type="button" class="tab-btn" data-tab="logs">事件日志</button>
+            <button type="button" class="tab-btn" data-tab="test">规则测试</button>
+            <button type="button" class="tab-btn" data-tab="io">出入配置</button>
+            <button type="button" class="tab-btn" data-tab="help">规则说明</button>
+          </div>
+        </div>
+        <div id="ruleTabContent"></div>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="toast-msg"></div>
+  <script src="../js/common.js"></script>
+  <script src="../js/app_shell.js"></script>
+  <script src="../js/rule_strategy.js"></script>
+  <script>
+    initAppShell({ page: 'operation_rule', title: '规则策略', crumb: '运营管理 / 规则策略', admin: true });
+  </script>
+</body>
+</html>

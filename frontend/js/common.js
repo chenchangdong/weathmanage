@@ -40,6 +40,10 @@ function formatBandTooltip(band) {
 
 function showToast(msg) {
   const t = document.getElementById('toast');
+  if (!t) {
+    console.warn('[toast]', msg);
+    return;
+  }
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
@@ -194,16 +198,18 @@ function renderNav(active) {
     { href: 'wealth_inventory.html', label: '财富盘点' },
     { href: 'asset_diagnosis.html', label: '资产诊断' },
     { href: 'smart_allocation_setup.html', label: '智能资配' },
-    { href: 'index.html', label: '客户资产', muted: true },
-    { href: 'result.html', label: '配置方案', muted: true },
-    { href: 'aftercare.html', label: '投后陪伴' },
+    { href: 'index.html', label: '客户资产', hidden: true },
+    { href: 'result.html', label: '配置方案', hidden: true },
+    { href: 'sop_agent.html', label: 'SOP投后智能体' },
   ];
   const adminPages = [
     { href: 'admin/model_config.html', label: '模型建立', key: 'model_config' },
     { href: 'admin/portfolio_mapping.html', label: '模型指派', key: 'portfolio_mapping' },
-    { href: 'admin/aftercare_system.html', label: '投后陪伴配置', key: 'aftercare_system' },
+    { href: 'admin/rule_strategy.html', label: '规则策略', key: 'rule_strategy' },
+    { href: 'admin/sop_product_library.html', label: 'SOP产品信息库', key: 'sop_product_library' },
+    { href: 'admin/data_dict.html', label: '数据字典', key: 'data_dict' },
   ];
-  const mainLinks = pages.map(p => {
+  const mainLinks = pages.filter((p) => !p.hidden).map(p => {
     const pageKey = p.href.replace('.html', '');
     const smartAllocActive = pageKey === 'smart_allocation_setup'
       && (active === 'smart_allocation' || active === 'smart_allocation_setup');

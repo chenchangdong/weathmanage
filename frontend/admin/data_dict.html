@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据字典</title>
+  <link rel="stylesheet" href="../css/app-shell.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .toast-msg {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,.78);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 6px;
+      opacity: 0;
+      transition: opacity .2s;
+      z-index: 999;
+      pointer-events: none;
+      font-size: 13px;
+    }
+    .toast-msg.show { opacity: 1; }
+  </style>
+</head>
+<body class="has-app-shell page-dict">
+  <div class="app app-shell">
+    <div class="app-grid-bg"></div>
+    <aside id="sidebarMount"></aside>
+    <div class="main">
+      <header id="topbarMount"></header>
+      <div class="content">
+        <div class="dict-layout">
+          <aside class="dict-sidebar">
+            <div class="sidebar-header">
+              <h3>配置分类</h3>
+            </div>
+            <div class="dict-tree" id="dictTree"></div>
+          </aside>
+          <div class="dict-content">
+            <div class="dict-card-header" id="dictHeader">
+              <div class="dict-header-top">
+                <div class="dict-header-main">
+                  <div class="card-title-row">
+                    <h2 id="moduleTitle">请选择配置项</h2>
+                    <span class="module-file" id="moduleFile" hidden></span>
+                  </div>
+                  <p class="card-desc" id="moduleDesc">在左侧选择适合可视化维护的配置模块</p>
+                </div>
+                <div class="dict-header-actions" id="dictHeaderActions"></div>
+              </div>
+            </div>
+            <div class="dict-content-inner" id="dictBody">
+              <div class="dict-empty">
+                <div class="dict-empty-icon">📂</div>
+                <h3>配置数据字典</h3>
+                <p>已排除 customer_profile 及已有专属页面的 model / portfolio / 规则策略配置</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="toast-msg"></div>
+  <script src="../js/common.js"></script>
+  <script src="../js/app_shell.js"></script>
+  <script src="../js/data_dict.js"></script>
+  <script>
+    initAppShell({ page: 'data_dict', title: '数据字典', crumb: '运营管理 / 数据字典', admin: true });
+  </script>
+</body>
+</html>

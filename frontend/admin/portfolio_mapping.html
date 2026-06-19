@@ -4,20 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>资产配置模型指派</title>
+  <link rel="stylesheet" href="../css/app-shell.css">
   <link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
   <div class="admin-wrap">
-    <div class="admin-header">
-      <h1>资产配置模型指派</h1>
-    </div>
-    <div class="admin-nav">
-      <a href="model_config.html">资产配置模型建立</a>
-      <a href="portfolio_mapping.html" class="active">资产配置模型指派</a>
-      <a href="aftercare_system.html">投后陪伴配置</a>
-      <a href="../index.html">返回业务前台</a>
-    </div>
-
     <div class="panel">
       <div class="filter-bar">
         <label>请选择对应的投资组合名称：</label>
@@ -52,7 +43,9 @@
   </div>
   <div id="toast" class="toast"></div>
 
+  <script src="../js/app_shell.js"></script>
   <script>
+    initAppShell({ page: 'portfolio_mapping', title: '模型指派', crumb: '运营管理 / 模型指派', admin: true });
     let tableRows = [];
     let modelOptions = [];
     let riskCustomerMap = {};

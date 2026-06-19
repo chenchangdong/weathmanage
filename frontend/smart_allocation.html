@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>智能资配 · 配置方案 - 四笔钱智能投顾</title>
+  <link rel="stylesheet" href="css/app-shell.css">
   <link rel="stylesheet" href="css/style.css">
   <script src="js/advisor_chat_bootstrap.js"></script>
 </head>
@@ -14,7 +15,6 @@
       <p id="pageSubtitle">人人都是专业财富顾问</p>
     </div>
 
-    <div id="navBar" class="nav-bar"></div>
 
     <div class="journey-step-bar" id="journeyStepBar">
       <a href="wealth_inventory.html" class="journey-step link">① 财富盘点</a>
@@ -104,8 +104,10 @@
           </div>
         </div>
 
-        <button class="btn btn-primary btn-large" id="btnAftercare">生成投后陪伴方案 →</button>
-        <button class="btn btn-secondary btn-large" id="btnBackOverview">返回资产检视</button>
+        <div class="plan-section-actions">
+          <button type="button" class="btn btn-secondary btn-large" id="btnExportReport" style="display:none">一键导出报告</button>
+          <button class="btn btn-secondary btn-large" id="btnBackOverview">返回资产检视</button>
+        </div>
       </div>
 
       <div class="global-actions" id="globalActions">
@@ -118,6 +120,22 @@
         <div class="global-actions-secondary">
           <button class="btn btn-secondary btn-large" id="btnGenerateExplain">生成配置解读</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="reportExportModal">
+    <div class="modal modal-report-export">
+      <h3>导出资产配置报告</h3>
+      <p class="report-export-hint">请选择需要生成的章节（前两页为封面与目录，所选章节各生成一页空白内容页）</p>
+      <div class="report-export-toolbar">
+        <button type="button" class="btn btn-link" id="reportExportSelectAll">全选</button>
+        <button type="button" class="btn btn-link" id="reportExportClearAll">取消全选</button>
+      </div>
+      <div id="reportChapterList" class="report-chapter-list"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="reportExportConfirm">确认导出</button>
+        <button type="button" class="btn btn-secondary" id="reportExportCancel">取消</button>
       </div>
     </div>
   </div>
@@ -212,10 +230,12 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/common.js"></script>
+  <script src="js/app_shell.js"></script>
   <script src="js/wealth_journey.js"></script>
   <script src="js/model_selector.js"></script>
   <script src="js/smart_allocation_addon.js"></script>
   <script src="js/plan_editor.js"></script>
+  <script src="js/allocation_report_export.js"></script>
   <script src="js/advisor_chat.js?v=20260614b"></script>
   <script>
     let overviewData = null;
@@ -229,7 +249,7 @@
       window.location.replace('smart_allocation_setup.html');
     }
 
-    renderNav('smart_allocation');
+    initAppShell({ page: 'smart_allocation', title: '智能资配', crumb: '智能资配 / 配置方案' });
 
     const linkSetup = document.getElementById('linkBackSetup');
     const cid = getSelectedCustomerId();
@@ -505,8 +525,10 @@
         if (detailTitle) detailTitle.textContent = '产品落实汇总（只读）';
         document.getElementById('categoryGrid').innerHTML = PlanEditor.renderPersonalizedPlanCards(rb);
         PlanEditor.syncCategorySuggestButtons(rb);
+        AllocationReportExport.setVisible(true);
       } else {
         PlanEditor.hideFlagContextPanel();
+        AllocationReportExport.setVisible(false);
         hintEl.style.display = 'block';
         hintEl.textContent = '可在上方四笔钱卡片「本类产品调仓明细」中修改增减仓，或点击「选择产品」新增未持仓产品（可删除）；已有持仓产品请通过卖出至 0 表示不再持有；输入完成后按回车或点击其他区域确认，方案将联动更新';
         if (detailTitle) detailTitle.textContent = '底层产品明细';
@@ -556,6 +578,7 @@
       PlanEditor.hideFlagContextPanel();
       document.getElementById('planEditHint').style.display = 'none';
       document.getElementById('globalActions').style.display = '';
+      AllocationReportExport.setVisible(false);
       syncViewOverviewClass();
     }
 
@@ -660,10 +683,6 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    document.getElementById('btnAftercare').onclick = () => {
-      window.location.href = 'aftercare.html';
-    };
-
     AdvisorChat.initDockPage();
 
     ModelSelector.initHeadless().then(() => {
@@ -684,6 +703,7 @@
     };
     PlanEditor.initIdleCashGuideModal(onIdleCashSynced);
     PlanEditor.initIdleCashRevertModal(onIdleCashSynced);
+    AllocationReportExport.bind();
   </script>
 </body>
 </html>

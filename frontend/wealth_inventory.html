@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>财富盘点 - 四笔钱智能投顾</title>
+  <title>财富盘点 - 智能资配系统</title>
+  <link rel="stylesheet" href="css/app-shell.css">
   <link rel="stylesheet" href="css/style.css">
   <script src="js/advisor_chat_bootstrap.js"></script>
 </head>
@@ -13,8 +14,6 @@
       <h1>财富盘点</h1>
       <p>场景化发现需干预客户，从问题切入而非直接配置</p>
     </div>
-
-    <div id="navBar" class="nav-bar"></div>
 
     <div class="journey-step-bar">
       <span class="journey-step active">① 财富盘点</span>
@@ -55,10 +54,11 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/common.js"></script>
+  <script src="js/app_shell.js"></script>
   <script src="js/wealth_journey.js"></script>
   <script src="js/advisor_chat.js?v=20260614b"></script>
   <script>
-    renderNav('wealth_inventory');
+    initAppShell({ page: 'wealth_inventory', title: '财富盘点', crumb: '财富盘点' });
     WealthJourney.initAdvisor();
 
     async function loadInventory() {

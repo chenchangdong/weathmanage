@@ -1,0 +1,21 @@
+version: '1.0'
+templates:
+  drawdown:
+    event_tags:
+    - 产品回撤异常
+    - 最大回撤超阈值
+    greeting: 尊敬的客户，您好。
+    body: |
+      关于您持有的{product_name}，近期{drawdown_summary}。
+      从持仓表现看，近一周回撤约{weekly_drawdown}%，最大回撤约{max_drawdown}%。
+      {research_summary}
+    closing: 如有疑问欢迎随时联系您的理财经理，我们将持续为您跟踪产品表现。
+  yield:
+    event_tags:
+    - 收益不达预期
+    - 产品收益预警
+    greeting: 尊敬的客户，您好。
+    body: |
+      关于您持有的{product_name}，近期收益表现{yield_summary}。
+      {research_summary}
+    closing: 我们将持续关注产品表现，并与您保持沟通。

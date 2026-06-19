@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOP 投后智能体 - 查询事件</title>
+  <link rel="stylesheet" href="css/app-shell.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="page-sop-agent">
+  <div class="container container-sop">
+    <div class="page-header">
+      <h1>SOP 投后智能体</h1>
+      <p>6.1 事件识别 · 6.2 投后跟踪分析（独立于投后陪伴，不含推送下发）</p>
+    </div>
+
+
+    <div class="sop-layout">
+      <aside class="sop-sidebar">
+        <button type="button" class="sop-side-btn active" id="btnQueryTab">查询事件</button>
+        <button type="button" class="sop-side-btn" id="btnRunBatch">跑批触发</button>
+        <button type="button" class="sop-side-btn" id="btnRunAgentBatch">批量运行 6.2</button>
+        <a href="admin/rule_strategy.html" class="sop-side-link">规则策略配置</a>
+        <a href="admin/sop_product_library.html" class="sop-side-link">SOP产品信息库</a>
+      </aside>
+
+      <main class="sop-main">
+        <div class="sop-chat-header">
+          <h2 id="chatTitle">查询事件</h2>
+          <span id="chatTime" class="sop-meta"></span>
+        </div>
+
+        <div id="chatMessages" class="sop-messages"></div>
+
+        <div class="sop-input-area">
+          <textarea id="questionInput" rows="2" placeholder="例如：5月以来，触发的产品回撤相关事件有哪些"></textarea>
+          <div class="sop-input-actions">
+            <button type="button" class="btn-primary" id="btnSend">发送</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <style>
+    .page-sop-agent { background: #f5f7fb; }
+    .container-sop { max-width: 1200px; }
+    .sop-layout { display: grid; grid-template-columns: 180px 1fr; gap: 16px; min-height: 620px; }
+    .sop-sidebar { background: #fff; border-radius: 8px; padding: 12px; border: 1px solid #e8e8e8; display: flex; flex-direction: column; gap: 8px; }
+    .sop-side-btn, .sop-side-link { display: block; width: 100%; text-align: left; padding: 10px 12px; border-radius: 6px; border: none; background: transparent; cursor: pointer; font-size: 14px; text-decoration: none; color: #333; }
+    .sop-side-btn.active, .sop-side-btn:hover { background: #eef3ff; color: #1677ff; }
+    .sop-side-link { color: #666; font-size: 13px; margin-top: auto; }
+    .sop-main { background: #fff; border-radius: 8px; border: 1px solid #e8e8e8; display: flex; flex-direction: column; overflow: hidden; }
+    .sop-chat-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: baseline; gap: 12px; }
+    .sop-chat-header h2 { font-size: 16px; margin: 0; }
+    .sop-meta { font-size: 12px; color: #999; }
+    .sop-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .msg-user { align-self: flex-end; max-width: 72%; background: #1677ff; color: #fff; padding: 10px 14px; border-radius: 12px 12px 4px 12px; font-size: 14px; }
+    .msg-agent { align-self: flex-start; max-width: 95%; }
+    .msg-agent-head { font-size: 13px; color: #666; margin-bottom: 8px; }
+    .msg-agent-head strong { color: #333; }
+    .msg-agent-body { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 14px 16px; font-size: 14px; line-height: 1.6; }
+    .sop-table-wrap { overflow-x: auto; margin-top: 12px; }
+    .sop-event-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .sop-event-table th, .sop-event-table td { border: 1px solid #e8e8e8; padding: 8px 10px; text-align: left; }
+    .sop-event-table th { background: #f5f5f5; font-weight: 600; }
+    .level-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+    .level-dot.high { background: #ff4d4f; }
+    .level-dot.mid { background: #faad14; }
+    .btn-run-agent { padding: 4px 10px; font-size: 12px; border: 1px solid #1677ff; color: #1677ff; background: #fff; border-radius: 4px; cursor: pointer; }
+    .btn-run-agent:hover { background: #eef3ff; }
+    .agent-output { margin-top: 12px; padding: 0; background: transparent; border: none; font-size: 13px; }
+    .agent-panels { display: flex; flex-direction: column; gap: 10px; }
+    .agent-panel {
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .agent-panel-head {
+      padding: 8px 12px;
+      background: #f5f7fb;
+      font-weight: 600;
+      font-size: 13px;
+      color: #333;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .agent-panel-head .tag {
+      font-weight: 400;
+      font-size: 11px;
+      color: #888;
+    }
+    .agent-panel-body {
+      padding: 12px 14px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      color: #444;
+    }
+    .agent-panel-body.sub { font-size: 12px; color: #666; background: #fafafa; border-top: 1px dashed #eee; }
+    .agent-meta { font-size: 11px; color: #999; margin-top: 6px; }
+    .compliance-warn { color: #fa8c16; font-size: 12px; margin-top: 6px; }
+    .sop-input-area { border-top: 1px solid #f0f0f0; padding: 12px 16px; }
+    .sop-input-area textarea { width: 100%; border: 1px solid #d9d9d9; border-radius: 8px; padding: 10px 12px; font-size: 14px; resize: vertical; font-family: inherit; }
+    .sop-input-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+    .btn-primary { background: #1677ff; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    @media (max-width: 768px) {
+      .sop-layout { grid-template-columns: 1fr; }
+      .sop-sidebar { flex-direction: row; flex-wrap: wrap; }
+    }
+  </style>
+
+  <script src="js/common.js"></script>
+  <script src="js/app_shell.js"></script>
+  <script>
+    initAppShell({ page: 'sop_agent', title: 'SOP 投后智能体', crumb: 'SOP 投后智能体' });
+
+    const chatEl = document.getElementById('chatMessages');
+    const nowStr = () => {
+      const d = new Date();
+      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    };
+    document.getElementById('chatTime').textContent = nowStr();
+
+    function esc(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function levelHtml(level) {
+      const high = level === '高';
+      return `<span class="level-dot ${high ? 'high' : 'mid'}"></span>${esc(level || '中')}`;
+    }
+
+    function renderEventTable(events) {
+      if (!events.length) return '<p>未检索到相关事件。可先在左侧点击「跑批触发」生成模拟事件。</p>';
+      const rows = events.map(evt => `<tr data-event-id="${esc(evt.event_id)}">
+        <td>${levelHtml(evt.level)}</td>
+        <td>${esc(evt.event_id)}</td>
+        <td>${esc(evt.scenario)}</td>
+        <td>${esc(evt.product_name)}</td>
+        <td>${esc(evt.drawdown_detail)}</td>
+        <td>${esc(evt.status_label || evt.status)}</td>
+        <td><button type="button" class="btn-run-agent" data-run="${esc(evt.event_id)}">运行智能体</button></td>
+      </tr>`).join('');
+      return `<div class="sop-table-wrap">
+        <strong>📉 产品回撤相关事件（${events.length} 条）</strong>
+        <table class="sop-event-table">
+          <thead><tr>
+            <th>级别</th><th>ID</th><th>场景</th><th>产品</th><th>回撤详情</th><th>状态</th><th>操作</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }
+
+    function appendUser(text) {
+      const div = document.createElement('div');
+      div.className = 'msg-user';
+      div.textContent = text;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function appendAgent(html, durationMs) {
+      const wrap = document.createElement('div');
+      wrap.className = 'msg-agent';
+      const dur = durationMs ? ` · 任务耗时 ${Math.round(durationMs/1000)}s` : '';
+      wrap.innerHTML = `<div class="msg-agent-head"><strong>SOP 投后智能体</strong>${dur}</div><div class="msg-agent-body">${html}</div>`;
+      chatEl.appendChild(wrap);
+      chatEl.scrollTop = chatEl.scrollHeight;
+      return wrap;
+    }
+
+    async function queryEvents(question) {
+      appendUser(question);
+      const t0 = performance.now();
+      const loading = appendAgent('正在查询事件…');
+      try {
+        const res = await apiPost('/api/sop/agent/query', {
+          question,
+          drawdown_only: question.includes('回撤'),
+        });
+        const data = res.data;
+        const html = `<p>${esc(data.summary)}</p>${renderEventTable(data.events || [])}`;
+        loading.querySelector('.msg-agent-body').innerHTML = html;
+      } catch (e) {
+        loading.querySelector('.msg-agent-body').textContent = '查询失败：' + e.message;
+      }
+      loading.querySelector('.msg-agent-head').innerHTML =
+        `<strong>SOP 投后智能体</strong> · 任务耗时 ${Math.round((performance.now()-t0)/1000)}s`;
+    }
+
+    function renderAgentPanels(d) {
+      const ra = d.research_analysis || {};
+      const pi = d.product_info || {};
+      const staticInfo = pi.static || {};
+      const perf = pi.performance || {};
+      const warnings = (d.compliance_warnings || []).map(w => `<div class="compliance-warn">⚠ ${esc(w)}</div>`).join('');
+      const productSub = [
+        staticInfo.product_name && `产品：${staticInfo.product_name}`,
+        staticInfo.strategy_type && `策略：${staticInfo.strategy_type}`,
+        staticInfo.fund_manager && `管理人：${staticInfo.fund_manager}`,
+        perf.max_drawdown != null && `最大回撤：${perf.max_drawdown}%`,
+        pi.source_note && `数据源：${pi.source_note}`,
+      ].filter(Boolean).join(' · ');
+
+      const researchText = [
+        ra.conclusion || '',
+        ra.product_analysis && `\n【产品分析】\n${ra.product_analysis}`,
+        ra.market_analysis && `\n【市场分析】\n${ra.market_analysis}`,
+        ra.recommendation && `\n【建议】\n${ra.recommendation}`,
+        ra.report_note && `\n（${ra.report_note}）`,
+      ].filter(Boolean).join('\n');
+
+      const meta = `<div class="agent-meta">生成时间 ${esc(d.generated_at || '—')} · 来源 ${esc(d.source || 'rule_template')} · 管道 v${esc(d.pipeline_version || '1.0')}</div>`;
+
+      return `<div class="agent-panels">${meta}
+        <div class="agent-panel">
+          <div class="agent-panel-head">① 事件描述 <span class="tag">6.2.1</span></div>
+          <div class="agent-panel-body">${esc(d.event_description || '—')}</div>
+        </div>
+        <div class="agent-panel">
+          <div class="agent-panel-head">② 投研分析 <span class="tag">6.2.3 · ${esc(ra.framework_label || ra.framework || '通用')}</span></div>
+          <div class="agent-panel-body sub">${esc(productSub)}</div>
+          <div class="agent-panel-body">${esc(researchText || '—')}</div>
+        </div>
+        <div class="agent-panel">
+          <div class="agent-panel-head">③ 对客话术 <span class="tag">6.2.4 · ${(d.client_script || '').length} 字</span></div>
+          <div class="agent-panel-body">${esc(d.client_script || '—')}${warnings}</div>
+        </div>
+      </div>`;
+    }
+
+    async function runAgent(eventId, btn) {
+      btn.disabled = true;
+      btn.textContent = '运行中…';
+      const row = btn.closest('tr');
+      let outEl = row.querySelector('.agent-output');
+      if (!outEl) {
+        outEl = document.createElement('tr');
+        outEl.innerHTML = `<td colspan="7"><div class="agent-output" id="out-${esc(eventId)}">生成中…</div></td>`;
+        row.after(outEl);
+        outEl = outEl.querySelector('.agent-output');
+      }
+      try {
+        const res = await apiPost('/api/sop/agent/run', { event_id: eventId });
+        const d = res.data;
+        outEl.innerHTML = renderAgentPanels(d);
+        btn.textContent = '已完成';
+      } catch (e) {
+        outEl.textContent = '失败：' + e.message;
+        btn.disabled = false;
+        btn.textContent = '重试';
+      }
+    }
+
+    document.getElementById('btnSend').addEventListener('click', () => {
+      const q = document.getElementById('questionInput').value.trim();
+      if (!q) return showToast('请输入问题');
+      document.getElementById('questionInput').value = '';
+      queryEvents(q);
+    });
+
+    document.getElementById('questionInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('btnSend').click();
+      }
+    });
+
+    chatEl.addEventListener('click', e => {
+      const btn = e.target.closest('[data-run]');
+      if (btn) runAgent(btn.dataset.run, btn);
+    });
+
+    document.getElementById('btnRunBatch').addEventListener('click', async () => {
+      const btn = document.getElementById('btnRunBatch');
+      btn.disabled = true;
+      const prevText = btn.textContent;
+      btn.textContent = '跑批中…';
+      try {
+        const res = await apiPost('/api/sop/events/run-batch', {});
+        showToast(`跑批完成：组合事件 ${res.data.composite_events} 条`);
+      } catch (e) {
+        showToast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+      }
+    });
+
+    document.getElementById('btnRunAgentBatch').addEventListener('click', async () => {
+      const btn = document.getElementById('btnRunAgentBatch');
+      btn.disabled = true;
+      const prevText = btn.textContent;
+      btn.textContent = '运行中…';
+      const t0 = performance.now();
+      const loading = appendAgent('正在批量运行 6.2（每批最多 20 条，规则模板快速模式，按最新事件优先）…');
+      try {
+        const res = await apiPost('/api/sop/agent/run-batch', { all_pending: true, limit: 20 });
+        const d = res.data || {};
+        const msg = [
+          `本批处理 ${d.batch_size || 0} 条：成功 ${d.processed || 0}，失败 ${d.failed || 0}。`,
+          d.total_pending != null ? `库内待处理共 ${d.total_pending} 条` : '',
+          d.remaining_pending ? `，剩余 ${d.remaining_pending} 条可再次点击继续。` : '。',
+          d.reset_running ? `（已重置 ${d.reset_running} 条中断的 running 状态）` : '',
+        ].join('');
+        loading.querySelector('.msg-agent-body').innerHTML = `<p>${esc(msg)}</p>`;
+        showToast(`6.2 完成：成功 ${d.processed || 0} 条`);
+      } catch (e) {
+        loading.querySelector('.msg-agent-body').textContent = '批量运行失败：' + e.message;
+        showToast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+        loading.querySelector('.msg-agent-head').innerHTML =
+          `<strong>SOP 投后智能体</strong> · 任务耗时 ${Math.round((performance.now() - t0) / 1000)}s`;
+      }
+    });
+
+    appendAgent('<p>你好，我是 SOP 投后智能体。你可以询问例如：<em>5月以来，触发的产品回撤相关事件有哪些</em>。查询后可对单条事件运行 6.2 分析，结果将分三块展示：<strong>事件描述</strong>、<strong>投研分析</strong>、<strong>对客话术</strong>。</p>');
+  </script>
+</body>
+</html>

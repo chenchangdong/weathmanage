@@ -263,7 +263,6 @@ class AssetOverviewService:
             "can_single_optimize": perms.get("can_single_optimize", False),
             "can_manual_tweak": perms.get("can_manual_tweak", False),
             "can_generate_explanation": perms.get("can_generate_explanation", False),
-            "can_export_aftercare": perms.get("can_export_aftercare", False),
         }
 
 

@@ -85,21 +85,7 @@ Base URL：`http://localhost:8000`
 
 ---
 
-## 3. 投后陪伴方案
-
-**POST** `/api/aftercare/build_plan`
-
-```json
-{
-  "customer_id": "C20250602001",
-  "rebalance_summary": [],
-  "advisor_name": "理财经理"
-}
-```
-
----
-
-## 4. 资产配置模型（页面A）
+## 3. 资产配置模型（页面A）
 
 **GET** `/api/model/list` — 模型列表  
 **GET** `/api/model/detail?model_code=P2-3` — 单模型 + 四笔钱聚合阈值  

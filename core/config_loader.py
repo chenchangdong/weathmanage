@@ -52,8 +52,33 @@ def is_product_limit_validation_enabled() -> bool:
 
 
 @lru_cache(maxsize=1)
-def load_aftercare_system() -> dict[str, Any]:
-    return _load_yaml("aftercare_system.yaml")
+def load_sop_product_library() -> dict[str, Any]:
+    return _load_yaml("sop_product_library.yaml")
+
+
+@lru_cache(maxsize=1)
+def load_sop_rule_system() -> dict[str, Any]:
+    return _load_yaml("sop_rule_system.yaml")
+
+
+@lru_cache(maxsize=1)
+def load_sop_agent_system() -> dict[str, Any]:
+    return _load_yaml("sop_agent_system.yaml")
+
+
+@lru_cache(maxsize=1)
+def load_sop_research_frameworks() -> dict[str, Any]:
+    return _load_yaml("sop_research_frameworks.yaml")
+
+
+@lru_cache(maxsize=1)
+def load_sop_script_templates() -> dict[str, Any]:
+    return _load_yaml("sop_script_templates.yaml")
+
+
+@lru_cache(maxsize=1)
+def load_sop_banned_words() -> dict[str, Any]:
+    return _load_yaml("sop_banned_words.yaml")
 
 
 @lru_cache(maxsize=1)
@@ -109,7 +134,12 @@ def reload_all_configs() -> None:
     load_customer_profile.cache_clear()
     load_four_money_page.cache_clear()
     load_page_constraint.cache_clear()
-    load_aftercare_system.cache_clear()
+    load_sop_product_library.cache_clear()
+    load_sop_rule_system.cache_clear()
+    load_sop_agent_system.cache_clear()
+    load_sop_research_frameworks.cache_clear()
+    load_sop_script_templates.cache_clear()
+    load_sop_banned_words.cache_clear()
     load_four_money_mapping.cache_clear()
     load_model_config.cache_clear()
     load_portfolio_mapping.cache_clear()

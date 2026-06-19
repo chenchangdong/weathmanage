@@ -1,0 +1,44 @@
+version: '1.0'
+page:
+  title: SOP投后智能体
+  subtitle: 6.2 事件描述 · 产品信息 · 投研分析 · 对客话术
+batch_schedule:
+  enabled: true
+  hour: 21
+  minute: 0
+  run_agent_after_batch: true
+  timezone_note: 服务器本地时区
+data_sources:
+  product_static: sop_product_library
+  product_performance: mock
+  product_reports: none
+  evaluation_db: none
+event_description:
+  header: '【{data_date} 售后提醒】'
+  detail_columns:
+  - key: product_name
+    label: 产品名称
+  - key: daily_drawdown
+    label: 单日最大回撤
+    suffix: '%'
+  - key: weekly_drawdown
+    label: 单周最大回撤
+    suffix: '%'
+  - key: drawdown_start_date
+    label: 回撤开始日期
+  - key: drawdown_days
+    label: 回撤持续天数
+    suffix: 天
+  - key: data_date
+    label: 数据采集时间
+  - key: trigger_status
+    label: 触发状态
+research:
+  word_count_min: 300
+  word_count_max: 350
+  use_llm_when_available: true
+  fallback_source: rule_template
+script:
+  word_count_min: 200
+  word_count_max: 250
+  default_template_key: drawdown

@@ -459,7 +459,7 @@ const AdvisorChat = {
 
   /**
    * 页面按钮 → 智能顾问联动：复用 QUICK_SERVICES 提问词，在顾问面板展示与回复。
-   * @param {string} [serviceTitle] QUICK_SERVICES 中的 title；投后陪伴等可仅传 linkedParams
+   * @param {string} [serviceTitle] QUICK_SERVICES 中的 title
    * @param {{ userLabel?, prompt?, validate?, linkedParams? }} options
    */
   async sendLinkedQuickService(serviceTitle, options = {}) {
@@ -472,8 +472,7 @@ const AdvisorChat = {
     }
     const svc = serviceTitle ? this.getQuickService(serviceTitle) : null;
     const prompt = options.prompt || (svc && svc.prompt);
-    const hasAftercare = options.linkedParams && options.linkedParams.aftercare;
-    if (!prompt && !hasAftercare) return null;
+    if (!prompt) return null;
     const userLabel = options.userLabel || serviceTitle || prompt || 'AI辅助生成';
     return this.sendPrompt(prompt || userLabel, {
       userLabel,
@@ -537,7 +536,7 @@ const AdvisorChat = {
     });
   },
 
-  /** 动态渲染的按钮在插入 DOM 后调用（如投后陪伴 AI 胶囊） */
+  /** 动态渲染的按钮在插入 DOM 后调用 */
   bindLinkedSelector(selector, config) {
     this.bindLinkedAction({ ...config, selector });
   },
@@ -702,6 +701,9 @@ const AdvisorChat = {
     }
     if (!options.skipPersist) this._persistSession();
     if (open) {
+      if (window.AppShell && typeof window.AppShell.collapseForAdvisor === 'function') {
+        window.AppShell.collapseForAdvisor();
+      }
       if (!this._welcomed) this.showWelcome();
       if (!options.skipFocus) {
         const input = document.getElementById('advisorChatInput');
@@ -710,6 +712,9 @@ const AdvisorChat = {
     }
     if (options.skipAnimation && panel) {
       requestAnimationFrame(() => panel.classList.remove('advisor-chat-instant'));
+    }
+    if (!open && window.AppShell && typeof window.AppShell.restoreAfterAdvisor === 'function') {
+      window.AppShell.restoreAfterAdvisor();
     }
   },
 
@@ -900,9 +905,8 @@ const AdvisorChat = {
   async sendPrompt(message, options = {}) {
     if (this._sending) return null;
     const linkedParams = options.linkedParams || {};
-    const hasAftercare = linkedParams.aftercare;
     const text = (message || '').trim();
-    if (!text && !hasAftercare) return null;
+    if (!text) return null;
 
     const cid = getCustomerId();
     if (!cid) {
@@ -956,11 +960,6 @@ const AdvisorChat = {
   },
 
   async _fetchStream(message, cid, overview, plan, diagnosis, history, hooks = {}) {
-    const linkedParams = hooks.linkedParams || {};
-    if (linkedParams.aftercare) {
-      return this._fetchAftercareStream(linkedParams.aftercare, cid, hooks);
-    }
-
     this._abortController = new AbortController();
 
     const res = await fetch('/api/ai/chat/stream', {
@@ -1025,85 +1024,7 @@ const AdvisorChat = {
     };
   },
 
-  async _fetchAftercareStream(aftercare, cid, hooks = {}) {
-    const { zone, rule_id, field } = aftercare;
-    this._abortController = new AbortController();
-    const res = await fetch('/api/aftercare/companion/generate/item/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: this._abortController.signal,
-      body: JSON.stringify({
-        customer_id: cid,
-        zone,
-        rule_id,
-        field,
-      }),
-    });
-    if (!res.ok || !res.body) return null;
-
-    let content = '';
-    let donePayload = null;
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop() || '';
-      for (const part of parts) {
-        const line = part.trim();
-        if (!line.startsWith('data:')) continue;
-        let payload;
-        try {
-          payload = JSON.parse(line.slice(5).trim());
-        } catch (err) {
-          continue;
-        }
-        if (payload.type === 'error') {
-          throw new Error(payload.message || '生成失败');
-        }
-        if (payload.type === 'delta' && payload.text) {
-          content += payload.text;
-          if (hooks.onContent) hooks.onContent(content);
-        } else if (payload.type === 'done') {
-          donePayload = payload;
-          content = payload.content || content;
-          if (hooks.onContent) hooks.onContent(content);
-        }
-      }
-    }
-
-    if (!donePayload) return null;
-
-    return {
-      reply: donePayload.content || content || '',
-      reasoning: '',
-      source: donePayload.source || 'llm',
-      model: donePayload.model,
-    };
-  },
-
   async _fetchFallback(message, cid, overview, plan, diagnosis, history, linkedParams = {}) {
-    if (linkedParams.aftercare) {
-      const { zone, rule_id, field } = linkedParams.aftercare;
-      const res = await apiPost('/api/aftercare/companion/generate/item', {
-        customer_id: cid,
-        zone,
-        rule_id,
-        field,
-      });
-      const data = res.data;
-      return {
-        reply: data.content || '',
-        reasoning: '',
-        source: data.source,
-      };
-    }
-
     const res = await apiPost('/api/ai/chat', {
       customer_id: cid,
       message,
