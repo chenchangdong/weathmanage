@@ -93,7 +93,7 @@ class AssetOverviewService:
                 if amt <= 0.01:
                     continue
                 p = product_map.get(code)
-                if p and p.get("category") == cat:
+                if p and p.get("four_money_category") == cat:
                     prods.append({
                         "code": code,
                         "name": p["name"],

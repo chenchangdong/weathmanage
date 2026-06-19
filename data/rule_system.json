@@ -10,7 +10,7 @@
       "short_circuit": 1,
       "remark": "当产品最大回撤超过5%时触发告警",
       "create_time": "2026-05-24T03:56:36",
-      "update_time": "2026-05-24T03:56:36"
+      "update_time": "2026-06-19T18:01:25"
     },
     {
       "id": 2,
@@ -40,13 +40,37 @@
       "id": 4,
       "rule_code": "product_id",
       "rule_name": "product_id",
-      "rule_expr": "product_id=aaaa",
-      "biz_type": "product_drawdown",
+      "rule_expr": "product_id=A108",
+      "biz_type": "product_id",
       "status": 1,
       "short_circuit": 1,
       "remark": "",
       "create_time": "2026-06-01T21:12:12",
-      "update_time": "2026-06-01T21:12:12"
+      "update_time": "2026-06-19T18:14:12"
+    },
+    {
+      "id": 5,
+      "rule_code": "PRODUCT_MAX_1",
+      "rule_name": "产品风险值大于1",
+      "rule_expr": "product_risk > 1",
+      "biz_type": "product_risk",
+      "status": 0,
+      "short_circuit": 0,
+      "remark": "",
+      "create_time": "2026-06-19T18:16:12",
+      "update_time": "2026-06-19T18:16:31"
+    },
+    {
+      "id": 6,
+      "rule_code": "YIELD_HIGN_10",
+      "rule_name": "收益率高于10%触发",
+      "rule_expr": "yield_rate > 10",
+      "biz_type": "product_yield",
+      "status": 1,
+      "short_circuit": 0,
+      "remark": "",
+      "create_time": "2026-06-19T18:19:56",
+      "update_time": "2026-06-19T18:20:30"
     }
   ],
   "metrics": [
@@ -75,18 +99,10 @@
       "remark": "产品风险值VaR"
     },
     {
-      "id": 4,
-      "metric_code": "ddd",
-      "metric_name": "ddd",
-      "biz_type": "product_drawdown",
-      "value_field": "ddd",
-      "remark": ""
-    },
-    {
       "id": 5,
       "metric_code": "product_id",
       "metric_name": "product_id",
-      "biz_type": "position_change",
+      "biz_type": "product_id",
       "value_field": "product_id",
       "remark": ""
     }
@@ -135,6 +151,17 @@
       "short_circuit": 1,
       "create_time": "2026-05-26T00:44:23",
       "update_time": "2026-05-26T00:44:23"
+    },
+    {
+      "id": 5,
+      "code": "product_risk",
+      "name": "产品风险值",
+      "remark": "",
+      "sort": 0,
+      "status": 1,
+      "short_circuit": 1,
+      "create_time": "2026-06-19T18:12:06",
+      "update_time": "2026-06-19T18:12:06"
     }
   ],
   "io_triggers": [
@@ -231,9 +258,54 @@
       "updated_at": null
     }
   ],
-  "next_event_id": 75,
-  "next_run_id": 74,
+  "next_event_id": 78,
+  "next_run_id": 78,
   "events": [
+    {
+      "id": 77,
+      "rule_code": "RISK_MAX_DD_5",
+      "biz_type": "product_drawdown",
+      "rule_id": 1,
+      "trigger_msg": "规则'最大回撤大于5%触发'命中，表达式成立",
+      "biz_no": "PROD001_2025-05-24",
+      "trigger_data": {
+        "prodCode": "PROD001",
+        "statDate": "2025-05-24",
+        "max_drawdown": 6.2,
+        "yield_rate": 3.5
+      },
+      "trigger_time": "2026-06-19T17:55:26"
+    },
+    {
+      "id": 76,
+      "rule_code": "RISK_MAX_DD_5",
+      "biz_type": "product_drawdown",
+      "rule_id": 1,
+      "trigger_msg": "规则'最大回撤大于5%触发'命中，表达式成立",
+      "biz_no": "PROD001_2025-05-24",
+      "trigger_data": {
+        "prodCode": "PROD001",
+        "statDate": "2025-05-24",
+        "max_drawdown": 6.2,
+        "yield_rate": 3.5
+      },
+      "trigger_time": "2026-06-19T17:53:19"
+    },
+    {
+      "id": 75,
+      "rule_code": "RISK_MAX_DD_5",
+      "biz_type": "product_drawdown",
+      "rule_id": 1,
+      "trigger_msg": "规则'最大回撤大于5%触发'命中，表达式成立",
+      "biz_no": "PROD001_2025-05-24",
+      "trigger_data": {
+        "prodCode": "PROD001",
+        "statDate": "2025-05-24",
+        "max_drawdown": 6.2,
+        "yield_rate": 3.5
+      },
+      "trigger_time": "2026-06-19T17:52:45"
+    },
     {
       "id": 74,
       "rule_code": "RISK_MAX_DD_5",
@@ -1392,6 +1464,74 @@
     }
   ],
   "run_details": [
+    {
+      "id": 79,
+      "run_id": 77,
+      "rule_id": 1,
+      "rule_code": "RISK_MAX_DD_5",
+      "rule_name": "最大回撤大于5%触发",
+      "rule_expr": "max_drawdown > 5",
+      "biz_no": "PROD001_2025-05-24",
+      "biz_type": "product_drawdown",
+      "is_hit": 1,
+      "short_circuit": 1,
+      "sort": 1,
+      "trigger_msg": "规则「最大回撤大于5%触发」命中，表达式成立",
+      "hit_snapshot": null,
+      "trigger_time": "2026-06-19T17:55:26",
+      "create_time": "2026-06-19T17:55:26"
+    },
+    {
+      "id": 78,
+      "run_id": 76,
+      "rule_id": 1,
+      "rule_code": "RISK_MAX_DD_5",
+      "rule_name": "最大回撤大于5%触发",
+      "rule_expr": "max_drawdown > 5",
+      "biz_no": "PROD001_2025-05-24",
+      "biz_type": "product_drawdown",
+      "is_hit": 1,
+      "short_circuit": 1,
+      "sort": 1,
+      "trigger_msg": "规则「最大回撤大于5%触发」命中，表达式成立",
+      "hit_snapshot": null,
+      "trigger_time": "2026-06-19T17:53:19",
+      "create_time": "2026-06-19T17:53:19"
+    },
+    {
+      "id": 77,
+      "run_id": 75,
+      "rule_id": 3,
+      "rule_code": "YIELD_LOW_2",
+      "rule_name": "收益率低于2%触发",
+      "rule_expr": "yield_rate < 2",
+      "biz_no": "PROD001_2025-05-24",
+      "biz_type": "product_yield",
+      "is_hit": 0,
+      "short_circuit": 1,
+      "sort": 1,
+      "trigger_msg": "开始校验",
+      "hit_snapshot": null,
+      "trigger_time": "2026-06-19T17:53:08",
+      "create_time": "2026-06-19T17:53:08"
+    },
+    {
+      "id": 76,
+      "run_id": 74,
+      "rule_id": 1,
+      "rule_code": "RISK_MAX_DD_5",
+      "rule_name": "最大回撤大于5%触发",
+      "rule_expr": "max_drawdown > 5",
+      "biz_no": "PROD001_2025-05-24",
+      "biz_type": "product_drawdown",
+      "is_hit": 1,
+      "short_circuit": 1,
+      "sort": 1,
+      "trigger_msg": "规则「最大回撤大于5%触发」命中，表达式成立",
+      "hit_snapshot": null,
+      "trigger_time": "2026-06-19T17:52:45",
+      "create_time": "2026-06-19T17:52:45"
+    },
     {
       "id": 75,
       "run_id": 73,

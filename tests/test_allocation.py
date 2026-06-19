@@ -49,12 +49,12 @@ class TestConfigLoader:
         assert mapping["alternative"] == "grow"
         assert mapping["insurance"] == "protect"
         pmap = get_product_map()
-        assert pmap["P001"]["asset_type"] == "cash"
-        assert pmap["P001"]["category"] == "spend"
-        assert pmap["P004"]["asset_type"] == "fixed_income"
-        assert pmap["P004"]["category"] == "preserve"
-        assert pmap["P011"]["asset_type"] == "alternative"
-        assert pmap["P011"]["category"] == "grow"
+        assert pmap["001"]["asset_type"] == "cash"
+        assert pmap["001"]["four_money_category"] == "spend"
+        assert pmap["004"]["asset_type"] == "fixed_income"
+        assert pmap["004"]["four_money_category"] == "preserve"
+        assert pmap["011"]["asset_type"] == "alternative"
+        assert pmap["011"]["four_money_category"] == "grow"
 
     def test_demo_customer_exists(self):
         c = get_demo_customer(CUSTOMER_ID)
@@ -181,7 +181,7 @@ class TestAutoRebalanceEngine:
         holdings = self.data["holdings"]
         for cat in ("spend", "preserve"):
             prods = [
-                p for p in pmap.values() if p.get("category") == cat
+                p for p in pmap.values() if p.get("four_money_category") == cat
             ]
             held = AutoRebalanceEngine._held_products(prods, holdings)
             if not held:
@@ -208,9 +208,9 @@ class TestAutoRebalanceEngine:
             product_category=FOUR_MONEY_PLANNING,
         )
         codes = {d.product_code for d in result.product_deltas}
-        assert "P008" not in codes
-        assert "P007" not in codes
-        assert "P011" not in codes
+        assert "008" not in codes
+        assert "007" not in codes
+        assert "011" not in codes
         for d in result.product_deltas:
             assert d.current_amount > 0
         grow_active = [
@@ -218,7 +218,7 @@ class TestAutoRebalanceEngine:
             if d.category == "grow" and d.action in ("buy", "sell")
         ]
         assert len(grow_active) == 1
-        assert grow_active[0].product_code == "P006"
+        assert grow_active[0].product_code == "006"
 
         zhang = get_customer_holdings(CUSTOMER_ID)
         zhang_result = AutoRebalanceEngine().rebalance(
@@ -229,8 +229,8 @@ class TestAutoRebalanceEngine:
             product_category=FOUR_MONEY_PLANNING,
         )
         zhang_codes = {d.product_code for d in zhang_result.product_deltas}
-        assert "P005" not in zhang_codes
-        assert "P011" not in zhang_codes
+        assert "005" not in zhang_codes
+        assert "011" not in zhang_codes
 
     def test_limit_spillover_to_sibling_products(self, monkeypatch):
         """优先产品触达 max_amount 后，差额由同大类其他产品按优先级承接。"""
@@ -247,13 +247,13 @@ class TestAutoRebalanceEngine:
             product_category=FOUR_MONEY_PLANNING,
         )
         protect = {d.product_code: d for d in result.product_deltas if d.category == "protect"}
-        assert protect["P009"].target_amount == 100000
-        assert protect["P010"].target_amount == 5000
-        assert protect["P010"].delta_amount == 4000
-        assert protect["P009"].limit_hit is True
-        assert protect["P009"].limit_side == "max"
-        assert protect["P010"].limit_hit is True
-        assert protect["P010"].limit_side == "max"
+        assert protect["009"].target_amount == 100000
+        assert protect["010"].target_amount == 5000
+        assert protect["010"].delta_amount == 4000
+        assert protect["009"].limit_hit is True
+        assert protect["009"].limit_side == "max"
+        assert protect["010"].limit_hit is True
+        assert protect["010"].limit_side == "max"
         assert any(
             ("保障的钱" in n and "其他产品" in n)
             or ("保障的钱" in n and "冻结" in n)
@@ -262,11 +262,11 @@ class TestAutoRebalanceEngine:
 
     def test_consolidate_priority_tiebreak_by_code(self):
         prods = [
-            {"code": "P002", "rebalance_priority": 1},
-            {"code": "P001", "rebalance_priority": 1},
+            {"code": "002", "rebalance_priority": 1},
+            {"code": "001", "rebalance_priority": 1},
         ]
         picked = AutoRebalanceEngine._pick_rebalance_product(prods)
-        assert picked["code"] == "P001"
+        assert picked["code"] == "001"
 
     def test_manual_sell_to_zero_shows_liquidate_tag(self):
         """二次调仓将持仓产品减至 0 应标记类内调仓清仓。"""
@@ -284,10 +284,10 @@ class TestAutoRebalanceEngine:
             idle_cash=self.data["idle_cash"],
             risk_profile=self.customer["risk_profile"],
             product_category=FOUR_MONEY_PLANNING,
-            product_targets={"P008": 0},
+            product_targets={"008": 0},
             baseline_product_targets=baseline,
         )
-        p008 = next(d for d in result.product_deltas if d.product_code == "P008")
+        p008 = next(d for d in result.product_deltas if d.product_code == "008")
         assert p008.target_amount == 0
         assert p008.action == "sell"
         assert p008.limit_hit is True
@@ -303,7 +303,7 @@ class TestAutoRebalanceEngine:
             product_category=FOUR_MONEY_PLANNING,
         )
         by_code = {d.product_code: d for d in result.product_deltas}
-        for code in ("P007", "P008"):
+        for code in ("007", "008"):
             assert by_code[code].target_amount == 0
             assert by_code[code].limit_hit is True
             assert by_code[code].limit_side == "liquidate"
@@ -322,10 +322,10 @@ class TestAutoRebalanceEngine:
         assert abs(deployed - result.total_assets) < 1.0
         protect = {d.product_code: d for d in result.product_deltas if d.category == "protect"}
         assert sum(protect[c].target_amount for c in protect) == 105_000
-        assert protect["P009"].limit_hit is True
-        assert protect["P009"].limit_side == "max"
-        assert protect["P010"].limit_hit is True
-        assert protect["P010"].limit_side == "max"
+        assert protect["009"].limit_hit is True
+        assert protect["009"].limit_side == "max"
+        assert protect["010"].limit_hit is True
+        assert protect["010"].limit_side == "max"
         spend = sum(d.target_amount for d in result.product_deltas if d.category == "spend")
         assert spend > 50_000
         assert any("冻结" in n for n in result.validation_notes)
@@ -340,8 +340,8 @@ class TestAutoRebalanceEngine:
             product_category=FOUR_MONEY_PLANNING,
         )
         baseline = {d.product_code: d.target_amount for d in base.product_deltas}
-        baseline["P005"] = 20.0
-        p004 = next(d for d in base.product_deltas if d.product_code == "P004")
+        baseline["005"] = 20.0
+        p004 = next(d for d in base.product_deltas if d.product_code == "004")
 
         result = self.engine.apply_manual_product_targets(
             customer_id=CUSTOMER_ID,
@@ -352,7 +352,7 @@ class TestAutoRebalanceEngine:
             product_targets={p004.product_code: p004.target_amount},
             baseline_product_targets=baseline,
         )
-        p005 = next(d for d in result.product_deltas if d.product_code == "P005")
+        p005 = next(d for d in result.product_deltas if d.product_code == "005")
         assert p005.limit_hit is False
         assert p005.limit_side == ""
 
@@ -366,7 +366,7 @@ class TestAutoRebalanceEngine:
             product_category=FOUR_MONEY_PLANNING,
         )
         baseline = {d.product_code: d.target_amount for d in base.product_deltas}
-        baseline["P005"] = 0.0
+        baseline["005"] = 0.0
 
         result = self.engine.apply_manual_product_targets(
             customer_id=CUSTOMER_ID,
@@ -374,10 +374,10 @@ class TestAutoRebalanceEngine:
             idle_cash=self.data["idle_cash"],
             risk_profile=self.customer["risk_profile"],
             product_category=FOUR_MONEY_PLANNING,
-            product_targets={"P005": 200_000.0},
+            product_targets={"005": 200_000.0},
             baseline_product_targets=baseline,
         )
-        p005 = next(d for d in result.product_deltas if d.product_code == "P005")
+        p005 = next(d for d in result.product_deltas if d.product_code == "005")
         assert p005.current_amount == 0.0
         assert p005.target_amount == 200_000.0
         assert p005.delta_amount == 200_000.0
@@ -422,38 +422,38 @@ class TestAutoRebalanceEngine:
 
         engine = AutoRebalanceEngine()
         engine.solver["liquidate_below_min"] = False
-        assert engine._clamp_product("P003", 3000) == 5000
-        assert engine._clamp_product("P003", 8000) == 8000
+        assert engine._clamp_product("003", 3000) == 5000
+        assert engine._clamp_product("003", 8000) == 8000
 
         engine.solver["liquidate_below_min"] = True
-        assert engine._clamp_product("P003", 3000) == 0
-        assert engine._clamp_product("P003", 0) == 0
-        assert engine._clamp_product("P003", 8000) == 8000
+        assert engine._clamp_product("003", 3000) == 0
+        assert engine._clamp_product("003", 0) == 0
+        assert engine._clamp_product("003", 8000) == 8000
         # 大额存单 min=20万，已有 10 万持仓不因低于起购额被迫清仓
-        assert engine._clamp_product("P005", 100_000, current=100_000) == 100_000
+        assert engine._clamp_product("005", 100_000, current=100_000) == 100_000
 
         prods = get_products_by_category()["preserve"]
         result, _, hits = engine._allocate_with_spillover(
             cat="preserve",
             cat_target=200_000,
             prods=prods,
-            seed={"P003": 3_000, "P004": 150_000, "P005": 47_000},
+            seed={"003": 3_000, "004": 150_000, "005": 47_000},
         )
-        assert result["P003"] == 0
-        assert hits.get("P003") is None
+        assert result["003"] == 0
+        assert hits.get("003") is None
         assert abs(sum(result.values()) - 200_000) < 1.0
 
     def test_product_limit_validation_disabled_skips_min_max(self):
         engine = AutoRebalanceEngine()
-        assert engine._clamp_product("P003", 3000) == 3000
-        assert engine._clamp_product("P003", 8_000_000) == 8_000_000
+        assert engine._clamp_product("003", 3000) == 3000
+        assert engine._clamp_product("003", 8_000_000) == 8_000_000
 
     def test_product_limit_validation_enabled_clamps_min_max(self, monkeypatch):
         _enable_product_limit_validation(monkeypatch)
         engine = AutoRebalanceEngine()
         engine.solver["liquidate_below_min"] = False
-        assert engine._clamp_product("P003", 3000) == 5000
-        assert engine._clamp_product("P003", 8_000_000) == 1_000_000
+        assert engine._clamp_product("003", 3000) == 5000
+        assert engine._clamp_product("003", 8_000_000) == 1_000_000
 
     def test_existing_holding_below_min_not_forced_sell(self):
         """已有持仓低于起购额时，综合规划不应卖出转投同类产品。"""
@@ -467,10 +467,10 @@ class TestAutoRebalanceEngine:
             product_category=FOUR_MONEY_PLANNING,
         )
         preserve = {d.product_code: d for d in result.product_deltas if d.category == "preserve"}
-        assert preserve["P005"].action == "hold"
-        assert preserve["P005"].target_amount == 100_000
-        assert preserve["P004"].delta_amount < 0
-        assert abs(preserve["P004"].delta_amount) < 10_000
+        assert preserve["005"].action == "hold"
+        assert preserve["005"].target_amount == 100_000
+        assert preserve["004"].delta_amount < 0
+        assert abs(preserve["004"].delta_amount) < 10_000
 
     def test_fallback_strategy_benchmark(self):
         """越界回退为 benchmark 时，落点取模型基准（裁剪到区间内）。"""
@@ -566,7 +566,7 @@ class TestIdleCashAddon:
         spend_holdings = sum(
             amt
             for code, amt in self.data["holdings"].items()
-            if get_product_map()[code]["category"] == "spend"
+            if get_product_map()[code]["four_money_category"] == "spend"
         )
         result = self.engine.rebalance(
             customer_id=self.customer_id,
@@ -603,7 +603,7 @@ class TestAssetOverview:
         overview = svc.build_overview(CUSTOMER_ID, product_category=INVESTMENT_PLANNING)
         assert overview.customer_id == CUSTOMER_ID
         assert overview.view_mode == "asset_type"
-        assert overview.total_assets == 1012000.0 - 32000.0
+        assert overview.total_assets == 862000.0 - 32000.0
         assert len(overview.categories) == 4
         assert overview.health_level in ("green", "red")
 
@@ -631,8 +631,8 @@ class TestAssetOverview:
             for c in overview.categories
             for p in c.products
         }
-        assert "P005" not in all_codes
-        assert "P011" not in all_codes
+        assert "005" not in all_codes
+        assert "011" not in all_codes
         for c in overview.categories:
             for p in c.products:
                 assert p["amount"] > 0

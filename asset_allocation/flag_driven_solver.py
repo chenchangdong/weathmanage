@@ -16,6 +16,7 @@ PERFORMANCE_FLAG_CODES = frozenset({
     "return_above_expected",
     "principal_loss_exceeded",
     "volatility_exceeded",
+    "max_drawdown_exceeded",
 })
 
 STRUCTURE_ONLY_FLAG = "four_money_mismatch"
@@ -27,6 +28,7 @@ SELL_ORDER = {
     "return_above_expected": [EQUITY, ALT],
     "principal_loss_exceeded": [EQUITY, ALT],
     "volatility_exceeded": [EQUITY, ALT],
+    "max_drawdown_exceeded": [EQUITY, ALT],
 }
 
 BUY_ORDER = {
@@ -34,6 +36,7 @@ BUY_ORDER = {
     "return_above_expected": [CASH, FIXED],
     "principal_loss_exceeded": [FIXED, CASH],
     "volatility_exceeded": [CASH, FIXED],
+    "max_drawdown_exceeded": [CASH, FIXED],
 }
 
 PASSIVE_BUY_ORDER = [FIXED, CASH, ALT, EQUITY]
@@ -146,6 +149,8 @@ class FlagDrivenSolver:
         """复合场景主导优先级：本金亏 > 波动高 > 收益高 > 收益低。"""
         if "principal_loss_exceeded" in codes:
             return "principal_loss_exceeded"
+        if "max_drawdown_exceeded" in codes:
+            return "max_drawdown_exceeded"
         if "volatility_exceeded" in codes:
             return "volatility_exceeded"
         if "return_above_expected" in codes:
@@ -176,11 +181,15 @@ class FlagDrivenSolver:
             )
             return intents, passive, "principal_loss_exceeded"
 
-        if "return_below_expected" in codes and "volatility_exceeded" in codes:
+        if "return_below_expected" in codes and (
+            "volatility_exceeded" in codes or "max_drawdown_exceeded" in codes
+        ):
             intents, passive = self._merge_below_vol(cur, total, bounds, passive)
             return intents, passive, "return_below_expected"
 
-        if "principal_loss_exceeded" in codes and "volatility_exceeded" in codes:
+        if "principal_loss_exceeded" in codes and (
+            "volatility_exceeded" in codes or "max_drawdown_exceeded" in codes
+        ):
             s3, p3 = self._scenario_intents(
                 "principal_loss_exceeded", cur, total, bounds, set()
             )
@@ -193,11 +202,19 @@ class FlagDrivenSolver:
             passive = p3 | {c for c in INVESTMENT_CARD_KEYS if merged[c] == cur[c]}
             return merged, passive, "principal_loss_exceeded"
 
-        if "return_above_expected" in codes and "volatility_exceeded" in codes:
+        if "return_above_expected" in codes and (
+            "volatility_exceeded" in codes or "max_drawdown_exceeded" in codes
+        ):
             intents, passive = self._scenario_intents(
                 "volatility_exceeded", cur, total, bounds, passive
             )
             return intents, passive, "volatility_exceeded"
+
+        if "max_drawdown_exceeded" in codes and "volatility_exceeded" in codes:
+            intents, passive = self._scenario_intents(
+                "max_drawdown_exceeded", cur, total, bounds, passive
+            )
+            return intents, passive, "max_drawdown_exceeded"
 
         if len(codes) == 1:
             code = next(iter(codes))
@@ -262,7 +279,7 @@ class FlagDrivenSolver:
             intents[EQUITY] = bounds[EQUITY]["lo"]
             intents[ALT] = self._to_bench_down(cur[ALT], bounds[ALT])
 
-        elif scenario == "volatility_exceeded":
+        elif scenario in ("volatility_exceeded", "max_drawdown_exceeded"):
             intents[CASH] = self._to_bench_up(cur[CASH], bounds[CASH])
             intents[FIXED] = self._to_bench_up(cur[FIXED], bounds[FIXED])
             intents[EQUITY] = self._to_bench_down(cur[EQUITY], bounds[EQUITY])
@@ -457,5 +474,6 @@ class FlagDrivenSolver:
             "return_above_expected": "收益良好",
             "principal_loss_exceeded": "本金损失超阈值",
             "volatility_exceeded": "波动率超预期",
+            "max_drawdown_exceeded": "最大回撤超阈值",
         }
         return "、".join(labels.get(c, c) for c in sorted(codes))

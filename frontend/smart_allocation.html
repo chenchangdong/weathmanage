@@ -493,6 +493,7 @@
           editedCode
         );
       }
+      PlanEditor.initProductDisplayOrder(data.rebalance);
       planData = data;
       if (editedCode) {
         PlanEditor.applyPlanLinkage(planData, editedCode);
@@ -511,6 +512,7 @@
       const isPersonalized = isPrescriptionMode || PlanEditor.hasCategoryPrescription();
       if (!isManual && !isPrescriptionMode) PlanEditor.resetManualState();
       if (isPrescriptionMode) PlanEditor.cacheCategoryPrescription(rb);
+      PlanEditor.initProductDisplayOrder(rb);
       PlanEditor.cacheProductLimitsFromDeltas(rb.product_deltas);
 
       PlanEditor.updatePlanBanner(rb);
@@ -636,7 +638,12 @@
       const flags = (diagnosisData && diagnosisData.flags) || [];
       const effective = flags.filter(f => f.code !== 'four_money_mismatch');
       if (!effective.length) {
-        showToast('财富健康，请用全账户一键配仓');
+        const hasStructure = flags.some(f => f.code === 'four_money_mismatch');
+        showToast(
+          hasStructure
+            ? '四笔钱配置不合理，请使用「全账户一键智能最优配置」'
+            : '财富健康，请使用全账户一键配仓'
+        );
         return;
       }
       await runPrescriptionRebalance(

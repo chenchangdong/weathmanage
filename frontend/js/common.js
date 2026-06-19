@@ -200,13 +200,15 @@ function renderNav(active) {
     { href: 'smart_allocation_setup.html', label: '智能资配' },
     { href: 'index.html', label: '客户资产', hidden: true },
     { href: 'result.html', label: '配置方案', hidden: true },
-    { href: 'sop_agent.html', label: 'SOP投后智能体' },
+  ];
+  const sopPages = [
+    { href: 'sop_agent.html', label: '智能体工作台', key: 'sop_agent' },
+    { href: 'admin/rule_strategy.html', label: '规则策略', key: 'rule_strategy' },
+    { href: 'admin/sop_product_library.html', label: '产品信息库', key: 'sop_product_library' },
   ];
   const adminPages = [
     { href: 'admin/model_config.html', label: '模型建立', key: 'model_config' },
     { href: 'admin/portfolio_mapping.html', label: '模型指派', key: 'portfolio_mapping' },
-    { href: 'admin/rule_strategy.html', label: '规则策略', key: 'rule_strategy' },
-    { href: 'admin/sop_product_library.html', label: 'SOP产品信息库', key: 'sop_product_library' },
     { href: 'admin/data_dict.html', label: '数据字典', key: 'data_dict' },
   ];
   const mainLinks = pages.filter((p) => !p.hidden).map(p => {
@@ -217,9 +219,16 @@ function renderNav(active) {
     const muted = p.muted ? ' nav-muted' : '';
     return `<a href="${p.href}" class="${isActive ? 'active' : ''}${muted}">${p.label}</a>`;
   }).join('');
+  const sopLinks = sopPages.map((p) => {
+    const isActive = active === p.key || active === 'operation_rule' && p.key === 'rule_strategy';
+    return `<a href="${p.href}" class="nav-sop ${isActive ? 'active' : ''}">${p.label}</a>`;
+  }).join('');
   const adminLinks = adminPages.map(p => {
     const isActive = active === p.key;
     return `<a href="${p.href}" class="nav-admin ${isActive ? 'active' : ''}">${p.label}</a>`;
   }).join('');
-  nav.innerHTML = `<div class="nav-bar-main">${mainLinks}</div><div class="nav-bar-admin">${adminLinks}</div>`;
+  nav.innerHTML =
+    `<div class="nav-bar-main">${mainLinks}</div>` +
+    `<div class="nav-bar-sop">${sopLinks}</div>` +
+    `<div class="nav-bar-admin">${adminLinks}</div>`;
 }

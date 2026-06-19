@@ -241,7 +241,7 @@ class TestFlagPersonalizedRebalance:
             flag_codes=["return_above_expected"],
         )
         baseline = {d.product_code: d.target_amount for d in base.product_deltas}
-        baseline["P005"] = 200_000.0
+        baseline["005"] = 200_000.0
 
         funded = engine.apply_manual_product_targets(
             customer_id=customer_id,
@@ -249,21 +249,21 @@ class TestFlagPersonalizedRebalance:
             idle_cash=idle,
             risk_profile=customer["risk_profile"],
             product_category=INVESTMENT_PLANNING,
-            product_targets={"P005": 200_000.0},
+            product_targets={"005": 200_000.0},
             baseline_product_targets=baseline,
         )
         assert not any("差额" in n or "不一致" in n for n in funded.validation_notes)
 
         baseline2 = {d.product_code: d.target_amount for d in base.product_deltas}
-        baseline2["P005"] = 200_000.0
-        baseline2["P006"] = 0.0
+        baseline2["005"] = 200_000.0
+        baseline2["006"] = 0.0
         rebalanced = engine.apply_manual_product_targets(
             customer_id=customer_id,
             holdings=data["holdings"],
             idle_cash=idle,
             risk_profile=customer["risk_profile"],
             product_category=INVESTMENT_PLANNING,
-            product_targets={"P005": 200_000.0, "P006": 0.0},
+            product_targets={"005": 200_000.0, "006": 0.0},
             baseline_product_targets=baseline2,
         )
         assert not any("差额" in n or "不一致" in n for n in rebalanced.validation_notes)
@@ -274,26 +274,26 @@ class TestFlagPersonalizedRebalance:
             idle_cash=0.0,
             risk_profile=customer["risk_profile"],
             product_category=INVESTMENT_PLANNING,
-            product_targets={"P005": 200_000.0},
+            product_targets={"005": 200_000.0},
             baseline_product_targets=baseline,
         )
         assert any("超出" in n for n in unfunded.validation_notes)
 
 
 class TestFlagPersonalizedAPI:
-    def test_flag_personalized_rejects_healthy_customer(self):
+    def test_flag_personalized_rejects_structure_only_customer(self):
         from fastapi.testclient import TestClient
 
         from main import app
 
         client = TestClient(app)
         resp = client.post("/api/allocation/auto_rebalance", json={
-            "customer_id": "C20250602002",
+            "customer_id": "C20250602005",
             "mode": "flag_personalized",
             "product_category": "投资规划",
         })
         assert resp.status_code == 400
-        assert "财富健康" in resp.json()["detail"]
+        assert "四笔钱" in resp.json()["detail"]
 
     def test_flag_personalized_success(self):
         from fastapi.testclient import TestClient
@@ -473,7 +473,7 @@ class TestOptimalPersonalizedRebalance:
             "product_category": "投资规划",
         })
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["rebalance"]["mode"] == "optimal_personalized"
 
     def test_optimal_personalized_rejects_comprehensive_planning(self):

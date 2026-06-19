@@ -4,6 +4,10 @@ const PlanEditor = {
   _pending: false,
   _lastEditedCode: null,
   _manualAddedCodes: new Set(),
+  /** 进入方案时 product_deltas 顺序（已有产品保持此相对顺序） */
+  _baselineProductOrder: [],
+  /** 手工添加产品的先后顺序 */
+  _manualAddedOrder: [],
   /** 个性化配仓：用户手工改过增减仓的大类（不含一键自动调仓填入） */
   _manualDeltaEditedCategories: new Set(),
   /** 进入配置方案时的产品目标快照 product_code -> target_amount */
@@ -77,6 +81,8 @@ const PlanEditor = {
 
   resetManualState() {
     this._manualAddedCodes = new Set();
+    this._baselineProductOrder = [];
+    this._manualAddedOrder = [];
     this._manualDeltaEditedCategories = new Set();
     this._entryProductTargets = null;
     this._manualValidationBlocked = new Map();
@@ -126,6 +132,39 @@ const PlanEditor = {
     });
   },
 
+  initProductDisplayOrder(rb, { reset = false } = {}) {
+    if (reset) {
+      this._baselineProductOrder = [];
+      this._manualAddedOrder = [];
+    }
+    if (!rb?.product_deltas?.length) return;
+    if (!this._baselineProductOrder.length) {
+      this._baselineProductOrder = rb.product_deltas
+        .map((d) => d.product_code)
+        .filter((code) => !this._manualAddedCodes.has(code));
+    }
+    rb.product_deltas = this.sortPlanProductDeltas(rb.product_deltas);
+  },
+
+  /** 已有持仓保持进入方案时顺序；手工新增产品始终排在同类末尾 */
+  sortPlanProductDeltas(deltas) {
+    const baseline = this._baselineProductOrder;
+    const manual = this._manualAddedOrder;
+    const rank = (code) => {
+      const manualIdx = manual.indexOf(code);
+      if (manualIdx >= 0) return 1_000_000 + manualIdx;
+      const baseIdx = baseline.indexOf(code);
+      if (baseIdx >= 0) return baseIdx;
+      return 500_000;
+    };
+    return [...(deltas || [])].sort((a, b) => {
+      const ra = rank(a.product_code);
+      const rb = rank(b.product_code);
+      if (ra !== rb) return ra - rb;
+      return a.product_code.localeCompare(b.product_code);
+    });
+  },
+
   exportPrescriptionSnapshot() {
     if (!this.hasCategoryPrescription()) return null;
     return {
@@ -134,6 +173,8 @@ const PlanEditor = {
       targets: { ...(this._categoryTargets || {}) },
       frozenAtTotal: this._prescriptionFrozenTotal,
       manualAddedCodes: [...this._manualAddedCodes],
+      manualAddedOrder: [...this._manualAddedOrder],
+      baselineProductOrder: [...this._baselineProductOrder],
       manualDeltaEditedCategories: [...this._manualDeltaEditedCategories],
       entryProductTargets: { ...(this._entryProductTargets || {}) },
       productIdleTopUps: { ...this._productIdleTopUps },
@@ -159,6 +200,8 @@ const PlanEditor = {
       this._categoryTargets = { ...(snap.targets || {}) };
       this._prescriptionFrozenTotal = snap.frozenAtTotal ?? null;
       this._manualAddedCodes = new Set(snap.manualAddedCodes || []);
+      this._manualAddedOrder = [...(snap.manualAddedOrder || snap.manualAddedCodes || [])];
+      this._baselineProductOrder = [...(snap.baselineProductOrder || [])];
       this._manualDeltaEditedCategories = new Set(snap.manualDeltaEditedCategories || []);
       this._entryProductTargets = snap.entryProductTargets
         ? { ...snap.entryProductTargets }
@@ -707,10 +750,7 @@ const PlanEditor = {
           merged.push({ ...sd });
         }
       });
-    merged.sort((a, b) =>
-      (a.category + a.product_code).localeCompare(b.category + b.product_code)
-    );
-    return merged;
+    return this.sortPlanProductDeltas(merged);
   },
 
   validateCategorySuggestMerge(rb, category, mergedDeltas) {
@@ -1395,17 +1435,15 @@ const PlanEditor = {
   },
 
   editableDeltas(rb) {
-    return [...rb.product_deltas]
-      .filter(d => this.isPlanRowVisible(d))
-      .sort((a, b) =>
-        (a.category + a.product_code).localeCompare(b.category + b.product_code)
-      );
+    return this.sortPlanProductDeltas(
+      rb.product_deltas.filter(d => this.isPlanRowVisible(d))
+    );
   },
 
   categoryEditableDeltas(rb, category) {
-    return rb.product_deltas
-      .filter(d => d.category === category && this.isPlanRowVisible(d))
-      .sort((a, b) => a.product_code.localeCompare(b.product_code));
+    return this.sortPlanProductDeltas(
+      rb.product_deltas.filter(d => d.category === category && this.isPlanRowVisible(d))
+    );
   },
 
   /**
@@ -1571,12 +1609,8 @@ const PlanEditor = {
         codes.add(d.product_code);
       }
     });
-    return merged.sort((a, b) =>
-      (a.category + a.product_code).localeCompare(b.category + b.product_code)
-    );
+    return this.sortPlanProductDeltas(merged);
   },
-
-  updatePlanCardSummaries(rb) {
     rb.category_summary.forEach(s => {
       const card = document.querySelector(`.plan-card.${s.category}`);
       if (!card) return;
@@ -2008,6 +2042,7 @@ const PlanEditor = {
 
     rb.product_deltas = rb.product_deltas.filter(d => d.product_code !== code);
     this._manualAddedCodes.delete(code);
+    this._manualAddedOrder = this._manualAddedOrder.filter((c) => c !== code);
     delete this._productIdleTopUps[code];
     this.clearValidationBlock(code);
     this.refreshCategoryPlanRows(rb, category);
@@ -2076,6 +2111,7 @@ const PlanEditor = {
 
     this.cacheProductLimits([picked]);
     this._manualAddedCodes.add(code);
+    this._manualAddedOrder.push(code);
     rb.product_deltas.push({
       product_code: picked.code,
       product_name: picked.name,
@@ -2089,9 +2125,7 @@ const PlanEditor = {
       limit_hit: false,
       limit_side: '',
     });
-    rb.product_deltas.sort((a, b) =>
-      (a.category + a.product_code).localeCompare(b.category + b.product_code)
-    );
+    rb.product_deltas = this.sortPlanProductDeltas(rb.product_deltas);
 
     this.refreshCategoryPlanRows(rb, category);
     this.refreshDetailTable(rb);
@@ -2229,7 +2263,16 @@ const PlanEditor = {
       const gate = this.blockingEditGate(ctx.rb, code);
       if (!gate.ok) {
         showToast(gate.message);
-        el.blur();
+        const row = this._findEditRow(el);
+        const item = ctx.rb.product_deltas.find((d) => d.product_code === code);
+        if (row && item) {
+          const committed = el.dataset.committedDelta !== undefined
+            ? parseFloat(el.dataset.committedDelta)
+            : item.delta_amount;
+          this._revertDeltaCommit(el, row, item, committed, ctx.rb);
+        } else {
+          el.blur();
+        }
         return;
       }
       const item = ctx.rb.product_deltas.find(d => d.product_code === code);
@@ -2316,18 +2359,20 @@ const PlanEditor = {
     const item = ctx.rb.product_deltas.find(d => d.product_code === code);
     if (!item) return;
 
+    const committed = el.dataset.committedDelta !== undefined
+      ? parseFloat(el.dataset.committedDelta)
+      : item.delta_amount;
+
     const gate = this.blockingEditGate(ctx.rb, code);
     if (!gate.ok) {
       showToast(gate.message);
+      this._revertDeltaCommit(el, row, item, committed, ctx.rb);
       return;
     }
 
     this._lastEditedCode = code;
 
     const delta = parseFloat(el.value) || 0;
-    const committed = el.dataset.committedDelta !== undefined
-      ? parseFloat(el.dataset.committedDelta)
-      : item.delta_amount;
     if (Math.abs(delta - committed) < 0.01) return;
 
     item.delta_amount = delta;
@@ -2406,6 +2451,16 @@ const PlanEditor = {
   },
 
   _afterEditValidateContinue(ctx, onUpdated, row, el, committedDelta, item) {
+    const blockers = this.getActiveManualDraftBlockers(ctx.rb);
+    if (blockers.size) {
+      const gate = this.blockingEditGate(ctx.rb, item.product_code);
+      showToast(gate.message || '请先处理新增产品校验');
+      this._revertDeltaCommit(el, row, item, committedDelta, ctx.rb);
+      this.revalidateAllProductLimits(ctx.rb);
+      this.syncAllProductLimitUI(ctx.rb);
+      return;
+    }
+
     this.clearValidationBlock(item.product_code, 'idle');
     this._setRowIdleError(row, false);
     el.dataset.committedDelta = String(Math.round(item.delta_amount));

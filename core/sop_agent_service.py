@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Any
 
 from core.sop_agent_pipeline import SopAgentPipeline
+from core.sop_query_parser import build_query_filters
 from core.sop_event_store import SopEventStore
 from core.sop_rule_engine import SopRuleEngine
 
@@ -77,28 +77,39 @@ class SopAgentService:
         question: str,
         *,
         since: str | None = None,
+        until: str | None = None,
         drawdown_only: bool = True,
     ) -> dict[str, Any]:
-        """6.2.1 风格：根据自然语言问题查询事件并生成摘要。"""
-        since_date = since
-        if "5月" in question or "五月" in question:
-            since_date = since_date or f"{date.today().year}-05-01"
+        """根据问题查询事件并生成摘要（本地规则过滤，不调用 LLM）。"""
+        filters = build_query_filters(
+            question,
+            since=since,
+            until=until,
+            drawdown_only=drawdown_only,
+        )
         events = self.engine.query_events(
-            since=since_date,
-            drawdown_only=drawdown_only or "回撤" in question,
+            since=filters["since"],
+            until=filters["until"],
+            drawdown_only=filters["drawdown_only"],
         )
         total = len(self.store.list_composite_events())
         pending = sum(
             1 for e in self.store.list_composite_events()
             if e.get("agent_status") in (None, "pending")
         )
+        label = filters["range_label"]
+        kind = "产品回撤相关" if filters["drawdown_only"] else "相关"
         summary = (
-            f"根据查询结果，{since_date or '全部时段'}以来共检索到 {len(events)} 条"
-            f"与产品回撤直接相关的事件（库内组合事件 {total} 条，待运行智能体 {pending} 条）。"
+            f"【本地规则查询，未调用大模型】{label}共检索到 {len(events)} 条{kind}事件"
+            f"（库内组合事件 {total} 条，待运行智能体 {pending} 条）。"
         )
         return {
             "question": question,
-            "since": since_date,
+            "since": filters["since"],
+            "until": filters["until"],
+            "range_label": label,
+            "drawdown_only": filters["drawdown_only"],
+            "source": "local_rules",
             "summary": summary,
             "events": events,
             "total_in_store": total,

@@ -145,6 +145,7 @@
     <div class="main">
       <header id="topbarMount"></header>
       <div class="content">
+        <div id="sopJourneyMount"></div>
         <div class="card operation-header-card">
           <div class="tab-row" id="mainTabs">
             <button type="button" class="tab-btn active" data-tab="config">规则配置</button>
@@ -163,9 +164,11 @@
   <div id="toast" class="toast-msg"></div>
   <script src="../js/common.js"></script>
   <script src="../js/app_shell.js"></script>
+  <script src="../js/sop_journey.js"></script>
   <script src="../js/rule_strategy.js"></script>
   <script>
-    initAppShell({ page: 'operation_rule', title: '规则策略', crumb: '运营管理 / 规则策略', admin: true });
+    initAppShell({ page: 'operation_rule', title: '规则策略', crumb: 'SOP 投后 / 规则策略', admin: true });
+    SopJourney.mount({ mount: '#sopJourneyMount', activePage: 'rule_strategy', workflowMode: 'config' });
   </script>
 </body>
 </html>

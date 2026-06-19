@@ -61,12 +61,38 @@
     return hit ? hit.label : (code || '—');
   }
 
+  function assetTypeLabel(code) {
+    if (!code) return '—';
+    const hit = (libraryConfig.asset_type_options || []).find((c) => c.code === code);
+    return hit ? hit.label : code;
+  }
+
+  function assetTypeOptions(selected) {
+    let html = '<option value="">未设置</option>';
+    (libraryConfig.asset_type_options || []).forEach((c) => {
+      html += `<option value="${esc(c.code)}"${c.code === selected ? ' selected' : ''}>${esc(c.label)}</option>`;
+    });
+    return html;
+  }
+
   function managerOptions(selected, includeEmpty) {
     let html = includeEmpty ? '<option value="">请选择管理人</option>' : '';
     (libraryConfig.managers || []).forEach((m) => {
       html += `<option value="${esc(m.id)}"${m.id === selected ? ' selected' : ''}>${esc(m.name)} (${esc(m.id)})</option>`;
     });
     return html;
+  }
+
+  function riskLevelOptions(selected) {
+    let html = '<option value="">未设置</option>';
+    for (let i = 1; i <= 5; i += 1) {
+      html += `<option value="${i}"${Number(selected) === i ? ' selected' : ''}>${i} 级</option>`;
+    }
+    return html;
+  }
+
+  function isAllocationRow(r) {
+    return r.rebalance_priority !== undefined && r.rebalance_priority !== null && r.rebalance_priority !== '';
   }
 
   function categoryOptions(selected) {
@@ -177,6 +203,8 @@
       `<td>${esc(r.product_code)}</td>` +
       `<td>${esc(r.manager_name || r.manager_id)}</td>` +
       `<td>${esc(categoryLabel(r.category))}</td>` +
+      `<td>${esc(r.risk_level != null && r.risk_level !== '' ? r.risk_level + '级' : '—')}</td>` +
+      `<td>${esc(assetTypeLabel(r.asset_type))}</td>` +
       `<td>${esc(r.rating || '—')}</td>` +
       `<td>${statusBadge(r.status)}</td>` +
       '<td class="table-actions">' +
@@ -185,7 +213,7 @@
       '</td></tr>'
     )).join('');
 
-    if (!tableRows) tableRows = '<tr><td colspan="8" class="empty-cell">暂无产品</td></tr>';
+    if (!tableRows) tableRows = '<tr><td colspan="10" class="empty-cell">暂无产品</td></tr>';
 
     root.innerHTML =
       '<div class="card">' +
@@ -194,7 +222,7 @@
       '</div>' +
       '<div class="dict-table-scroll">' +
       '<table class="batch-table"><thead><tr>' +
-      '<th>产品代码</th><th>产品名称</th><th>产品编码</th><th>管理人</th><th>类型</th><th>评级</th><th>状态</th><th>操作</th>' +
+      '<th>产品代码</th><th>产品名称</th><th>产品编码</th><th>管理人</th><th>风险属性</th><th>风险等级</th><th>资产类型</th><th>评级</th><th>状态</th><th>操作</th>' +
       '</tr></thead><tbody>' + tableRows + '</tbody></table></div>' +
       paginationHtml(productPage, totalPages, total, 'product') +
       '</div>';
@@ -229,14 +257,18 @@
   function openProductDrawer(row) {
     const isNew = !row;
     const r = row || {};
+    const alloc = isAllocationRow(r);
+    const showAllocFields = alloc || isNew || !!(r.asset_type || '').trim();
     const body =
       '<div class="form-grid">' +
       field('产品代码', 'product_id', r.product_id, isNew ? '' : 'readonly') +
       field('产品名称', 'product_name', r.product_name) +
-      field('产品编码', 'product_code', r.product_code) +
+      field('产品编码', 'product_code', r.product_code || r.product_id) +
+      '<div class="form-field"><label>风险属性</label><select name="category">' + categoryOptions(r.category) + '</select></div>' +
+      '<div class="form-field"><label>风险等级</label><select name="risk_level">' + riskLevelOptions(r.risk_level) + '</select></div>' +
+      '<div class="form-field"><label>资产类型</label><select name="asset_type">' + assetTypeOptions(r.asset_type) + '</select></div>' +
       '<div class="form-field"><label>管理人</label><select name="manager_id" id="productManagerSelect">' +
       managerOptions(r.manager_id, true) + '</select></div>' +
-      '<div class="form-field"><label>产品类型</label><select name="category">' + categoryOptions(r.category) + '</select></div>' +
       field('策略类型', 'strategy_type', r.strategy_type) +
       field('评级', 'rating', r.rating) +
       field('成立日期', 'setup_date', r.setup_date, 'type="date"') +
@@ -244,6 +276,13 @@
       field('评分', 'score', r.score != null ? r.score : '', 'type="number" step="0.01" min="0" max="1"') +
       textarea('结论', 'conclusion', r.conclusion) +
       textarea('风险说明', 'risk', r.risk) +
+      (showAllocFields ? (
+        '<p style="margin:4px 0 0;font-size:12px;color:var(--fg-3)">资配约束（调仓优先级请在 YAML 中维护）</p>' +
+        field('产品子类型', 'product_subtype', r.product_subtype) +
+        field('最低金额', 'min_amount', r.min_amount != null ? r.min_amount : '', 'type="number" min="0"') +
+        field('最高金额', 'max_amount', r.max_amount != null ? r.max_amount : '', 'type="number" min="0"') +
+        field('流动性天数', 'liquidity_days', r.liquidity_days != null ? r.liquidity_days : '', 'type="number"')
+      ) : '') +
       '<div class="form-field"><label>状态</label><select name="status">' +
       `<option value="1"${Number(r.status) !== 0 ? ' selected' : ''}>启用</option>` +
       `<option value="0"${Number(r.status) === 0 ? ' selected' : ''}>禁用</option></select></div>` +
@@ -251,8 +290,9 @@
 
     openDrawer(isNew ? '新增产品' : '编辑产品', body, async (backdrop) => {
       const data = readForm(backdrop, [
-        'product_id', 'product_name', 'product_code', 'manager_id', 'category',
+        'product_id', 'product_name', 'product_code', 'manager_id', 'category', 'risk_level', 'asset_type',
         'strategy_type', 'rating', 'setup_date', 'init_nav', 'score', 'conclusion', 'risk', 'status',
+        'product_subtype', 'min_amount', 'max_amount', 'liquidity_days',
       ]);
       if (!data.product_id) throw new Error('产品代码不能为空');
       const mgr = (libraryConfig.managers || []).find((m) => m.id === data.manager_id);

@@ -54,7 +54,7 @@ full_account_optimize:
 # 默认关闭：一键智能配置、手工调仓、单类智能优化均不校验产品上下限
 # 开启后：上述流程恢复对产品 min/max 的 clamp、spill 与 limit_hit 标记
 product_limit_validation:
-  enabled: true
+  enabled: false
 
 # 结果页约束
 result_page:

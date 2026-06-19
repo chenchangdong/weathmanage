@@ -19,8 +19,8 @@ class TestDemandDepositDisplay:
     def test_p013_is_highest_priority_product(self):
         pmap = get_product_map()
         assert DEMAND_DEPOSIT_CODE in pmap
-        assert pmap["P000"]["name"] == "活钱存款"
-        assert pmap["P000"]["rebalance_priority"] < pmap["P001"]["rebalance_priority"]
+        assert pmap["000"]["name"] == "活钱存款"
+        assert pmap["000"]["rebalance_priority"] < pmap["001"]["rebalance_priority"]
 
     def test_demo_customers_without_p013(self):
         """C001、C002 未持仓活钱存款，用于验证展示层新开仓。"""

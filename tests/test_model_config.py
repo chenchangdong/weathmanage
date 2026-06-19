@@ -172,7 +172,7 @@ class TestModelConfigAPI:
         cats = {c["category"] for c in data["categories"]}
         assert cats == {"cash", "fixed_income", "equity", "alternative"}
         assert data["excluded_insurance_amount"] == 32000.0
-        assert data["total_assets"] == 1012000.0 - 32000.0
+        assert data["total_assets"] == 862000.0 - 32000.0
 
     def test_investment_rebalance_no_insurance_trades(self, client):
         resp = client.post(
@@ -187,8 +187,8 @@ class TestModelConfigAPI:
         rb = resp.json()["data"]["rebalance"]
         assert rb["view_mode"] == "asset_type"
         codes = {d["product_code"] for d in rb["product_deltas"] if abs(d["delta_amount"]) >= 1}
-        assert "P009" not in codes
-        assert "P010" not in codes
+        assert "009" not in codes
+        assert "010" not in codes
         summary_cats = {s["category"] for s in rb["category_summary"]}
         assert summary_cats == {"cash", "fixed_income", "equity", "alternative"}
 

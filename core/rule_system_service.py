@@ -147,6 +147,15 @@ class RuleSystemService:
         self._save(data)
         return True
 
+    def update_metric(self, metric_id: int, body: dict[str, Any]) -> dict[str, Any] | None:
+        data = self._load()
+        for m in data.get("metrics") or []:
+            if m.get("id") == metric_id:
+                m.update({k: v for k, v in body.items() if k not in ("id", "metric_code")})
+                self._save(data)
+                return m
+        return None
+
     # ── 规则分组（biz-type）──────────────────────────────────
 
     def list_biz_types(self, include_disabled: bool = False) -> list[dict[str, Any]]:

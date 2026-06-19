@@ -1,4 +1,4 @@
-"""SOP 产品信息库 — 独立于资配 product_constraint。"""
+"""统一产品信息库 — 资配底层 + SOP 投后产品。"""
 
 from __future__ import annotations
 
@@ -7,10 +7,20 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.config_loader import load_sop_product_library
 from core.config_writer import save_sop_product_library
+from core.product_library_utils import (
+    is_allocation_product,
+    is_sop_product,
+    normalize_product_record,
+    sync_risk_fields,
+)
 
 
 def _enabled_products(products: List[dict[str, Any]]) -> List[dict[str, Any]]:
     return [p for p in products if int(p.get("status", 1)) == 1]
+
+
+def _sop_batch_products(products: List[dict[str, Any]]) -> List[dict[str, Any]]:
+    return [p for p in _enabled_products(products) if is_sop_product(p)]
 
 
 class SopProductLibraryService:
@@ -18,21 +28,29 @@ class SopProductLibraryService:
         return deepcopy(load_sop_product_library())
 
     def get_product_map(self) -> dict[str, dict[str, Any]]:
+        """SOP 跑批扫描用：仅有管理人的启用产品。"""
         cfg = load_sop_product_library()
-        return {p["product_id"]: dict(p) for p in _enabled_products(cfg.get("products") or [])}
+        return {
+            p["product_id"]: normalize_product_record(dict(p))
+            for p in _sop_batch_products(cfg.get("products") or [])
+        }
 
     def get_manager_map(self) -> dict[str, dict[str, Any]]:
         cfg = load_sop_product_library()
         return {m["id"]: dict(m) for m in cfg.get("managers") or [] if int(m.get("status", 1)) == 1}
 
     def get_product(self, product_id: str) -> Optional[dict[str, Any]]:
-        return self.get_product_map().get(product_id)
+        cfg = load_sop_product_library()
+        for row in cfg.get("products") or []:
+            if row.get("product_id") == product_id:
+                return normalize_product_record(dict(row))
+        return None
 
     def list_products(
         self, *, page: int = 1, page_size: int = 20
     ) -> Tuple[List[dict[str, Any]], int]:
         cfg = load_sop_product_library()
-        rows = list(cfg.get("products") or [])
+        rows = [normalize_product_record(dict(p)) for p in cfg.get("products") or []]
         total = len(rows)
         start = max(0, (page - 1) * page_size)
         end = start + page_size
@@ -51,6 +69,41 @@ class SopProductLibraryService:
     def list_strategies(self) -> List[dict[str, Any]]:
         return list(load_sop_product_library().get("strategies") or [])
 
+    @staticmethod
+    def _build_product_payload(product: dict[str, Any], existing: dict[str, Any] | None) -> dict[str, Any]:
+        base = dict(existing or {})
+        base.update({k: v for k, v in product.items() if v is not None})
+        pid = (product.get("product_id") or base.get("product_id") or "").strip()
+        if not pid:
+            raise ValueError("产品代码不能为空")
+        base["product_id"] = pid
+        base["product_name"] = product.get("product_name") or base.get("product_name") or ""
+        pc = (product.get("product_code") or base.get("product_code") or "").strip()
+        base["product_code"] = pc or pid
+
+        for key in (
+            "manager_id", "manager_name", "category", "asset_type", "strategy_type",
+            "rating", "setup_date", "conclusion", "risk", "product_subtype",
+        ):
+            if key in product:
+                base[key] = product.get(key) or ""
+
+        if "asset_type" in product:
+            base["asset_type"] = (product.get("asset_type") or "").strip()
+
+        for key in ("init_nav", "score", "rebalance_priority", "min_amount", "max_amount",
+                    "liquidity_days", "risk_level", "status"):
+            if key in product and product.get(key) not in (None, ""):
+                if key in ("init_nav", "score", "min_amount", "max_amount"):
+                    base[key] = float(product[key]) if product[key] != "" else base.get(key)
+                elif key in ("rebalance_priority", "liquidity_days", "risk_level", "status"):
+                    base[key] = int(product[key])
+                else:
+                    base[key] = product[key]
+
+        base = sync_risk_fields(base)
+        return normalize_product_record(base)
+
     def save_product(self, product: dict[str, Any], *, is_new: bool = False) -> dict[str, Any]:
         cfg = load_sop_product_library()
         products: List[dict[str, Any]] = list(cfg.get("products") or [])
@@ -59,33 +112,24 @@ class SopProductLibraryService:
             raise ValueError("产品代码不能为空")
         if is_new and any(p.get("product_id") == pid for p in products):
             raise ValueError(f"产品代码已存在: {pid}")
-        payload = {
-            "product_id": pid,
-            "product_name": product.get("product_name") or "",
-            "product_code": product.get("product_code") or "",
-            "manager_id": product.get("manager_id") or "",
-            "manager_name": product.get("manager_name") or "",
-            "category": product.get("category") or "",
-            "strategy_type": product.get("strategy_type") or "",
-            "rating": product.get("rating") or "",
-            "setup_date": product.get("setup_date") or "",
-            "init_nav": float(product.get("init_nav") or 1.0),
-            "conclusion": product.get("conclusion") or "",
-            "risk": product.get("risk") or "",
-            "score": product.get("score"),
-            "status": int(product.get("status", 1)),
-        }
+
+        existing = next((p for p in products if p.get("product_id") == pid), None)
+        payload = self._build_product_payload(product, existing if not is_new else None)
+
+        mgr_id = payload.get("manager_id") or ""
+        if mgr_id:
+            mgr = self.get_manager_map().get(mgr_id) or {}
+            payload["manager_name"] = mgr.get("name") or payload.get("manager_name") or ""
+
         if is_new:
             products.append(payload)
         else:
-            found = False
+            if existing is None:
+                raise ValueError(f"产品不存在: {pid}")
             for i, row in enumerate(products):
                 if row.get("product_id") == pid:
                     products[i] = payload
-                    found = True
                     break
-            if not found:
-                raise ValueError(f"产品不存在: {pid}")
         cfg["products"] = products
         save_sop_product_library(cfg)
         return payload

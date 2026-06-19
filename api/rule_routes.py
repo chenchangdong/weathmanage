@@ -108,6 +108,14 @@ def metric_add(body: MetricBody) -> Dict[str, Any]:
     return _svc.add_metric(body.model_dump())
 
 
+@rule_router.put("/api/rule/metric/{metric_id}")
+def metric_update(metric_id: int, body: MetricBody) -> Dict[str, Any]:
+    row = _svc.update_metric(metric_id, body.model_dump())
+    if not row:
+        raise HTTPException(status_code=404, detail="指标不存在")
+    return row
+
+
 @rule_router.delete("/api/rule/metric/{metric_id}")
 def metric_delete(metric_id: int) -> Dict[str, str]:
     if not _svc.delete_metric(metric_id):

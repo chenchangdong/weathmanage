@@ -20,6 +20,7 @@ from api.schemas import (
     SopAgentQueryRequest,
     SopAgentRunRequest,
     SopAgentRunBatchRequest,
+    SopEventCleanupRequest,
     SopRunBatchRequest,
     SopSystemSaveRequest,
 )
@@ -59,7 +60,11 @@ from core.allocation_report_ppt import (
     normalize_chapters,
     report_filename,
 )
-from core.wealth_journey_service import WealthJourneyService
+from core.wealth_journey_service import (
+    WealthJourneyService,
+    effective_personalized_flags,
+    personalized_allocation_block_message,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -205,14 +210,13 @@ def auto_rebalance(req: AutoRebalanceRequest) -> Dict[str, Any]:
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
         flag_codes = [
-            f["code"]
-            for f in diagnosis.get("flags", [])
-            if f.get("code") != "four_money_mismatch"
+            f["code"] for f in effective_personalized_flags(diagnosis.get("flags", []))
         ]
-        if not flag_codes:
+        block_msg = personalized_allocation_block_message(diagnosis.get("flags", []))
+        if block_msg:
             raise HTTPException(
                 status_code=400,
-                detail="财富健康，请用全账户一键配仓",
+                detail=block_msg,
             )
 
     engine = AutoRebalanceEngine()
@@ -672,6 +676,12 @@ def save_sop_system_config(req: SopSystemSaveRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@router.get("/sop/events/stats")
+def sop_events_stats() -> Dict[str, Any]:
+    store = SopEventStore()
+    return {"code": 0, "message": "ok", "data": store.stats()}
+
+
 @router.post("/sop/events/run-batch")
 def sop_run_batch(req: SopRunBatchRequest = SopRunBatchRequest()) -> Dict[str, Any]:
     """6.1.2 事件触发跑批（模拟每日扫描）。"""
@@ -682,8 +692,44 @@ def sop_run_batch(req: SopRunBatchRequest = SopRunBatchRequest()) -> Dict[str, A
         as_of = date.fromisoformat(req.as_of[:10])
     engine = SopRuleEngine()
     engine.reload()
-    result = engine.run_batch(as_of=as_of)
+    result = engine.run_batch(as_of=as_of, replace=req.replace)
     return {"code": 0, "message": "ok", "data": result}
+
+
+@router.post("/sop/events/cleanup")
+def sop_events_cleanup(req: SopEventCleanupRequest = SopEventCleanupRequest()) -> Dict[str, Any]:
+    """清理历史：clear_all 清空全部；否则删除 data_date 早于 N 天前的记录（默认 7 天）。"""
+    from datetime import date, timedelta
+
+    store = SopEventStore()
+    if req.clear_all:
+        removed = store.purge_all()
+        return {
+            "code": 0,
+            "message": "ok",
+            "data": {"mode": "all", "removed": removed},
+        }
+    days = req.retention_days if req.retention_days is not None else 7
+    cutoff = date.today() - timedelta(days=days)
+    removed = store.cleanup_before(cutoff)
+    return {
+        "code": 0,
+        "message": "ok",
+        "data": {
+            "mode": "days_ago",
+            "retention_days": days,
+            "cutoff_before": cutoff.isoformat(),
+            "removed": removed,
+        },
+    }
+
+
+@router.post("/sop/events/dedupe")
+def sop_events_dedupe() -> Dict[str, Any]:
+    """合并库内重复事件（同 data_date + 产品 + 组合事件/规则）。"""
+    store = SopEventStore()
+    removed = store.dedupe_all()
+    return {"code": 0, "message": "ok", "data": {"removed": removed}}
 
 
 @router.get("/sop/rule-logs")
@@ -703,6 +749,7 @@ def sop_list_events(
     big_class: Optional[str] = Query(None),
     keyword: Optional[str] = Query(None),
     drawdown_only: bool = Query(False),
+    composite_code: Optional[str] = Query(None),
 ) -> Dict[str, Any]:
     engine = SopRuleEngine()
     events = engine.query_events(
@@ -711,8 +758,9 @@ def sop_list_events(
         big_class=big_class,
         keyword=keyword,
         drawdown_only=drawdown_only,
+        composite_code=composite_code,
     )
-    return {"code": 0, "message": "ok", "data": {"events": events}}
+    return {"code": 0, "message": "ok", "data": {"events": events, "total": len(events)}}
 
 
 @router.post("/sop/agent/query")

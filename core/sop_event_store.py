@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +66,176 @@ class SopEventStore:
             seq = int(data.get("next_event_seq") or 1)
             data["next_event_seq"] = seq + 1
             return f"EVT{seq:02d}"
+
+        return self._mutate(_update)
+
+    @staticmethod
+    def rule_log_key(hit: dict[str, Any]) -> tuple[str, str, str]:
+        """产品 + 规则 + 数据日，用于跑批去重。"""
+        metrics = hit.get("metrics") or {}
+        data_date = metrics.get("data_date") or ""
+        if not data_date and hit.get("business_no"):
+            parts = str(hit["business_no"]).rsplit("_", 1)
+            if len(parts) == 2:
+                data_date = parts[1]
+        return (
+            str(hit.get("product_code") or ""),
+            str(hit.get("rule_code") or ""),
+            str(data_date),
+        )
+
+    @staticmethod
+    def composite_event_key(evt: dict[str, Any]) -> tuple[str, str, str]:
+        """产品 + 组合事件 + 数据日，用于跑批去重。"""
+        return (
+            str(evt.get("product_code") or ""),
+            str(evt.get("composite_code") or ""),
+            str(evt.get("data_date") or ""),
+        )
+
+    def existing_rule_log_keys(self, *, data_date: str | None = None) -> set[tuple[str, str, str]]:
+        keys: set[tuple[str, str, str]] = set()
+        for row in self._load()["rule_logs"]:
+            key = self.rule_log_key(row)
+            if data_date and key[2] != data_date:
+                continue
+            keys.add(key)
+        return keys
+
+    def existing_composite_keys(self, *, data_date: str | None = None) -> set[tuple[str, str, str]]:
+        keys: set[tuple[str, str, str]] = set()
+        for evt in self._load()["composite_events"]:
+            key = self.composite_event_key(evt)
+            if data_date and key[2] != data_date:
+                continue
+            keys.add(key)
+        return keys
+
+    def purge_data_date(self, data_date: str) -> dict[str, int]:
+        """删除指定数据日的规则日志、组合事件及关联智能体输出。"""
+
+        def _update(data: dict[str, Any]) -> dict[str, int]:
+            removed_event_ids = {
+                e["event_id"]
+                for e in data["composite_events"]
+                if e.get("data_date") == data_date and e.get("event_id")
+            }
+            rule_logs = [
+                r
+                for r in data["rule_logs"]
+                if self.rule_log_key(r)[2] != data_date
+            ]
+            composite_events = [
+                e for e in data["composite_events"] if e.get("data_date") != data_date
+            ]
+            agent_outputs = dict(data.get("agent_outputs") or {})
+            for eid in removed_event_ids:
+                agent_outputs.pop(eid, None)
+            removed_rules = len(data["rule_logs"]) - len(rule_logs)
+            removed_events = len(data["composite_events"]) - len(composite_events)
+            data["rule_logs"] = rule_logs
+            data["composite_events"] = composite_events
+            data["agent_outputs"] = agent_outputs
+            return {
+                "rule_logs": removed_rules,
+                "composite_events": removed_events,
+                "agent_outputs": len(removed_event_ids),
+            }
+
+        return self._mutate(_update)
+
+    def cleanup_before(self, before_date: date) -> dict[str, int]:
+        """删除 data_date 严格早于 before_date 的记录（不含 before_date 当天）。"""
+        cutoff = before_date.isoformat()
+
+        def _update(data: dict[str, Any]) -> dict[str, int]:
+            removed_event_ids = {
+                e["event_id"]
+                for e in data["composite_events"]
+                if (e.get("data_date") or "") < cutoff and e.get("event_id")
+            }
+            rule_logs = [r for r in data["rule_logs"] if self.rule_log_key(r)[2] >= cutoff]
+            composite_events = [
+                e for e in data["composite_events"] if (e.get("data_date") or "") >= cutoff
+            ]
+            agent_outputs = dict(data.get("agent_outputs") or {})
+            for eid in removed_event_ids:
+                agent_outputs.pop(eid, None)
+            removed_rules = len(data["rule_logs"]) - len(rule_logs)
+            removed_events = len(data["composite_events"]) - len(composite_events)
+            data["rule_logs"] = rule_logs
+            data["composite_events"] = composite_events
+            data["agent_outputs"] = agent_outputs
+            return {
+                "rule_logs": removed_rules,
+                "composite_events": removed_events,
+                "agent_outputs": len(removed_event_ids),
+            }
+
+        return self._mutate(_update)
+
+    def dedupe_all(self) -> dict[str, int]:
+        """合并历史重复记录：同 data_date+产品+规则/组合事件只保留一条。"""
+
+        def _pick_best_event(rows: list[dict[str, Any]]) -> dict[str, Any]:
+            def score(e: dict[str, Any]) -> tuple[int, str]:
+                status = e.get("agent_status") or "pending"
+                has_out = 1 if status == "done" else 0
+                return (has_out, e.get("event_id") or "")
+
+            return max(rows, key=score)
+
+        def _update(data: dict[str, Any]) -> dict[str, int]:
+            agent_outputs = dict(data.get("agent_outputs") or {})
+            by_event: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+            for evt in data["composite_events"]:
+                by_event.setdefault(self.composite_event_key(evt), []).append(evt)
+
+            kept_events: list[dict[str, Any]] = []
+            removed_event_ids: set[str] = set()
+            for group in by_event.values():
+                best = _pick_best_event(group)
+                kept_events.append(best)
+                for other in group:
+                    if other.get("event_id") != best.get("event_id") and other.get("event_id"):
+                        removed_event_ids.add(other["event_id"])
+
+            by_rule: dict[tuple[str, str, str], dict[str, Any]] = {}
+            for row in data["rule_logs"]:
+                key = self.rule_log_key(row)
+                prev = by_rule.get(key)
+                if not prev or (row.get("id") or 0) > (prev.get("id") or 0):
+                    by_rule[key] = row
+
+            for eid in removed_event_ids:
+                agent_outputs.pop(eid, None)
+
+            removed_events = len(data["composite_events"]) - len(kept_events)
+            removed_rules = len(data["rule_logs"]) - len(by_rule.values())
+            data["composite_events"] = kept_events
+            data["rule_logs"] = list(by_rule.values())
+            data["agent_outputs"] = agent_outputs
+            return {
+                "rule_logs": removed_rules,
+                "composite_events": removed_events,
+                "agent_outputs": len(removed_event_ids),
+            }
+
+        return self._mutate(_update)
+
+    def purge_all(self) -> dict[str, int]:
+        """清空全部规则日志、组合事件及智能体输出。"""
+
+        def _update(data: dict[str, Any]) -> dict[str, int]:
+            removed = {
+                "rule_logs": len(data["rule_logs"]),
+                "composite_events": len(data["composite_events"]),
+                "agent_outputs": len(data.get("agent_outputs") or {}),
+            }
+            data["rule_logs"] = []
+            data["composite_events"] = []
+            data["agent_outputs"] = {}
+            return removed
 
         return self._mutate(_update)
 
@@ -169,3 +340,18 @@ class SopEventStore:
 
     def get_agent_output(self, event_id: str) -> dict[str, Any] | None:
         return self._load()["agent_outputs"].get(event_id)
+
+    def stats(self) -> dict[str, int]:
+        data = self._load()
+        events = data["composite_events"]
+        pending = sum(
+            1
+            for e in events
+            if e.get("agent_status") in (None, "pending", "failed", "running")
+        )
+        return {
+            "composite_events": len(events),
+            "rule_logs": len(data["rule_logs"]),
+            "agent_outputs": len(data.get("agent_outputs") or {}),
+            "pending": pending,
+        }

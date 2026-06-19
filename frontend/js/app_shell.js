@@ -11,12 +11,19 @@
 
   const NAV_SECTIONS = [
     {
-      divider: '核心业务',
+      divider: '资配旅程',
       items: [
         { id: 'wealth_inventory', label: '财富盘点', href: 'wealth_inventory.html', leaf: true },
         { id: 'asset_diagnosis', label: '资产诊断', href: 'asset_diagnosis.html', leaf: true },
         { id: 'smart_allocation_setup', label: '智能资配', href: 'smart_allocation_setup.html', leaf: true },
-        { id: 'sop_agent', label: 'SOP投后智能体', href: 'sop_agent.html', leaf: true },
+      ],
+    },
+    {
+      divider: 'SOP 投后',
+      items: [
+        { id: 'sop_agent', label: '智能体工作台', href: 'sop_agent.html', leaf: true },
+        { id: 'rule_strategy', label: '规则策略', href: 'admin/rule_strategy.html', leaf: true },
+        { id: 'sop_product_library', label: '产品信息库', href: 'admin/sop_product_library.html', leaf: true },
       ],
     },
     {
@@ -26,8 +33,6 @@
           id: 'ops',
           label: '运营管理',
           items: [
-            { id: 'rule_strategy', label: '规则策略', href: 'admin/rule_strategy.html' },
-            { id: 'sop_product_library', label: 'SOP产品信息库', href: 'admin/sop_product_library.html' },
             { id: 'data_dict', label: '数据字典', href: 'admin/data_dict.html' },
             { id: 'model_config', label: '模型建立', href: 'admin/model_config.html' },
             { id: 'portfolio_mapping', label: '模型指派', href: 'admin/portfolio_mapping.html' },
@@ -98,7 +103,8 @@
   function resolveHref(href, admin) {
     if (admin) {
       if (href.startsWith('admin/')) return href.slice(6);
-      return '../' + href;
+      if (!href.startsWith('../') && !href.startsWith('http')) return '../' + href;
+      return href;
     }
     return href;
   }

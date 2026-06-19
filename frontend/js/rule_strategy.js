@@ -235,7 +235,7 @@
     const isEdit = !!row;
     const body =
       '<div class="form-grid">' +
-      field('rule_code', '规则编码', row && row.rule_code, !isEdit) +
+      field('rule_code', '规则编码', row && row.rule_code, isEdit) +
       field('rule_name', '规则名称', row && row.rule_name) +
       '<div class="form-field"><label>业务类型</label><select name="biz_type">' + bizTypeOptions(row && row.biz_type) + '</select></div>' +
       '<div class="form-field"><label>规则表达式</label><textarea name="rule_expr" class="code-input">' + esc(row && row.rule_expr || 'max_drawdown > 5') + '</textarea></div>' +
@@ -285,33 +285,50 @@
         '<tr><td>' + esc(m.metric_code) + '</td><td>' + esc(m.metric_name) + '</td>' +
         '<td>' + esc(getBizTypeLabel(m.biz_type)) + '</td><td><code>' + esc(m.value_field) + '</code></td>' +
         '<td>' + esc(m.remark) + '</td>' +
-        '<td><button type="button" class="btn-link danger" data-del="' + m.id + '">删除</button></td></tr>'
+        '<td><div class="table-actions">' +
+        '<button type="button" class="btn-link" data-edit="' + m.id + '">编辑</button>' +
+        '<button type="button" class="btn-link danger" data-del="' + m.id + '">删除</button>' +
+        '</div></td></tr>'
       ).join('');
     }
 
-    document.getElementById('btnAddMetric').addEventListener('click', () => {
-      const form =
-        '<div class="form-grid">' +
-        field('metric_code', '指标编码', '') +
-        field('metric_name', '指标名称', '') +
-        '<div class="form-field"><label>业务类型</label><select name="biz_type">' + bizTypeOptions('product_drawdown') + '</select></div>' +
-        field('value_field', '取值字段', 'max_drawdown') +
-        field('remark', '备注', '', false, true) +
-        '</div>';
-      openDrawer('新增指标', form, async (backdrop) => {
-        const data = readForm(backdrop, ['metric_code', 'metric_name', 'biz_type', 'value_field', 'remark']);
-        await apiFetch('/api/rule/metric/add', { method: 'POST', body: JSON.stringify(data) });
-        toast('已添加');
-        renderActiveTab();
-      });
-    });
-
+    document.getElementById('btnAddMetric').addEventListener('click', () => showMetricDrawer(null));
     body.addEventListener('click', async (e) => {
+      const edit = e.target.closest('[data-edit]');
       const del = e.target.closest('[data-del]');
-      if (!del) return;
-      if (!confirm('确认删除该指标？')) return;
-      await apiFetch('/api/rule/metric/' + del.dataset.del, { method: 'DELETE' });
-      toast('已删除');
+      if (edit) {
+        const row = metrics.find((m) => m.id === Number(edit.dataset.edit));
+        if (row) showMetricDrawer(row);
+      } else if (del) {
+        if (!confirm('确认删除该指标？')) return;
+        await apiFetch('/api/rule/metric/' + del.dataset.del, { method: 'DELETE' });
+        toast('已删除');
+        renderActiveTab();
+      }
+    });
+  }
+
+  function showMetricDrawer(row) {
+    const isEdit = !!row;
+    const bodyHtml =
+      '<div class="form-grid">' +
+      field('metric_code', '指标编码', row && row.metric_code, isEdit) +
+      field('metric_name', '指标名称', row && row.metric_name) +
+      '<div class="form-field"><label>业务类型</label><select name="biz_type">' +
+      bizTypeOptions(row && row.biz_type ? row.biz_type : 'product_drawdown') +
+      '</select></div>' +
+      field('value_field', '取值字段', row ? row.value_field : 'max_drawdown') +
+      field('remark', '备注', row && row.remark, false, true) +
+      '</div>';
+
+    openDrawer(isEdit ? '编辑指标' : '新增指标', bodyHtml, async (backdrop) => {
+      const data = readForm(backdrop, ['metric_code', 'metric_name', 'biz_type', 'value_field', 'remark']);
+      if (isEdit) {
+        await apiFetch('/api/rule/metric/' + row.id, { method: 'PUT', body: JSON.stringify(data) });
+      } else {
+        await apiFetch('/api/rule/metric/add', { method: 'POST', body: JSON.stringify(data) });
+      }
+      toast('保存成功');
       renderActiveTab();
     });
   }
@@ -798,6 +815,7 @@
       apiRow('POST', '/api/rule/config/{id}/enable|disable', '启用/禁用') +
       apiRow('GET', '/api/rule/metric/list', '指标列表') +
       apiRow('POST', '/api/rule/metric/add', '新增指标') +
+      apiRow('PUT', '/api/rule/metric/{id}', '编辑指标') +
       apiRow('GET', '/api/rule/biz-type/list', '规则分组') +
       apiRow('GET', '/api/rule/event/list', '事件总览') +
       apiRow('GET', '/api/rule/run-detail/list', '运行明细') +

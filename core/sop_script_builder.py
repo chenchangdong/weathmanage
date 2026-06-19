@@ -36,14 +36,24 @@ class SopScriptBuilder:
         perf = product_info.get("performance") or {}
         rec = research.get("recommendation") or ""
         structured = research.get("structured") or {}
+        composite = event.get("composite_code") or ""
         research_summary = rec or structured.get("outlook") or research.get("conclusion") or ""
+        if composite == "EVT_YIELD" and research_summary:
+            research_summary = research_summary.replace("回撤收敛", "收益修复").replace(
+                "最大回撤继续扩大", "收益继续走弱"
+            )
 
+        yield_rate = perf.get("yield_rate", "—")
         ctx = {
             "product_name": static.get("product_name") or event.get("product_name") or "",
             "drawdown_summary": event.get("drawdown_detail") or "出现一定回撤",
             "weekly_drawdown": perf.get("weekly_drawdown", "—"),
             "max_drawdown": perf.get("max_drawdown", "—"),
-            "yield_summary": event.get("drawdown_detail") or "低于预期",
+            "yield_summary": (
+                event.get("drawdown_detail")
+                if composite == "EVT_YIELD" and event.get("drawdown_detail")
+                else f"近60日收益率 {yield_rate}%，低于预期"
+            ),
             "research_summary": research_summary,
         }
         greeting = tpl.get("greeting") or "尊敬的客户，您好。"

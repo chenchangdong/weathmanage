@@ -29,16 +29,26 @@ class SopProductInfoService:
             c["code"]: c["label"]
             for c in self.product_lib.get_config().get("category_options") or []
         }
+        asset_type_map = {
+            c["code"]: c["label"]
+            for c in self.product_lib.get_config().get("asset_type_options") or []
+        }
         cat = prod.get("category") or ""
+        asset_type = (prod.get("asset_type") or "").strip()
+        strategy_type = (prod.get("strategy_type") or "").strip()
         return {
             "product_id": product_code,
             "product_name": prod.get("product_name", product_code),
             "product_code": prod.get("product_code", product_code),
             "product_type": category_map.get(cat, cat or "—"),
-            "strategy_type": prod.get("strategy_type") or cat or "多策略",
+            "category": cat,
+            "category_label": category_map.get(cat, cat or "—"),
+            "asset_type": asset_type,
+            "asset_type_label": asset_type_map.get(asset_type, asset_type or "—"),
+            "strategy_type": strategy_type or "—",
             "fund_manager": mgr_name,
             "investment_strategy": prod.get("conclusion")
-            or (prod.get("strategy_type") or "多策略") + "策略",
+            or ((strategy_type or category_map.get(cat, cat)) + "策略" if (strategy_type or cat) else "—"),
             "benchmark": "中证800",
             "management_org": mgr_name,
             "risk_level": prod.get("rating") or "—",
@@ -75,7 +85,7 @@ class SopProductInfoService:
         if ds.get("product_reports") in (None, "none"):
             degraded.append("product_reports")
         notes = [
-            "静态信息：SOP产品信息库 sop_product_library.yaml",
+            "静态信息：统一产品库 product_library.yaml",
             "业绩指标：mock_product_metrics 模拟（无评价 API）",
         ]
         if "product_reports" in degraded:
@@ -87,7 +97,7 @@ class SopProductInfoService:
             "source_note": " · ".join(notes),
             "degraded": degraded,
             "data_source": {
-                "product_static": ds.get("product_static", "sop_product_library"),
+                "product_static": ds.get("product_static", "product_library"),
                 "product_performance": ds.get("product_performance", "mock"),
             },
         }

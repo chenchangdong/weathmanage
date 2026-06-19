@@ -114,3 +114,9 @@ class SopAgentRunBatchRequest(BaseModel):
 
 class SopRunBatchRequest(BaseModel):
     as_of: Optional[str] = None
+    replace: bool = False
+
+
+class SopEventCleanupRequest(BaseModel):
+    retention_days: Optional[int] = None
+    clear_all: bool = False

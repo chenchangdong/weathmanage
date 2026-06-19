@@ -120,7 +120,7 @@ demo_customers:
     invest_experience: 5
     invest_horizon_years: 6
     family_dependents: 1
-    notes: 稳健型纯投资客户，未配置重疾险或意外险；未持仓活钱存款(P000)；财富健康标志为本金损失超阈值
+    notes: 稳健型纯投资客户，未配置重疾险或意外险；未持仓活钱存款(000)；财富健康标志为本金损失超阈值
 
   - customer_id: C20250602008
     name: 孙女士

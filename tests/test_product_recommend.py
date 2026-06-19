@@ -15,26 +15,26 @@ class TestProductRecommendService:
         svc = ProductRecommendService()
         result = svc.recommend(CUSTOMER_ID, "fixed_income")
         codes = {p["code"] for p in result["products"]}
-        assert "P003" not in codes
-        assert "P004" not in codes
+        assert "003" not in codes
+        assert "004" not in codes
         assert result["customer_risk_level"] == 3
 
     def test_recommend_fixed_income_for_balanced(self):
         svc = ProductRecommendService()
         result = svc.recommend(CUSTOMER_ID, "fixed_income")
         assert len(result["products"]) == 1
-        assert result["products"][0]["code"] == "P005"
+        assert result["products"][0]["code"] == "005"
 
     def test_recommend_alternative_for_balanced(self):
         svc = ProductRecommendService()
         result = svc.recommend(CUSTOMER_ID, "alternative")
         assert len(result["products"]) == 1
-        assert result["products"][0]["code"] == "P011"
+        assert result["products"][0]["code"] == "011"
         assert result["products"][0]["risk_level"] == 3
 
     def test_recommend_respects_exclude_codes(self):
         svc = ProductRecommendService()
-        result = svc.recommend(CUSTOMER_ID, "fixed_income", exclude_codes=["P005"])
+        result = svc.recommend(CUSTOMER_ID, "fixed_income", exclude_codes=["005"])
         assert result["products"] == []
 
     def test_recommend_max_two(self):
@@ -53,7 +53,7 @@ class TestAIRecommendAPI:
         data = resp.json()["data"]
         assert data["customer_risk_level"] == 3
         assert len(data["products"]) == 1
-        assert data["products"][0]["code"] == "P005"
+        assert data["products"][0]["code"] == "005"
         assert data["products"][0]["recommend_reason"]
 
     def test_ai_recommend_unknown_category(self, client):

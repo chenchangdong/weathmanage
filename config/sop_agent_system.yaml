@@ -8,16 +8,26 @@ batch_schedule:
   minute: 0
   run_agent_after_batch: true
   timezone_note: 服务器本地时区
+event_retention:
+  enabled: true
+  days: 30
 data_sources:
-  product_static: sop_product_library
+  product_static: product_library
   product_performance: mock
   product_reports: none
   evaluation_db: none
+mock_performance:
+  alert_ratio_pct: 12
+  note: 约 12% 产品在单日跑批中触发告警（18 个产品约 2 条事件），其余为正常业绩
 event_description:
   header: '【{data_date} 售后提醒】'
   detail_columns:
   - key: product_name
     label: 产品名称
+  - key: category_label
+    label: 风险属性
+  - key: asset_type_label
+    label: 资产类型
   - key: daily_drawdown
     label: 单日最大回撤
     suffix: '%'
@@ -29,6 +39,23 @@ event_description:
   - key: drawdown_days
     label: 回撤持续天数
     suffix: 天
+  - key: data_date
+    label: 数据采集时间
+  - key: trigger_status
+    label: 触发状态
+  yield_detail_columns:
+  - key: product_name
+    label: 产品名称
+  - key: category_label
+    label: 风险属性
+  - key: asset_type_label
+    label: 资产类型
+  - key: yield_rate
+    label: 近60日收益率
+    suffix: '%'
+  - key: max_drawdown
+    label: 最大回撤
+    suffix: '%'
   - key: data_date
     label: 数据采集时间
   - key: trigger_status

@@ -15,6 +15,31 @@ from core.config_loader import (
 from core.sop_product_info_service import SopProductInfoService
 from core.sop_script_builder import SopScriptBuilder
 
+_ASSET_TYPE_FRAMEWORK: dict[str, str] = {
+    "fixed_income": "固收（纯债/债券型）",
+    "equity": "主动权益",
+    "alternative": "量化策略",
+    "cash": "default",
+}
+
+
+def is_yield_event(event: dict[str, Any]) -> bool:
+    if event.get("composite_code") == "EVT_YIELD":
+        return True
+    scenario = event.get("scenario") or ""
+    return "收益" in scenario and "回撤" not in scenario
+
+
+def event_phenomenon(event: dict[str, Any], perf: dict[str, Any] | None = None) -> str:
+    """事件现象描述：优先使用跑批写入的预警详情，收益类可降级从业绩拼写。"""
+    detail = (event.get("drawdown_detail") or "").strip()
+    if detail:
+        return detail.rstrip("。")
+    perf = perf or {}
+    if is_yield_event(event):
+        return f"近60日收益率 {perf.get('yield_rate', '—')}%，低于预期"
+    return "产品出现阶段性回撤"
+
 
 class SopAgentPipeline:
     """6.2 内容包编排：事件描述 → 产品信息 → 投研分析 → 对客话术。"""
@@ -70,14 +95,16 @@ class SopAgentPipeline:
         metrics = {
             **perf,
             "product_name": static.get("product_name") or event.get("product_name"),
+            "category_label": event.get("category_label") or static.get("category_label"),
+            "asset_type_label": event.get("asset_type_label") or static.get("asset_type_label"),
             "trigger_status": "已触发",
         }
 
+        phenomenon = event_phenomenon(event, perf)
         conclusion_lines: list[str] = []
-        detail = event.get("drawdown_detail") or ""
-        if detail:
+        if phenomenon:
             conclusion_lines.append(
-                f"{metrics['product_name']}{detail.rstrip('。')}。"
+                f"{metrics['product_name']}{phenomenon}。"
             )
         else:
             for rule_code in event.get("rule_hits") or []:
@@ -95,7 +122,10 @@ class SopAgentPipeline:
         for cl in conclusion_lines:
             lines.append(f"  {cl}")
 
-        columns = cfg.get("detail_columns") or []
+        if is_yield_event(event):
+            columns = cfg.get("yield_detail_columns") or []
+        else:
+            columns = cfg.get("detail_columns") or []
         if columns:
             lines.append("")
             lines.append("- 明细:")
@@ -136,10 +166,21 @@ class SopAgentPipeline:
         pkg = self.product_info_svc.fetch_info_package(product_code, as_of)
         return {"step": "6.2.2", **pkg}
 
-    def _resolve_framework_key(self, strategy_type: str) -> str:
+    def _resolve_framework_key(
+        self, event: dict[str, Any], static: dict[str, Any]
+    ) -> str:
         mapping = self.rule_cfg.get("strategy_frameworks") or {}
-        fw_key = mapping.get(strategy_type) or mapping.get("default") or "default"
         frameworks = self.frameworks_cfg.get("frameworks") or {}
+
+        strategy_type = (static.get("strategy_type") or event.get("strategy_type") or "").strip()
+        if strategy_type in ("—", ""):
+            asset_type = (static.get("asset_type") or event.get("asset_type") or "").strip()
+            fw_key = _ASSET_TYPE_FRAMEWORK.get(asset_type)
+            if fw_key and fw_key in frameworks:
+                return fw_key
+            strategy_type = (static.get("product_type") or "").strip()
+
+        fw_key = mapping.get(strategy_type) or mapping.get("default") or "default"
         if fw_key not in frameworks:
             return "default"
         return fw_key
@@ -154,8 +195,7 @@ class SopAgentPipeline:
         """6.2.3 投研分析（框架库 + 可选 LLM）。"""
         static = product_info.get("static") or {}
         perf = product_info.get("performance") or {}
-        strategy_type = static.get("strategy_type") or event.get("strategy_type") or ""
-        fw_key = self._resolve_framework_key(strategy_type)
+        fw_key = self._resolve_framework_key(event, static)
         fw = (self.frameworks_cfg.get("frameworks") or {}).get(fw_key) or {}
 
         draft = self._build_research_template(event, static, perf, fw, fw_key, product_info)
@@ -186,22 +226,50 @@ class SopAgentPipeline:
         fw_key: str,
         product_info: dict[str, Any],
     ) -> dict[str, Any]:
-        phenomenon = event.get("drawdown_detail") or "产品出现阶段性回撤"
-        product_part = (
-            f"产品层面（{fw.get('label', fw_key)}）：{static.get('product_name')}采用"
-            f"{static.get('investment_strategy')}。"
-            f"{fw.get('product_prompt', '')} "
-            f"近一周回撤 {perf.get('weekly_drawdown')}%，最大回撤 {perf.get('max_drawdown')}%。"
-        )
+        yield_evt = is_yield_event(event)
+        phenomenon = event_phenomenon(event, perf)
+
+        if yield_evt:
+            product_prompt = (
+                fw.get("yield_product_prompt")
+                or fw.get("product_prompt", "")
+            ).replace("回撤", "收益")
+            product_part = (
+                f"产品层面（{fw.get('label', fw_key)}）：{static.get('product_name')}采用"
+                f"{static.get('investment_strategy')}。"
+                f"{product_prompt} "
+                f"近60日收益率 {perf.get('yield_rate')}%，"
+                f"最大回撤 {perf.get('max_drawdown')}%。"
+            )
+            market_part = fw.get("yield_market_prompt") or fw.get("market_prompt") or ""
+            market_part = f"市场层面：{market_part.replace('回撤', '收益')}"
+            recommendation = (
+                fw.get("yield_recommendation_default")
+                or fw.get("recommendation_default")
+                or "建议与客户沟通收益不达预期原因，短期以持有观察为主。"
+            )
+            if event.get("level") == "高":
+                recommendation = (
+                    "建议与客户充分沟通收益偏离原因，短期以安抚为主，暂不主动建议大幅调仓。"
+                )
+        else:
+            product_part = (
+                f"产品层面（{fw.get('label', fw_key)}）：{static.get('product_name')}采用"
+                f"{static.get('investment_strategy')}。"
+                f"{fw.get('product_prompt', '')} "
+                f"近一周回撤 {perf.get('weekly_drawdown')}%，最大回撤 {perf.get('max_drawdown')}%。"
+            )
+            market_part = fw.get("market_prompt") or "关注宏观与市场波动对产品的传导。"
+            market_part = f"市场层面：{market_part}"
+            recommendation = fw.get("recommendation_default") or "建议持有观察。"
+            if event.get("level") == "高":
+                recommendation = (
+                    "建议与客户充分沟通回撤原因，短期以安抚为主，暂不主动建议大幅调仓。"
+                )
+
         if static.get("conclusion"):
             product_part += f" 产品库结论：{static['conclusion'][:80]}。"
-        market_part = fw.get("market_prompt") or "关注宏观与市场波动对产品的传导。"
-        market_part = f"市场层面：{market_part}"
-        recommendation = fw.get("recommendation_default") or "建议持有观察。"
-        if event.get("level") == "高":
-            recommendation = (
-                "建议与客户充分沟通回撤原因，短期以安抚为主，暂不主动建议大幅调仓。"
-            )
+
         report_note = ""
         if "product_reports" in (product_info.get("degraded") or []):
             report_note = "未检索到该产品专项研报（知识库未接入，已降级为基础画像）"
@@ -241,8 +309,12 @@ class SopAgentPipeline:
         rcfg = self.agent_cfg.get("research") or {}
         wmin = rcfg.get("word_count_min", 300)
         wmax = rcfg.get("word_count_max", 350)
+        event_kind = "收益预警" if is_yield_event(event) else "回撤预警"
         prompt = (
-            f"你是投后跟踪智能体。基于事件、产品信息与分析框架「{fw.get('label')}」，"
+            f"你是投后跟踪智能体。当前为{event_kind}事件，分析须围绕"
+            f"{'收益率/收益不达预期' if is_yield_event(event) else '回撤/净值波动'}，"
+            f"勿将收益预警写成回撤预警。"
+            f"基于事件、产品信息与分析框架「{fw.get('label')}」，"
             f"输出 JSON 对象，字段：product_analysis, market_analysis, conclusion, recommendation, "
             f"structured（含 phenomenon, cause, outlook）。"
             f"投研正文 {wmin}-{wmax} 字。禁用「暴跌」等词。\n\n"

@@ -641,8 +641,8 @@ class AutoRebalanceEngine:
         result = {c: 0.0 for c in self.categories}
         for code, amount in holdings.items():
             prod = self.products.get(code)
-            if prod and prod.get("category"):
-                result[prod["category"]] += amount
+            if prod and prod.get("four_money_category"):
+                result[prod["four_money_category"]] += amount
         return result
 
     def _aggregate_by_asset_type(self, holdings: dict[str, float]) -> dict[str, float]:
@@ -686,8 +686,8 @@ class AutoRebalanceEngine:
         result = {c: 0.0 for c in self.categories}
         for code, amount in product_targets.items():
             prod = self.products.get(code)
-            if prod and prod.get("category"):
-                result[prod["category"]] += amount
+            if prod and prod.get("four_money_category"):
+                result[prod["four_money_category"]] += amount
         return {cat: round(amt, 2) for cat, amt in result.items()}
 
     def _solve_category_targets(
@@ -1046,12 +1046,17 @@ class AutoRebalanceEngine:
     def _product_min(self, code: str) -> float:
         if not self._product_limits_enabled():
             return 0.0
-        return self.products[code].get("min_amount", 0)
+        prod = self.products.get(code) or {}
+        return prod.get("min_amount") or 0.0
 
     def _product_max(self, code: str) -> float:
         if not self._product_limits_enabled():
             return float("inf")
-        return self.products[code].get("max_amount", float("inf"))
+        prod = self.products.get(code) or {}
+        raw = prod.get("max_amount")
+        if raw is None or raw == "":
+            return float("inf")
+        return float(raw)
 
     def _allocate_with_spillover(
         self,
@@ -1312,7 +1317,7 @@ class AutoRebalanceEngine:
             cat_key = (
                 prod.get("asset_type", "")
                 if use_asset_type_key
-                else prod.get("category", "")
+                else prod.get("four_money_category", "")
             )
             deltas.append(
                 ProductDelta(

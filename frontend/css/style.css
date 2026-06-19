@@ -1392,6 +1392,25 @@ body {
   margin-left: auto;
 }
 
+.nav-bar-sop {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.nav-bar a.nav-sop {
+  border: 1px solid #b37feb;
+  color: #722ed1;
+  background: #f9f0ff;
+}
+
+.nav-bar a.nav-sop.active {
+  background: #722ed1;
+  color: #fff;
+  border-color: #722ed1;
+}
+
 .nav-bar a.nav-admin {
   border: 1px solid var(--primary);
   color: var(--primary);
@@ -2308,6 +2327,14 @@ body[data-advisor-dock] .advisor-chat-panel.open {
   text-decoration: none;
 }
 
+button.journey-step.link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
 .journey-step.link:hover {
   text-decoration: underline;
 }
@@ -2319,6 +2346,96 @@ body[data-advisor-dock] .advisor-chat-panel.open {
 .journey-step-arrow {
   color: #ccc;
   user-select: none;
+}
+
+/* SOP 投后旅程（与资配旅程区分：紫色配置条 + 可点击工作流步骤） */
+.page-sop-agent .page-header-compact {
+  padding: 16px 0 8px;
+}
+
+.sop-journey-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.sop-workflow-bar {
+  border-left: 3px solid var(--primary);
+}
+
+.journey-step.action {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  color: var(--primary);
+}
+
+.journey-step.action:hover {
+  text-decoration: underline;
+}
+
+.journey-step.action:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  text-decoration: none;
+}
+
+.sop-config-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #f9f0ff;
+  border: 1px solid #efdbff;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+}
+
+.sop-config-label {
+  color: #722ed1;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.sop-config-link {
+  color: #722ed1;
+  text-decoration: none;
+}
+
+.sop-config-link:hover {
+  text-decoration: underline;
+}
+
+.sop-config-link.active {
+  font-weight: 600;
+  color: #531dab;
+}
+
+.journey-step.muted-step {
+  color: var(--text-secondary);
+}
+
+.sop-config-sep {
+  color: #d3adf7;
+  user-select: none;
+}
+
+.page-sop-agent .sop-main {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 560px;
+}
+
+.page-sop-agent .sop-main[hidden] {
+  display: none !important;
 }
 
 .inventory-toolbar {

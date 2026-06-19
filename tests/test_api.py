@@ -76,8 +76,15 @@ class TestProductCandidatesAPI:
         data = resp.json()["data"]
         assert data["category"] == "preserve"
         codes = {p["code"] for p in data["products"]}
-        assert "P004" in codes
-        assert "P005" in codes
+        assert "004" in codes
+        assert "005" in codes
+
+    def test_sop_product_in_equity_candidates(self):
+        resp = client.get("/api/products/candidates?category=equity")
+        assert resp.status_code == 200
+        codes = {p["code"] for p in resp.json()["data"]["products"]}
+        assert "006" in codes
+        assert "C201" in codes
 
     def test_list_candidates_by_asset_type(self):
         resp = client.get("/api/products/candidates?category=fixed_income")
@@ -87,8 +94,8 @@ class TestProductCandidatesAPI:
         assert data["products"]
         assert all(p["category"] == "fixed_income" for p in data["products"])
         codes = {p["code"] for p in data["products"]}
-        assert "P004" in codes
-        assert "P005" in codes
+        assert "004" in codes
+        assert "005" in codes
 
 
 class TestManualAdjustAPI:
@@ -118,15 +125,15 @@ class TestManualAdjustAPI:
             "mode": "smart_one_click",
         }).json()["data"]["rebalance"]
         baseline = {d["product_code"]: d["target_amount"] for d in base["product_deltas"]}
-        baseline["P011"] = 0.0
+        baseline["011"] = 0.0
         resp = client.post("/api/allocation/manual_adjust", json={
             "customer_id": CUSTOMER_ID,
-            "product_targets": {"P011": 50000},
+            "product_targets": {"011": 50000},
             "baseline_product_targets": baseline,
         })
         assert resp.status_code == 200
         deltas = resp.json()["data"]["rebalance"]["product_deltas"]
-        p011 = next(d for d in deltas if d["product_code"] == "P011")
+        p011 = next(d for d in deltas if d["product_code"] == "011")
         assert p011["current_amount"] == 0.0
         assert p011["target_amount"] == 50000.0
         assert p011["action"] == "buy"

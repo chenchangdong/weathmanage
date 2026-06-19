@@ -26,8 +26,32 @@ def load_four_money_rule() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
+def load_product_library() -> dict[str, Any]:
+    return _load_yaml("product_library.yaml")
+
+
+@lru_cache(maxsize=1)
 def load_product_constraint() -> dict[str, Any]:
-    return _load_yaml("product_constraint.yaml")
+    """兼容：返回资配产品子集视图（原 product_constraint 结构）。"""
+    lib = load_product_library()
+    from core.product_library_utils import is_allocatable_product, normalize_product_record
+
+    products = [
+        normalize_product_record(p)
+        for p in lib.get("products") or []
+        if is_allocatable_product(p)
+    ]
+    return {
+        "version": lib.get("version", "2.0"),
+        "asset_types": lib.get("asset_types") or {},
+        "products": products,
+    }
+
+
+@lru_cache(maxsize=1)
+def load_sop_product_library() -> dict[str, Any]:
+    """兼容：SOP 模块读取统一产品库。"""
+    return load_product_library()
 
 
 @lru_cache(maxsize=1)
@@ -49,11 +73,6 @@ def is_product_limit_validation_enabled() -> bool:
     """是否启用产品 min_amount / max_amount 校验（默认 false）。"""
     cfg = load_page_constraint().get("product_limit_validation", {})
     return bool(cfg.get("enabled", False))
-
-
-@lru_cache(maxsize=1)
-def load_sop_product_library() -> dict[str, Any]:
-    return _load_yaml("sop_product_library.yaml")
 
 
 @lru_cache(maxsize=1)
@@ -130,6 +149,7 @@ def get_display_category_names(view_mode: str) -> dict[str, str]:
 def reload_all_configs() -> None:
     """Clear cache after config hot-reload."""
     load_four_money_rule.cache_clear()
+    load_product_library.cache_clear()
     load_product_constraint.cache_clear()
     load_customer_profile.cache_clear()
     load_four_money_page.cache_clear()
@@ -168,29 +188,42 @@ def get_asset_type_aliases() -> dict[str, str]:
 def enrich_product(product: dict[str, Any]) -> dict[str, Any]:
     """
     为产品补充派生字段：
-    - category: 四笔钱大类（由 asset_type 经 four_money_mapping 推导）
+    - four_money_category: 四笔钱大类（由 asset_type 经 four_money_mapping 推导）
     - asset_type_name: 资产类型中文名
+    - code/name: 与 product_id/product_name 对齐
     """
-    p = dict(product)
+    from core.product_library_utils import normalize_product_record, is_allocatable_product
+
+    p = normalize_product_record(product)
     asset_type = p.get("asset_type")
     aliases = get_asset_type_aliases()
     if asset_type:
         p["asset_type_name"] = aliases.get(asset_type, asset_type)
         mapping = get_asset_type_to_category()
         if asset_type in mapping:
-            p["category"] = mapping[asset_type]
+            p["four_money_category"] = mapping[asset_type]
     return p
 
 
 def get_all_products() -> list[dict[str, Any]]:
-    products = load_product_constraint().get("products", [])
-    return [enrich_product(p) for p in products]
+    from core.product_library_utils import is_allocatable_product
+
+    products = load_product_library().get("products", [])
+    rows = [p for p in products if is_allocatable_product(p)]
+    return [enrich_product(p) for p in rows]
+
+
+def get_all_library_products() -> list[dict[str, Any]]:
+    """统一产品库全部条目（资配 + SOP）。"""
+    from core.product_library_utils import normalize_product_record
+
+    return [normalize_product_record(p) for p in load_product_library().get("products") or []]
 
 
 def get_products_by_category() -> dict[str, list[dict[str, Any]]]:
     result: dict[str, list[dict[str, Any]]] = {}
     for p in get_all_products():
-        cat = p.get("category")
+        cat = p.get("four_money_category")
         if not cat:
             continue
         result.setdefault(cat, []).append(p)
@@ -221,7 +254,7 @@ def get_products_for_display_category(category: str) -> tuple[list[dict[str, Any
 
 
 def get_product_map() -> dict[str, dict[str, Any]]:
-    return {p["code"]: p for p in get_all_products()}
+    return {p["product_id"]: p for p in get_all_products()}
 
 
 def get_demo_customer(customer_id: str) -> dict[str, Any] | None:

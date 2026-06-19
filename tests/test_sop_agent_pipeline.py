@@ -21,11 +21,35 @@ def sample_event() -> dict:
         "composite_code": "EVT_DRAWDOWN",
         "product_code": "A108",
         "product_name": "test-磐石3.0-A108",
-        "strategy_type": "多策略",
+        "category": "low",
+        "category_label": "稳健型",
+        "asset_type": "fixed_income",
+        "asset_type_label": "固收类",
+        "strategy_type": "",
         "drawdown_detail": "近60日最大回撤达 -6.29%，超阈值 -5%",
         "rule_hits": ["RISK_MAX_DD_5"],
         "data_date": "2026-06-02",
         "level": "高",
+    }
+
+
+@pytest.fixture
+def sample_yield_event() -> dict:
+    return {
+        "event_id": "EVT100",
+        "scenario": "收益不达预期",
+        "composite_code": "EVT_YIELD",
+        "product_code": "prd-ms-B5",
+        "product_name": "磐石3.0（演示产品）",
+        "category": "mod",
+        "category_label": "平衡型",
+        "asset_type": "fixed_income",
+        "asset_type_label": "固收类",
+        "strategy_type": "",
+        "drawdown_detail": "近60日收益率 1.21%，低于阈值 2%",
+        "rule_hits": ["YIELD_LOW_2"],
+        "data_date": "2026-06-19",
+        "level": "中",
     }
 
 
@@ -42,11 +66,25 @@ class TestSopAgentPipeline:
         assert out["research_analysis"].get("framework")
         assert len(out["client_script"]) >= 50
 
+    def test_yield_pipeline_uses_yield_wording(self, sample_yield_event):
+        out = SopAgentPipeline().run(sample_yield_event, use_llm=False)
+        script = out["client_script"]
+        research = out["research_analysis"]
+        assert "收益率" in script
+        assert "回撤约" not in script
+        assert "收益" in research.get("structured", {}).get("phenomenon", "")
+        assert "回撤是否源于选股" not in research.get("product_analysis", "")
+        assert out["research_analysis"].get("framework") == "固收（纯债/债券型）"
+        assert "近60日收益率" in out["event_description"]
+        assert "单日最大回撤" not in out["event_description"]
+
     def test_product_info_degraded(self):
         pkg = SopProductInfoService().fetch_info_package("A108", "2026-06-02")
         assert "evaluation_db" in pkg["degraded"]
         assert "product_reports" in pkg["degraded"]
         assert pkg["static"]["product_name"]
+        assert pkg["static"]["category_label"] == "稳健型"
+        assert pkg["static"]["asset_type"] == "fixed_income"
 
     def test_banned_words_sanitize(self):
         raw = "市场出现暴跌，保证收益不受影响"

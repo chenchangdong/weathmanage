@@ -98,6 +98,7 @@
       planData = data;
       const rb = data.rebalance;
       const ex = data.explanation;
+      PlanEditor.initProductDisplayOrder(rb);
 
       const cat = (planData && planData.product_category) || getProductCategory();
       document.getElementById('subtitle').textContent =

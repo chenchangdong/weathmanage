@@ -115,8 +115,9 @@
     <div class="main">
       <header id="topbarMount"></header>
       <div class="content">
+        <div id="sopJourneyMount"></div>
         <div class="card operation-header-card">
-          <div class="page-desc">SOP 规则与投后智能体专用产品库，与资配底层产品（product_constraint）独立维护</div>
+          <div class="page-desc">统一产品信息库：资配底层产品（三位数字编码）与 SOP 投后产品（字母编码）一并维护</div>
           <div class="tab-row" id="mainTabs">
             <button type="button" class="tab-btn active" data-tab="products">产品信息</button>
             <button type="button" class="tab-btn" data-tab="managers">管理人维护</button>
@@ -129,9 +130,11 @@
   <div id="toast" class="toast-msg"></div>
   <script src="../js/common.js"></script>
   <script src="../js/app_shell.js"></script>
+  <script src="../js/sop_journey.js"></script>
   <script src="../js/sop_product_library.js"></script>
   <script>
-    initAppShell({ page: 'sop_product', title: 'SOP产品信息库', crumb: '运营管理 / SOP产品信息库', admin: true });
+    initAppShell({ page: 'sop_product', title: 'SOP产品信息库', crumb: 'SOP 投后 / 产品信息库', admin: true });
+    SopJourney.mount({ mount: '#sopJourneyMount', activePage: 'sop_product_library', workflowMode: 'config' });
   </script>
 </body>
 </html>

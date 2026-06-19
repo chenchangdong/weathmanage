@@ -16,20 +16,21 @@ from core.config_loader import (
     load_portfolio_mapping,
 )
 from core.data_store import get_customer_holdings
+from core.sop_wealth_flags import resolve_sop_wealth_flags
 
 PLANNING_CATEGORY = "投资规划"
 
 # 演示用模拟业绩（稳定、可复现；与模型基准对齐）
 # 四笔钱配置不合理 four_money_mismatch 由持仓实时计算，不在此表。
-# 各客户有效标志（不含 four_money_mismatch，与最新 data_store 对齐）：
-#   C001 张女士  return_above_expected
-#   C002 李先生  （无）
-#   C003 王先生  volatility_exceeded
-#   C004 赵女士  return_below_expected
-#   C005 陈先生  return_below_expected
-#   C006 刘女士  return_below_expected + principal_loss_exceeded
-#   C007 周先生  principal_loss_exceeded（未持仓 P000 活钱存款）
-#   C008 孙女士  return_below_expected + volatility_exceeded
+# 各客户有效标志（不含 four_money_mismatch，与最新 data_store + SOP 跑批对齐）：
+#   C001 张女士  return_above_expected（模拟）
+#   C002 李先生  max_drawdown_exceeded（SOP T305）
+#   C003 王先生  max_drawdown_exceeded（SOP P005）+ volatility_exceeded（模拟）
+#   C004 赵女士  return_below_expected（SOP prd-ms-B5）
+#   C005 陈先生  （无；收益类改由 SOP 驱动）
+#   C006 刘女士  principal_loss_exceeded（模拟）
+#   C007 周先生  principal_loss_exceeded（模拟）
+#   C008 孙女士  volatility_exceeded（模拟）
 _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
     "C20250602001": {
         "annual_return_pct": 9.0,
@@ -61,7 +62,7 @@ _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
         "principal_loss_pct": -5.0,
         "volatility_pct": 6.5,
     },
-    # 刘女士：收益不达预期 + 本金损失超阈值（复合场景，优先本金亏）
+    # 刘女士：本金损失超阈值（模拟）
     "C20250602006": {
         "annual_return_pct": 5.0,
         "month_return_pct": -0.2,
@@ -74,7 +75,7 @@ _MOCK_PERFORMANCE: dict[str, dict[str, float]] = {
         "principal_loss_pct": -3.8,
         "volatility_pct": 2.9,
     },
-    # 孙女士：收益不达预期 + 波动率超预期（复合场景，优先波动高）
+    # 孙女士：波动率超预期（模拟）
     "C20250602008": {
         "annual_return_pct": 5.5,
         "month_return_pct": -0.1,
@@ -87,6 +88,10 @@ _FLAG_DEFS: dict[str, dict[str, str]] = {
     "four_money_mismatch": {
         "label": "四笔钱配置不合理",
         "severity": "warn",
+    },
+    "max_drawdown_exceeded": {
+        "label": "最大回撤超阈值",
+        "severity": "danger",
     },
     "return_below_expected": {
         "label": "收益不达预期",
@@ -105,6 +110,20 @@ _FLAG_DEFS: dict[str, dict[str, str]] = {
         "severity": "danger",
     },
 }
+
+
+def effective_personalized_flags(flags: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """个性化智能配仓可用的财富标志（排除仅结构类 four_money_mismatch）。"""
+    return [f for f in flags if f.get("code") != "four_money_mismatch"]
+
+
+def personalized_allocation_block_message(flags: list[dict[str, Any]]) -> str | None:
+    """无法走个性化配仓时的提示；None 表示可以继续。"""
+    if effective_personalized_flags(flags):
+        return None
+    if any(f.get("code") == "four_money_mismatch" for f in flags):
+        return "四笔钱配置不合理，请使用「全账户一键智能最优配置」"
+    return "财富健康，请使用全账户一键配仓"
 
 
 class WealthJourneyService:
@@ -238,14 +257,16 @@ class WealthJourneyService:
 
         perf = self._performance(cid, risk, total, expect_ret, expect_vol)
         loss_threshold = self._loss_threshold(risk)
+        risk_name = get_risk_level_name(risk)
         flags = self._build_flags(
             any_fm_oob=any_fm_oob,
             perf=perf,
             expect_ret=expect_ret,
             expect_vol=expect_vol,
             loss_threshold=loss_threshold,
-            risk_name=get_risk_level_name(risk),
+            risk_name=risk_name,
             four_money=four_money,
+            holdings=invest_holdings,
         )
 
         month_amount = round(total * perf["month_return_pct"] / 100, 2)
@@ -309,6 +330,7 @@ class WealthJourneyService:
         loss_threshold: float,
         risk_name: str,
         four_money: list[dict[str, Any]],
+        holdings: dict[str, float],
     ) -> list[dict[str, Any]]:
         flags: list[dict[str, Any]] = []
 
@@ -323,13 +345,10 @@ class WealthJourneyService:
                 f"该客户{risk_name}，资产配置存在超配/低配（{'、'.join(oob_names)}），建议介入调整。",
             ))
 
+        flags.extend(resolve_sop_wealth_flags(holdings, risk_name=risk_name))
+
         annual = perf["annual_return_pct"]
-        if annual < expect_ret - 0.5:
-            flags.append(self._flag(
-                "return_below_expected",
-                f"该客户{risk_name}，模型预期年化收益 {expect_ret:.1f}%，实际 {annual:.1f}%，收益未达预期，建议优化持仓结构。",
-            ))
-        elif annual > expect_ret + 3:
+        if annual > expect_ret + 3:
             flags.append(self._flag(
                 "return_above_expected",
                 f"该客户{risk_name}，实际年化收益 {annual:.1f}% 明显高于模型预期 {expect_ret:.1f}%，可关注获利了结与再平衡。",

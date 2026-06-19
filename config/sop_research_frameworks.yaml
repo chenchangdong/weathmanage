@@ -50,6 +50,9 @@ frameworks:
     product_prompt: 分析久期、信用下沉及个券事件对回撤的贡献。
     market_prompt: 关注央行政策、利率曲线与信用环境变化。
     recommendation_default: 纯债产品回撤多为利率或信用因素，建议评估是否超出产品风险收益特征。
+    yield_product_prompt: 分析久期、信用暴露及票息环境对产品收益率的影响，判断收益偏低是否超出产品历史波动区间。
+    yield_market_prompt: 关注央行政策、利率曲线变动与信用环境对固收类产品收益的贡献。
+    yield_recommendation_default: 固收类产品收益短期波动常见，建议与客户沟通收益偏离原因并跟踪后续修复情况。
   default:
     label: 通用框架
     dimensions:
@@ -59,3 +62,6 @@ frameworks:
     product_prompt: 结合产品策略类型与近期业绩，分析回撤驱动因素。
     market_prompt: 结合宏观与市场环境，说明系统性与特异性因素。
     recommendation_default: 建议持有观察，与客户充分沟通回撤原因及后续跟踪指标。
+    yield_product_prompt: 结合产品策略与持仓结构，分析收益率偏低是否源于市场利率、信用环境或策略阶段性失效。
+    yield_market_prompt: 关注利率走势、信用利差与同类可比产品收益水平变化。
+    yield_recommendation_default: 建议与客户沟通收益不达预期原因，关注策略与市场环境，短期以持有观察为主。

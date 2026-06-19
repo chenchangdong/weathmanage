@@ -8,7 +8,7 @@ from typing import Any
 from core.config_loader import get_product_map
 from core.models import ProductDelta
 
-DEMAND_DEPOSIT_CODE = "P000"
+DEMAND_DEPOSIT_CODE = "000"
 LIQUID_CATEGORY_KEYS = frozenset({"spend", "cash"})
 
 

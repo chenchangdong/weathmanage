@@ -121,12 +121,17 @@ def save_portfolio_mapping(
     reload_all_configs()
 
 
-def save_sop_product_library(config: Dict[str, Any], version: str = "1.0") -> None:
-    """SOP 产品信息库 → sop_product_library.yaml（独立于资配 product_constraint）"""
+def save_product_library(config: Dict[str, Any], version: str = "2.0") -> None:
+    """统一产品库 → product_library.yaml"""
     payload = dict(config)
     payload["version"] = version
-    _dump_yaml(CONFIG_DIR / "sop_product_library.yaml", payload)
+    _dump_yaml(CONFIG_DIR / "product_library.yaml", payload)
     reload_all_configs()
+
+
+def save_sop_product_library(config: Dict[str, Any], version: str = "1.0") -> None:
+    """兼容：写入统一产品库。"""
+    save_product_library(config, version=config.get("version", version))
 
 
 def save_sop_rule_system(config: Dict[str, Any], version: str = "1.0") -> None:
