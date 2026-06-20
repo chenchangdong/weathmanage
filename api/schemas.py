@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AutoRebalanceRequest(BaseModel):
@@ -120,3 +120,37 @@ class SopRunBatchRequest(BaseModel):
 class SopEventCleanupRequest(BaseModel):
     retention_days: Optional[int] = None
     clear_all: bool = False
+
+
+class SopAgentPushRequest(BaseModel):
+    event_id: str
+    force: bool = False
+
+
+class SopBatchScheduleSaveRequest(BaseModel):
+    enabled: bool = True
+    hour: int = Field(20, ge=0, le=23)
+    minute: int = Field(0, ge=0, le=59)
+    run_agent_after_batch: bool = True
+    push_feishu_after_agent: bool = False
+
+    @model_validator(mode="after")
+    def normalize_push_after_agent(self) -> "SopBatchScheduleSaveRequest":
+        if not self.run_agent_after_batch:
+            object.__setattr__(self, "push_feishu_after_agent", False)
+        return self
+
+
+class SopAgentPushBatchRequest(BaseModel):
+    event_ids: Optional[List[str]] = None
+    all_done_unpushed: bool = True
+    limit: int = 20
+    force: bool = False
+
+
+class SopAdvisorResolveRequest(BaseModel):
+    advisor_id: str = "RM_CCD"
+
+
+class SopAdvisorSyncRequest(BaseModel):
+    force: bool = False

@@ -101,6 +101,30 @@ def load_sop_banned_words() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
+def load_advisor_directory() -> dict[str, Any]:
+    return _load_yaml("advisor_directory.yaml")
+
+
+def get_advisor_map() -> dict[str, dict[str, Any]]:
+    cfg = load_advisor_directory()
+    return {a["id"]: dict(a) for a in cfg.get("advisors") or [] if a.get("id")}
+
+
+def get_default_advisor_id() -> str:
+    profile = load_customer_profile()
+    if profile.get("default_advisor_id"):
+        return str(profile["default_advisor_id"])
+    return str(load_advisor_directory().get("default_advisor_id") or "")
+
+
+def get_feishu_app_credentials() -> tuple[str, str]:
+    """飞书应用凭证：优先读环境变量，勿写入配置文件。"""
+    app_id = os.environ.get("FEISHU_APP_ID", "").strip()
+    app_secret = os.environ.get("FEISHU_APP_SECRET", "").strip()
+    return app_id, app_secret
+
+
+@lru_cache(maxsize=1)
 def load_four_money_mapping() -> dict[str, Any]:
     return _load_yaml("four_money_mapping.yaml")
 
@@ -160,6 +184,7 @@ def reload_all_configs() -> None:
     load_sop_research_frameworks.cache_clear()
     load_sop_script_templates.cache_clear()
     load_sop_banned_words.cache_clear()
+    load_advisor_directory.cache_clear()
     load_four_money_mapping.cache_clear()
     load_model_config.cache_clear()
     load_portfolio_mapping.cache_clear()

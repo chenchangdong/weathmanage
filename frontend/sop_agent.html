@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SOP 投后智能体</title>
+  <title>投后SOP管理台</title>
   <link rel="stylesheet" href="css/app-shell.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="page-sop-agent page-wealth-journey">
   <div class="container container-sop">
     <div class="page-header page-header-compact">
-      <h1>SOP 投后智能体</h1>
-      <p>按顺序：跑批识别事件 → 查询筛选 → 批量生成内容包（事件描述 / 投研 / 话术）</p>
+      <h1>投后SOP管理台</h1>
+        <p>按顺序：跑批识别事件 → 查询筛选 → 批量生成内容包 → 飞书推送给客户经理</p>
     </div>
 
     <div id="sopJourneyMount"></div>
@@ -29,6 +29,11 @@
           <div class="stat-item"><span class="stat-label">待处理</span><span class="stat-value" id="statPending">—</span></div>
           <div class="stat-item"><span class="stat-label">保留策略</span><span class="stat-value" id="statRetention">—</span></div>
         </div>
+        <div class="sop-schedule-bar" id="batchScheduleBar">
+          <span class="sop-schedule-label">定时跑批</span>
+          <span class="sop-schedule-value" id="batchScheduleText">加载中…</span>
+          <a class="sop-schedule-link" href="admin/sop_batch_trigger.html">批量任务 →</a>
+        </div>
         <div class="sop-panel-actions">
           <button type="button" class="btn-primary btn-lg" id="btnRunBatch">执行跑批</button>
           <button type="button" class="btn-secondary btn-lg" id="btnCleanup7">清理7天前</button>
@@ -44,7 +49,7 @@
     <div class="sop-main sop-step-panel" id="panelQuery">
       <div class="sop-panel-head">
         <h2>查询事件</h2>
-        <p class="sop-panel-desc">按条件筛选事件库（本地查询，不调用大模型）。可对单条运行智能体预览内容包。</p>
+        <p class="sop-panel-desc">按条件筛选事件库（本地查询，不调用大模型）。可对单条智能生成预览内容包。</p>
       </div>
       <div class="sop-panel-body">
         <form class="sop-query-form" id="queryForm">
@@ -53,6 +58,7 @@
               <span class="sop-field-label">数据日</span>
               <select id="qDatePreset" class="sop-control">
                 <option value="all">全部</option>
+                <option value="latest">最新数据日</option>
                 <option value="today">今天</option>
                 <option value="yesterday">昨天</option>
                 <option value="last7">最近 7 天</option>
@@ -87,6 +93,7 @@
             </label>
           </div>
         </form>
+        <p class="query-date-hint" id="qDataDateHint"></p>
         <p class="query-summary" id="querySummary">请选择条件后点击查询，进入本页将自动加载全部事件。</p>
         <div id="queryResults"></div>
       </div>
@@ -96,7 +103,7 @@
     <div class="sop-main sop-step-panel" id="panelGenerate" hidden>
       <div class="sop-panel-head">
         <h2>批量生成</h2>
-        <p class="sop-panel-desc">对待处理事件运行智能体管道，生成事件描述、投研分析与对客话术（每批最多 20 条）。</p>
+        <p class="sop-panel-desc">对待处理事件智能生成内容包：事件描述、投研分析与对客话术（每批最多 20 条）。</p>
       </div>
       <div class="sop-panel-body">
         <div class="sop-stats-grid sop-stats-grid-sm">
@@ -105,6 +112,17 @@
         </div>
         <div class="sop-panel-actions">
           <button type="button" class="btn-primary btn-lg" id="btnRunGenerate">开始批量生成</button>
+          <button type="button" class="btn-secondary btn-lg" id="btnPushBatch">批量推送飞书</button>
+        </div>
+        <div class="sop-feishu-setup" id="feishuSetup">
+          <div class="sop-feishu-setup-title">6.2.5 飞书推送（客户经理：陈长东）</div>
+          <p class="hint">无需逐个配置 open_id：经理名录填 <strong>mobile / email / 工号</strong> 即可；首次推送自动解析并缓存到 <code>data/advisor_feishu_cache.json</code>。也可一键批量对齐。</p>
+          <div class="sop-feishu-setup-actions">
+            <button type="button" class="btn-secondary sop-btn" id="btnFeishuProbe">检测飞书凭证</button>
+            <button type="button" class="btn-secondary sop-btn" id="btnSyncAdvisors">批量对齐经理账号</button>
+            <button type="button" class="btn-secondary sop-btn" id="btnResolveAdvisor">解析单个经理</button>
+          </div>
+          <pre class="sop-feishu-result" id="feishuSetupResult">尚未检测</pre>
         </div>
         <div class="sop-step-log" id="generateLog">
           <p class="hint">点击「开始批量生成」处理 pending 事件。若数量较多，可多次点击继续下一批。</p>
@@ -153,7 +171,10 @@
       gap: 12px;
       align-items: end;
     }
-    .sop-custom-dates {
+    .sop-custom-dates[hidden] {
+      display: none !important;
+    }
+    .sop-custom-dates:not([hidden]) {
       display: grid;
       grid-template-columns: 148px 148px;
       gap: 12px;
@@ -224,6 +245,66 @@
       .sop-query-actions { justify-content: flex-end; }
     }
     .query-summary { margin: 0 0 12px; font-size: 13px; color: #666; }
+    .query-date-hint { margin: 0 0 12px; font-size: 12px; color: #888; line-height: 1.6; }
+    .sop-info-tip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      margin-left: 4px;
+      border-radius: 50%;
+      background: #e6f4ff;
+      color: #1677ff;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: help;
+      vertical-align: middle;
+    }
+    .sop-info-tip .sop-info-tip-text {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      z-index: 200;
+      top: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: max-content;
+      max-width: 280px;
+      padding: 8px 10px;
+      background: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1.5;
+      border-radius: 6px;
+      pointer-events: none;
+      white-space: normal;
+      text-align: left;
+    }
+    .sop-info-tip:hover .sop-info-tip-text,
+    .sop-info-tip:focus .sop-info-tip-text,
+    .sop-info-tip:focus-within .sop-info-tip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+    .sop-workflow-badges { display: flex; flex-direction: column; gap: 4px; min-width: 72px; }
+    .sop-wf-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 18px;
+      white-space: nowrap;
+    }
+    .sop-wf-pending, .sop-wf-waiting { background: #f5f5f5; color: #595959; }
+    .sop-wf-running { background: #e6f4ff; color: #1677ff; }
+    .sop-wf-done { background: #f6ffed; color: #389e0d; }
+    .sop-wf-failed { background: #fff1f0; color: #cf1322; }
+    .sop-wf-sent { background: #f6ffed; color: #389e0d; }
+    .sop-wf-partial { background: #fffbe6; color: #d48806; }
+    .sop-wf-skipped, .sop-wf-none { background: #fafafa; color: #bfbfbf; }
     .sop-table-wrap { overflow-x: auto; }
     .sop-event-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .sop-event-table th, .sop-event-table td { border: 1px solid #e8e8e8; padding: 8px 10px; text-align: left; }
@@ -231,8 +312,45 @@
     .level-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
     .level-dot.high { background: #ff4d4f; }
     .level-dot.mid { background: #faad14; }
-    .btn-run-agent { padding: 4px 10px; font-size: 12px; border: 1px solid #1677ff; color: #1677ff; background: #fff; border-radius: 4px; cursor: pointer; }
+    .btn-run-agent { padding: 4px 10px; font-size: 12px; border: 1px solid #1677ff; color: #1677ff; background: #fff; border-radius: 4px; cursor: pointer; margin-right: 4px; margin-bottom: 4px; }
     .btn-run-agent:hover { background: #eef3ff; }
+    .btn-push-feishu, .btn-preview-push {
+      padding: 4px 10px; font-size: 12px; border-radius: 4px; cursor: pointer; margin-right: 4px; margin-bottom: 4px; background: #fff;
+    }
+    .btn-push-feishu { color: #1677ff; border: 1px solid #1677ff; }
+    .btn-preview-push { color: #595959; border: 1px solid #d9d9d9; }
+    .sop-feishu-setup {
+      margin-bottom: 16px; padding: 14px 16px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 8px;
+    }
+    .sop-feishu-setup-title { font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+    .sop-feishu-setup-actions { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+    .sop-feishu-result {
+      margin: 0; padding: 10px 12px; background: #fff; border: 1px solid #eee; border-radius: 6px;
+      font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 140px; overflow: auto;
+    }
+    .sop-schedule-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 16px;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      background: #f6ffed;
+      border: 1px solid #b7eb8f;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #444;
+    }
+    .sop-schedule-label { font-weight: 600; color: #389e0d; }
+    .sop-schedule-value { flex: 1; min-width: 200px; }
+    .sop-schedule-link {
+      color: #1677ff;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .sop-schedule-link:hover { text-decoration: underline; }
+    .push-status-sent { color: #389e0d; font-size: 12px; }
+    .sop-row-actions { white-space: nowrap; }
     .agent-output { margin-top: 12px; padding: 0; background: transparent; border: none; font-size: 13px; }
     .agent-panels { display: flex; flex-direction: column; gap: 10px; }
     .agent-panel { border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden; background: #fff; }
@@ -248,7 +366,7 @@
   <script src="js/app_shell.js"></script>
   <script src="js/sop_journey.js"></script>
   <script>
-    initAppShell({ page: 'sop_agent', title: 'SOP 投后智能体', crumb: 'SOP 投后 / 智能体工作台' });
+    initAppShell({ page: 'sop_agent', title: '投后SOP管理台', crumb: '投后SOP管理台' });
 
     const PANELS = {
       batch: document.getElementById('panelBatch'),
@@ -258,6 +376,14 @@
     const queryResultsEl = document.getElementById('queryResults');
     let currentStep = 'query';
     let retentionDays = 30;
+    let queryStoreMeta = {
+      latest_data_date: null,
+      data_date_min: null,
+      data_date_max: null,
+      total_events: 0,
+    };
+
+    const WORKFLOW_TIP = '流程：跑批识别 → 智能生成内容包 → 飞书推送给客户经理。「生成」表示内容包是否就绪；「推送」表示飞书是否送达。旧字段「0 初始 / 1 已确认」已弃用，「已确认」并不表示已推送。';
 
     function esc(s) {
       return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -275,6 +401,11 @@
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const t = isoDateLocal(today);
+      if (preset === 'latest') {
+        const d = queryStoreMeta.latest_data_date;
+        if (d) return { since: d, until: d };
+        return { since: null, until: null };
+      }
       if (preset === 'today') return { since: t, until: t };
       if (preset === 'yesterday') {
         const y = new Date(today);
@@ -295,6 +426,41 @@
       return { since: null, until: null };
     }
 
+    function syncCustomDateVisibility() {
+      const preset = document.getElementById('qDatePreset').value;
+      const row = document.getElementById('qCustomDates');
+      const isCustom = preset === 'custom';
+      row.hidden = !isCustom;
+      row.style.display = isCustom ? '' : 'none';
+      if (isCustom) {
+        const sinceEl = document.getElementById('qSince');
+        const untilEl = document.getElementById('qUntil');
+        if (!sinceEl.value && queryStoreMeta.data_date_min) sinceEl.value = queryStoreMeta.data_date_min;
+        if (!untilEl.value && queryStoreMeta.data_date_max) untilEl.value = queryStoreMeta.data_date_max;
+      }
+    }
+
+    async function loadQueryMeta() {
+      try {
+        const res = await apiGet('/api/sop/events/stats');
+        const s = res.data || {};
+        queryStoreMeta = {
+          latest_data_date: s.latest_data_date || null,
+          data_date_min: s.data_date_min || null,
+          data_date_max: s.data_date_max || null,
+          total_events: s.composite_events ?? 0,
+        };
+        const hint = document.getElementById('qDataDateHint');
+        if (hint) {
+          if (s.data_date_min) {
+            hint.textContent = `事件库数据日范围：${s.data_date_min} ~ ${s.data_date_max}（共 ${s.composite_events ?? 0} 条）。「今天/昨天」按本机日历过滤；与跑批数据日不一致时可能无结果，建议选「最新数据日」或「自定义」。`;
+          } else {
+            hint.textContent = '事件库暂无数据，请先在「跑批触发」执行跑批。';
+          }
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     function buildQueryParams() {
       const { since, until } = buildDateRange();
       const eventType = document.getElementById('qEventType').value;
@@ -311,8 +477,15 @@
       const preset = document.getElementById('qDatePreset');
       const eventType = document.getElementById('qEventType');
       const keyword = document.getElementById('qKeyword').value.trim();
+      const { since, until } = buildDateRange();
+      let datePart = `数据日：${preset.options[preset.selectedIndex].text}`;
+      if (since || until) {
+        datePart += `（${since || '…'} ~ ${until || '…'}）`;
+      } else if (queryStoreMeta.data_date_min) {
+        datePart += `（库内 ${queryStoreMeta.data_date_min} ~ ${queryStoreMeta.data_date_max}）`;
+      }
       const parts = [
-        `数据日：${preset.options[preset.selectedIndex].text}`,
+        datePart,
         `类型：${eventType.options[eventType.selectedIndex].text}`,
       ];
       if (keyword) parts.push(`关键词：${keyword}`);
@@ -345,7 +518,9 @@
       refreshJourneyBar();
       if (step === 'batch') loadBatchStats();
       if (step === 'generate') loadGenerateStats();
-      if (step === 'query') runQuery();
+      if (step === 'query') {
+        loadQueryMeta().then(() => runQuery());
+      }
     }
 
     function refreshJourneyBar() {
@@ -360,9 +535,10 @@
 
     async function loadBatchStats() {
       try {
-        const [statsRes, cfgRes] = await Promise.all([
+        const [statsRes, cfgRes, schedRes] = await Promise.all([
           apiGet('/api/sop/events/stats'),
           apiGet('/api/sop/agent/config'),
+          apiGet('/api/sop/agent/schedule/status'),
         ]);
         const s = statsRes.data || {};
         document.getElementById('statEvents').textContent = s.composite_events ?? '—';
@@ -372,9 +548,29 @@
         retentionDays = ret.enabled === false ? 0 : (ret.days ?? 30);
         document.getElementById('statRetention').textContent =
           retentionDays > 0 ? `${retentionDays} 天` : '未启用';
+        renderBatchSchedule(schedRes.data || {});
       } catch (e) {
         showToast('加载统计失败：' + e.message);
       }
+    }
+
+    function renderBatchSchedule(sched) {
+      const el = document.getElementById('batchScheduleText');
+      if (!el) return;
+      if (!sched.enabled) {
+        el.textContent = '定时任务已停用 · 可手动执行跑批，或在「批量任务」中启用';
+        return;
+      }
+      const parts = [
+        `每日 ${String(sched.hour ?? 20).padStart(2, '0')}:${String(sched.minute ?? 0).padStart(2, '0')} 自动跑批`,
+        sched.run_agent_after_batch ? '（含 6.2 智能生成）' : '（仅 6.1 写事件库）',
+      ];
+      if (sched.run_agent_after_batch && sched.push_feishu_after_agent) {
+        parts.push('（含飞书自动推送）');
+      }
+      if (sched.next_run_hint) parts.push(`下次 ${sched.next_run_hint}`);
+      if (sched.last_trigger_time) parts.push(`上次 ${sched.last_trigger_time}`);
+      el.textContent = parts.join(' · ');
     }
 
     async function loadGenerateStats() {
@@ -477,10 +673,43 @@
       return `<span class="level-dot ${high ? 'high' : 'mid'}"></span>${esc(level || '中')}`;
     }
 
-    function renderEventTable(events) {
+    function workflowStatusHtml(evt) {
+      const agentMap = {
+        pending: ['待生成', 'pending'],
+        running: ['生成中', 'running'],
+        done: ['已生成', 'done'],
+        failed: ['生成失败', 'failed'],
+      };
+      const agent = evt.agent_status;
+      const [agentLabel, agentCls] = agentMap[agent] || ['待生成', 'pending'];
+      let pushLabel = '—';
+      let pushCls = 'none';
+      if (agent === 'done') {
+        const push = evt.push_status;
+        if (push === 'sent') { pushLabel = '已推送'; pushCls = 'sent'; }
+        else if (push === 'partial') { pushLabel = '部分推送'; pushCls = 'partial'; }
+        else if (push === 'failed') { pushLabel = '推送失败'; pushCls = 'failed'; }
+        else if (push === 'skipped') { pushLabel = '未推送'; pushCls = 'skipped'; }
+        else { pushLabel = '待推送'; pushCls = 'waiting'; }
+      }
+      return `<div class="sop-workflow-badges">
+        <span class="sop-wf-badge sop-wf-${agentCls}" title="智能生成">生成·${esc(agentLabel)}</span>
+        <span class="sop-wf-badge sop-wf-${pushCls}" title="飞书推送">推送·${esc(pushLabel)}</span>
+      </div>`;
+    }
+
+    function renderEventTable(events, filterCtx) {
+      const { since, until } = filterCtx || {};
       if (!events.length) {
+        const hasDateFilter = since || until;
+        if (hasDateFilter && queryStoreMeta.data_date_min) {
+          return `<p>未检索到相关事件。当前筛选区间 ${esc(since || '…')} ~ ${esc(until || '…')} 与库内无交集。
+            库内数据日范围：${esc(queryStoreMeta.data_date_min)} ~ ${esc(queryStoreMeta.data_date_max)}，
+            可改选「全部」「最新数据日」或「自定义」扩大范围。</p>`;
+        }
         return '<p>未检索到相关事件。请先在上方 <strong>① 跑批触发</strong> 执行跑批，再在此查询。</p>';
       }
+      const tipHtml = `<span class="sop-info-tip" tabindex="0" aria-label="流程状态说明">i<span class="sop-info-tip-text">${esc(WORKFLOW_TIP)}</span></span>`;
       const rows = events.map(evt => `<tr data-event-id="${esc(evt.event_id)}">
         <td>${levelHtml(evt.level)}</td>
         <td>${esc(evt.event_id)}</td>
@@ -490,14 +719,19 @@
         <td>${esc(evt.category_label || evt.category || '—')}</td>
         <td>${esc(evt.asset_type_label || evt.asset_type || '—')}</td>
         <td>${esc(evt.drawdown_detail)}</td>
-        <td>${esc(evt.status_label || evt.status)}</td>
-        <td><button type="button" class="btn-run-agent" data-run="${esc(evt.event_id)}">运行智能体</button></td>
+        <td>${workflowStatusHtml(evt)}</td>
+        <td class="sop-row-actions">
+          <button type="button" class="btn-run-agent" data-run="${esc(evt.event_id)}">智能生成</button>
+          <button type="button" class="btn-preview-push" data-preview="${esc(evt.event_id)}">预览推送</button>
+          <button type="button" class="btn-push-feishu" data-push="${esc(evt.event_id)}">推送飞书</button>
+        </td>
       </tr>`).join('');
       return `<div class="sop-table-wrap">
         <strong>检索结果（${events.length} 条）</strong>
         <table class="sop-event-table">
           <thead><tr>
-            <th>级别</th><th>ID</th><th>数据日</th><th>场景</th><th>产品</th><th>风险属性</th><th>资产类型</th><th>预警详情</th><th>状态</th><th>操作</th>
+            <th>级别</th><th>ID</th><th>数据日</th><th>场景</th><th>产品</th><th>风险属性</th><th>资产类型</th><th>预警详情</th>
+            <th>流程状态 ${tipHtml}</th><th>操作</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -511,10 +745,11 @@
       summaryEl.textContent = '查询中…';
       try {
         const params = buildQueryParams();
+        const dateRange = buildDateRange();
         const res = await apiGet('/api/sop/events?' + params.toString());
         const events = (res.data && res.data.events) || [];
         summaryEl.textContent = `${describeQueryFilters()} — 共 ${events.length} 条`;
-        queryResultsEl.innerHTML = renderEventTable(events);
+        queryResultsEl.innerHTML = renderEventTable(events, dateRange);
       } catch (e) {
         summaryEl.textContent = '查询失败：' + e.message;
         queryResultsEl.innerHTML = '';
@@ -531,6 +766,7 @@
       document.getElementById('qSince').value = '';
       document.getElementById('qUntil').value = '';
       document.getElementById('qCustomDates').hidden = true;
+      syncCustomDateVisibility();
       runQuery();
     }
 
@@ -572,25 +808,140 @@
       </div>`;
     }
 
+    async function pushEvent(eventId, btn, { force = false } = {}) {
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '推送中…';
+      }
+      try {
+        const res = await apiPost('/api/sop/agent/push', { event_id: eventId, force });
+        const d = res.data || {};
+        if (d.skipped) {
+          showToast(d.reason || '已跳过');
+        } else {
+          showToast(`推送完成：成功 ${d.sent || 0}，失败 ${d.failed || 0}`);
+        }
+        await runQuery();
+      } catch (e) {
+        showToast('推送失败：' + e.message);
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '推送飞书';
+        }
+      }
+    }
+
+    async function previewPush(eventId) {
+      try {
+        const res = await apiGet(`/api/sop/agent/push/preview?event_id=${encodeURIComponent(eventId)}`);
+        const d = res.data || {};
+        const lines = (d.targets || []).map(t =>
+          `· ${t.customer_name} → ${t.advisor_name}${t.feishu_ready ? '' : '（未配置飞书：' + (t.feishu_hint || '') + '）'}`
+        );
+        alert(
+          `事件 ${eventId}\n将发送 ${d.message_count || 0} 条私聊（按客户拆分，不聚合）\n\n` +
+          (lines.length ? lines.join('\n') : '无持有该产品的客户')
+        );
+      } catch (e) {
+        showToast('预览失败：' + e.message);
+      }
+    }
+
+    async function pushBatch() {
+      const btn = document.getElementById('btnPushBatch');
+      btn.disabled = true;
+      btn.textContent = '推送中…';
+      try {
+        const res = await apiPost('/api/sop/agent/push-batch', { all_done_unpushed: true, limit: 20 });
+        const d = res.data || {};
+        appendStepLog(
+          'generateLog',
+          `批量推送完成：处理 ${d.processed || 0} 条事件，失败 ${d.failed_events || 0} 条。`,
+          d.failed_events ? 'warn' : 'success'
+        );
+        showToast('批量推送完成');
+        await runQuery();
+      } catch (e) {
+        appendStepLog('generateLog', `批量推送失败：${esc(e.message)}`, 'danger');
+        showToast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '批量推送飞书';
+      }
+    }
+
+    function setFeishuResult(text) {
+      const el = document.getElementById('feishuSetupResult');
+      if (el) el.textContent = text;
+    }
+
+    async function feishuProbe() {
+      setFeishuResult('检测中…');
+      try {
+        const res = await apiGet('/api/sop/agent/feishu/probe');
+        setFeishuResult(JSON.stringify(res.data, null, 2));
+        showToast('飞书凭证可用');
+      } catch (e) {
+        setFeishuResult('失败：' + e.message);
+        showToast(e.message);
+      }
+    }
+
+    async function syncAdvisors() {
+      setFeishuResult('批量对齐中…');
+      try {
+        const res = await apiPost('/api/sop/agent/feishu/sync-advisors', { force: false });
+        const d = res.data || {};
+        setFeishuResult(
+          `模式：${d.mode || '—'}\n` +
+          `已对齐 ${d.resolved || 0} 人，跳过 ${d.skipped || 0}，失败 ${(d.errors || []).length}\n` +
+          `缓存写入 ${d.cached || 0} 条\n` +
+          (d.errors && d.errors.length ? `\n失败：\n${d.errors.map(e => e.advisor_id + ': ' + e.error).join('\n')}` : '')
+        );
+        showToast(`批量对齐完成：${d.resolved || 0} 人`);
+      } catch (e) {
+        setFeishuResult('失败：' + e.message);
+        showToast(e.message);
+      }
+    }
+
+    async function resolveAdvisorOpenId() {
+      setFeishuResult('解析 open_id 中…');
+      try {
+        const res = await apiPost('/api/sop/agent/feishu/resolve-advisor', { advisor_id: 'RM_CCD' });
+        const d = res.data || {};
+        setFeishuResult(
+          `解析成功\nopen_id: ${d.feishu_open_id}\n\n请复制到 config/advisor_directory.yaml → advisors → feishu_open_id\n${d.hint || ''}`
+        );
+        showToast('open_id 已解析');
+      } catch (e) {
+        setFeishuResult('失败：' + e.message + '\n\n请先在 advisor_directory.yaml 填写陈长东飞书绑定的 mobile 或 email');
+        showToast(e.message);
+      }
+    }
+
     async function runAgent(eventId, btn) {
       btn.disabled = true;
-      btn.textContent = '运行中…';
+      btn.textContent = '生成中…';
       const row = btn.closest('tr');
       let outEl = row.querySelector('.agent-output');
       if (!outEl) {
         outEl = document.createElement('tr');
-        outEl.innerHTML = `<td colspan="8"><div class="agent-output" id="out-${esc(eventId)}">生成中…</div></td>`;
+        outEl.innerHTML = `<td colspan="10"><div class="agent-output" id="out-${esc(eventId)}">生成中…</div></td>`;
         row.after(outEl);
         outEl = outEl.querySelector('.agent-output');
       }
       try {
         const res = await apiPost('/api/sop/agent/run', { event_id: eventId });
-        outEl.innerHTML = renderAgentPanels(res.data);
+        outEl.innerHTML = `<div class="agent-output" id="out-${esc(eventId)}">${renderAgentPanels(res.data)}</div>
+          <div class="sop-push-bar">
+            <button type="button" class="btn-push-feishu" data-push="${esc(eventId)}">推送飞书给客户经理</button>
+          </div>`;
         btn.textContent = '已完成';
       } catch (e) {
         outEl.textContent = '失败：' + e.message;
         btn.disabled = false;
-        btn.textContent = '重试';
+        btn.textContent = '重新生成';
       }
     }
 
@@ -598,6 +949,10 @@
     document.getElementById('btnCleanup7').addEventListener('click', () => cleanupHistory('days'));
     document.getElementById('btnCleanupAll').addEventListener('click', () => cleanupHistory('all'));
     document.getElementById('btnRunGenerate').addEventListener('click', runGenerate);
+    document.getElementById('btnPushBatch').addEventListener('click', pushBatch);
+    document.getElementById('btnFeishuProbe').addEventListener('click', feishuProbe);
+    document.getElementById('btnSyncAdvisors').addEventListener('click', syncAdvisors);
+    document.getElementById('btnResolveAdvisor').addEventListener('click', resolveAdvisorOpenId);
 
     document.getElementById('queryForm').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -605,13 +960,24 @@
     });
     document.getElementById('btnResetQuery').addEventListener('click', resetQueryForm);
     document.getElementById('qDatePreset').addEventListener('change', () => {
-      document.getElementById('qCustomDates').hidden =
-        document.getElementById('qDatePreset').value !== 'custom';
+      syncCustomDateVisibility();
     });
 
+    syncCustomDateVisibility();
+
     queryResultsEl.addEventListener('click', e => {
-      const btn = e.target.closest('[data-run]');
-      if (btn) runAgent(btn.dataset.run, btn);
+      const runBtn = e.target.closest('[data-run]');
+      if (runBtn) {
+        runAgent(runBtn.dataset.run, runBtn);
+        return;
+      }
+      const pushBtn = e.target.closest('[data-push]');
+      if (pushBtn) {
+        pushEvent(pushBtn.dataset.push, pushBtn);
+        return;
+      }
+      const previewBtn = e.target.closest('[data-preview]');
+      if (previewBtn) previewPush(previewBtn.dataset.preview);
     });
 
     window.addEventListener('hashchange', () => {

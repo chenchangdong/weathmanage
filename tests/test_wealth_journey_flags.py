@@ -2,8 +2,25 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from core.config_loader import load_customer_profile
+from core.sop_event_store import SopEventStore
 from core.wealth_journey_service import WealthJourneyService
+
+_FIXTURE_EVENTS = Path(__file__).resolve().parent / "fixtures" / "sop_events_demo.json"
+
+
+@pytest.fixture(autouse=True)
+def _demo_sop_events(monkeypatch: pytest.MonkeyPatch) -> None:
+    """演示 SOP 事件与持仓对齐，不依赖本地 data/sop_events.json 跑批结果。"""
+    store = SopEventStore(path=_FIXTURE_EVENTS)
+    monkeypatch.setattr(
+        "core.sop_wealth_flags.SopEventStore",
+        lambda path=None: store if path is None else SopEventStore(path=path),
+    )
 
 # 有效标志（个性化配仓/API 过滤 four_money_mismatch 后）
 # 回撤/收益不达预期由 SOP 跑批驱动；本金损失/波动率仍为模拟业绩
@@ -73,3 +90,34 @@ class TestWealthJourneyFlags:
                 if f["code"] in sop_codes:
                     assert f.get("source") == "sop"
                     assert f.get("sop_events")
+
+    def test_score_context_in_diagnosis(self):
+        svc = WealthJourneyService()
+        healthy = svc.build_diagnosis("C20250602005")
+        ctx = healthy["score_context"]
+        assert ctx["health_level"] == "healthy"
+        assert ctx["flag_count"] == 0
+        assert ctx["allocation_hint"] and "财富健康" in ctx["allocation_hint"]
+
+        li = svc.build_diagnosis("C20250602002")
+        ctx_li = li["score_context"]
+        assert ctx_li["health_level"] == "attention"
+        assert ctx_li["flag_count"] == 1
+        assert ctx_li["sop_flag_count"] == 1
+        assert str(li["composite_score"]) in ctx_li["summary"]
+
+    def test_allocation_structure_diagnosis_merges_flags(self):
+        svc = WealthJourneyService()
+        li = svc.build_diagnosis("C20250602002")
+        assert len(li["conclusions"]) == 1
+        script = li["conclusions"][0]
+        assert script.startswith("资产配置结构诊断：")
+        assert li["flags"][0]["label"] in script or "回撤" in script
+
+        healthy = svc.build_diagnosis("C20250602005")
+        assert len(healthy["conclusions"]) == 1
+        assert "匹配良好" in healthy["conclusions"][0]
+
+        multi = svc.build_diagnosis("C20250602003")
+        assert len(multi["conclusions"]) == 1
+        assert multi["conclusions"][0].startswith("资产配置结构诊断：")

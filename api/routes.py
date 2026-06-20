@@ -20,6 +20,11 @@ from api.schemas import (
     SopAgentQueryRequest,
     SopAgentRunRequest,
     SopAgentRunBatchRequest,
+    SopAgentPushBatchRequest,
+    SopAgentPushRequest,
+    SopAdvisorResolveRequest,
+    SopAdvisorSyncRequest,
+    SopBatchScheduleSaveRequest,
     SopEventCleanupRequest,
     SopRunBatchRequest,
     SopSystemSaveRequest,
@@ -44,6 +49,7 @@ from core.config_writer import (
     save_model_config,
     save_portfolio_mapping,
     save_sop_rule_system,
+    save_sop_agent_batch_schedule,
 )
 from asset_allocation.auto_rebalance_engine import AutoRebalanceEngine
 from core.config_loader import load_sop_agent_system
@@ -806,6 +812,51 @@ def sop_agent_schedule_status() -> Dict[str, Any]:
     return {"code": 0, "message": "ok", "data": get_scheduler_status()}
 
 
+@router.get("/sop/agent/schedule/triggers")
+def sop_agent_schedule_triggers() -> Dict[str, Any]:
+    """触发管理列表（当前仅投后 SOP 事件跑批）。"""
+    from core.sop_batch_scheduler import get_scheduler_status
+
+    status = get_scheduler_status()
+    trigger = {
+        "id": "sop_event_batch",
+        "trigger_name": status.get("trigger_name"),
+        "trigger_type": status.get("trigger_type", "CRON"),
+        "cron": status.get("cron"),
+        "cron_label": status.get("cron_label"),
+        "description": status.get("description"),
+        "enabled": status.get("enabled"),
+        "hour": status.get("hour"),
+        "minute": status.get("minute"),
+        "run_agent_after_batch": status.get("run_agent_after_batch"),
+        "push_feishu_after_agent": status.get("push_feishu_after_agent"),
+        "last_trigger_time": status.get("last_trigger_time"),
+        "last_batch_date": status.get("last_batch_date"),
+        "next_run_hint": status.get("next_run_hint"),
+        "action_label": _batch_action_label(status),
+    }
+    return {"code": 0, "message": "ok", "data": {"triggers": [trigger]}}
+
+
+def _batch_action_label(status: dict[str, Any]) -> str:
+    parts = ["6.1 事件跑批"]
+    if status.get("run_agent_after_batch"):
+        parts.append("6.2 智能生成")
+        if status.get("push_feishu_after_agent"):
+            parts.append("飞书推送")
+    return " + ".join(parts)
+
+
+@router.put("/sop/agent/schedule/config")
+def sop_agent_schedule_config(req: SopBatchScheduleSaveRequest) -> Dict[str, Any]:
+    """保存定时跑批配置并确保调度线程运行。"""
+    from core.sop_batch_scheduler import ensure_scheduler_running, get_scheduler_status
+
+    save_sop_agent_batch_schedule(req.model_dump())
+    ensure_scheduler_running()
+    return {"code": 0, "message": "ok", "data": get_scheduler_status()}
+
+
 @router.post("/sop/agent/run-batch")
 def sop_agent_run_batch(req: SopAgentRunBatchRequest = SopAgentRunBatchRequest()) -> Dict[str, Any]:
     """6.2 批量运行智能体管道（pending 或指定 event_ids，默认每批 20 条）。"""
@@ -827,3 +878,97 @@ def sop_scheduled_batch(force: bool = Query(False)) -> Dict[str, Any]:
     from core.sop_batch_scheduler import run_scheduled_batch
 
     return {"code": 0, "message": "ok", "data": run_scheduled_batch(force=force)}
+
+
+@router.get("/sop/agent/push/preview")
+def sop_agent_push_preview(event_id: str = Query(...)) -> Dict[str, Any]:
+    """6.2.5 预览：事件将推送给哪些客户经理（按持有客户拆分，不聚合）。"""
+    from core.sop_push_service import SopPushService
+
+    try:
+        data = SopPushService().preview_event(event_id)
+        return {"code": 0, "message": "ok", "data": data}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/sop/agent/push")
+def sop_agent_push(req: SopAgentPushRequest) -> Dict[str, Any]:
+    """6.2.5 对单条事件向各持有客户的客户经理发送飞书私聊（每人一条，不聚合）。"""
+    from core.sop_push_service import SopPushService
+
+    try:
+        data = SopPushService().push_event(req.event_id, force=req.force)
+        return {"code": 0, "message": "ok", "data": data}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/sop/agent/push-batch")
+def sop_agent_push_batch(req: SopAgentPushBatchRequest = SopAgentPushBatchRequest()) -> Dict[str, Any]:
+    """6.2.5 批量推送已完成智能体输出且未成功推送的事件。"""
+    from core.sop_push_service import SopPushService
+
+    data = SopPushService().push_batch(
+        req.event_ids,
+        all_done_unpushed=req.all_done_unpushed,
+        limit=max(1, min(req.limit, 50)),
+        force=req.force,
+    )
+    return {"code": 0, "message": "ok", "data": data}
+
+
+@router.post("/sop/agent/feishu/sync-advisors")
+def sop_feishu_sync_advisors(req: SopAdvisorSyncRequest = SopAdvisorSyncRequest()) -> Dict[str, Any]:
+    """
+    批量对齐全部客户经理飞书 open_id（写入 data/advisor_feishu_cache.json）。
+    经理名录只需 mobile/email/employee_no，无需手工配置 open_id。
+    """
+    from core.sop_feishu_client import FeishuApiError
+    from core.sop_push_service import SopPushService
+
+    try:
+        data = SopPushService().sync_advisors(force=req.force)
+        return {"code": 0, "message": "ok", "data": data}
+    except FeishuApiError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+@router.get("/sop/agent/feishu/advisor-cache")
+def sop_feishu_advisor_cache() -> Dict[str, Any]:
+    """查看已缓存的客户经理 open_id。"""
+    from core.advisor_feishu_cache import AdvisorFeishuCache
+
+    cache = AdvisorFeishuCache().list_all()
+    return {"code": 0, "message": "ok", "data": {"count": len(cache), "advisors": cache}}
+
+
+@router.post("/sop/agent/feishu/resolve-advisor")
+def sop_feishu_resolve_advisor(req: SopAdvisorResolveRequest) -> Dict[str, Any]:
+    """
+    用手机号/邮箱向飞书换取客户经理 open_id（首次配置用）。
+    换取成功后建议写入 config/advisor_directory.yaml 的 feishu_open_id。
+    """
+    from core.sop_feishu_client import FeishuApiError
+    from core.sop_push_service import SopPushService
+
+    try:
+        data = SopPushService().resolve_advisor_open_id(req.advisor_id)
+        return {"code": 0, "message": "ok", "data": data}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except FeishuApiError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+@router.get("/sop/agent/feishu/probe")
+def sop_feishu_probe() -> Dict[str, Any]:
+    """探测飞书应用凭证是否可用。"""
+    from core.sop_feishu_client import FeishuApiError
+    from core.sop_push_service import SopPushService
+
+    try:
+        data = SopPushService().probe()
+        return {"code": 0, "message": "ok", "data": data}
+    except FeishuApiError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e

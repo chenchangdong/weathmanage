@@ -59,8 +59,8 @@
       return `<a href="${configHref(item)}" class="${cls.trim()}">${item.label}</a>`;
     }).join('<span class="sop-config-sep">·</span>');
     const home = activePage === 'sop_agent'
-      ? '<span class="sop-config-link active">智能体工作台</span>'
-      : `<a href="${agentHref()}" class="sop-config-link">智能体工作台</a>`;
+      ? '<span class="sop-config-link active">投后SOP管理台</span>'
+      : `<a href="${agentHref()}" class="sop-config-link">投后SOP管理台</a>`;
     return (
       '<div class="sop-config-bar" aria-label="SOP 配置">' +
       '<span class="sop-config-label">SOP 投后</span>' +

@@ -178,34 +178,6 @@
       "config_json": null,
       "created_at": "2026-05-28T01:49:23",
       "updated_at": null
-    },
-    {
-      "id": 2,
-      "trigger_name": "产品净值更新SQL",
-      "source_type": "SQL",
-      "source_id": "update_product_nav",
-      "description": "产品净值更新SQL执行触发检查",
-      "rule_expression": null,
-      "data_path": "",
-      "is_enabled": true,
-      "sort": 0,
-      "config_json": null,
-      "created_at": "2026-05-28T01:49:23",
-      "updated_at": null
-    },
-    {
-      "id": 3,
-      "trigger_name": "定时任务事件",
-      "source_type": "CUSTOM",
-      "source_id": "scheduled_task_event",
-      "description": "定制化定时任务数据源",
-      "rule_expression": null,
-      "data_path": "event.data",
-      "is_enabled": true,
-      "sort": 0,
-      "config_json": null,
-      "created_at": "2026-05-28T01:49:23",
-      "updated_at": null
     }
   ],
   "io_actions": [
@@ -218,22 +190,6 @@
       "target_id": "/api/warn/trade",
       "description": "规则命中后调用预警交易接口",
       "data_mapping": "{\"product_id\":\"id\",\"level\":\"risk_level\"}",
-      "data_transform": null,
-      "is_enabled": true,
-      "sort": 0,
-      "config_json": null,
-      "created_at": "2026-05-28T01:49:23",
-      "updated_at": null
-    },
-    {
-      "id": 2,
-      "action_name": "发送MQ消息通知",
-      "trigger_id": 2,
-      "rule_id": null,
-      "action_type": "MSG",
-      "target_id": "topic.rule.hit",
-      "description": "规则命中后发送消息队列通知",
-      "data_mapping": "{}",
       "data_transform": null,
       "is_enabled": true,
       "sort": 0,
@@ -258,9 +214,24 @@
       "updated_at": null
     }
   ],
-  "next_event_id": 78,
-  "next_run_id": 78,
+  "next_event_id": 79,
+  "next_run_id": 79,
   "events": [
+    {
+      "id": 78,
+      "rule_code": "RISK_MAX_DD_5",
+      "biz_type": "product_drawdown",
+      "rule_id": 1,
+      "trigger_msg": "规则'最大回撤大于5%触发'命中，表达式成立",
+      "biz_no": "PROD001_2025-05-24",
+      "trigger_data": {
+        "prodCode": "PROD001",
+        "statDate": "2025-05-24",
+        "max_drawdown": 6.2,
+        "yield_rate": 3.5
+      },
+      "trigger_time": "2026-06-20T19:19:09"
+    },
     {
       "id": 77,
       "rule_code": "RISK_MAX_DD_5",
@@ -1464,6 +1435,23 @@
     }
   ],
   "run_details": [
+    {
+      "id": 80,
+      "run_id": 78,
+      "rule_id": 1,
+      "rule_code": "RISK_MAX_DD_5",
+      "rule_name": "最大回撤大于5%触发",
+      "rule_expr": "max_drawdown > 5",
+      "biz_no": "PROD001_2025-05-24",
+      "biz_type": "product_drawdown",
+      "is_hit": 1,
+      "short_circuit": 1,
+      "sort": 1,
+      "trigger_msg": "规则「最大回撤大于5%触发」命中，表达式成立",
+      "hit_snapshot": null,
+      "trigger_time": "2026-06-20T19:19:09",
+      "create_time": "2026-06-20T19:19:09"
+    },
     {
       "id": 79,
       "run_id": 77,

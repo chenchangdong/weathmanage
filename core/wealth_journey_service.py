@@ -163,22 +163,12 @@ class WealthJourneyService:
         loss_threshold = row["loss_threshold_pct"]
 
         conclusions: list[str] = []
-        for f in flags:
-            conclusions.append(f["hint"])
-
-        if not flags:
-            conclusions.append("当前各项指标与模型基准匹配良好，可维持现有配置并定期复盘。")
-
-        mismatch_cats = [x for x in four_money if not x["in_band"]]
-        if mismatch_cats:
-            parts = "、".join(
-                f"{x['category_name']}{'超配' if x['current_ratio'] > x['band'][1] else '低配'}"
-                for x in mismatch_cats
-            )
-            conclusions.insert(0, f"资产配置结构诊断：{parts}，建议通过智能资配进行再平衡。")
+        allocation_script = self._allocation_structure_diagnosis(flags, four_money)
+        conclusions.append(allocation_script)
 
         composite = self._composite_score(flags, four_money)
         dimensions = self._radar_dimensions(four_money, perf, model, loss_threshold, flags)
+        score_context = self._score_context(flags, composite, four_money)
 
         return {
             "customer_id": customer_id,
@@ -194,6 +184,7 @@ class WealthJourneyService:
             "flags": flags,
             "conclusions": conclusions,
             "composite_score": composite,
+            "score_context": score_context,
             "beat_investors_pct": min(95, max(35, composite // 8 + 42)),
             "dimensions": dimensions,
             "diagnosis_date": "2025-12-26",
@@ -393,6 +384,91 @@ class WealthJourneyService:
             elif f["severity"] == "warn":
                 score -= 15
         return max(320, min(780, score))
+
+    def _allocation_structure_diagnosis(
+        self,
+        flags: list[dict[str, Any]],
+        four_money: list[dict[str, Any]],
+    ) -> str:
+        """资产配置结构诊断话术：四笔钱偏离 + 财富健康标志合并为一段对客/对经理表述。"""
+        segments: list[str] = []
+
+        mismatch_cats = [x for x in four_money if not x["in_band"]]
+        if mismatch_cats:
+            parts = "、".join(
+                f"{x['category_name']}{'超配' if x['current_ratio'] > x['band'][1] else '低配'}"
+                for x in mismatch_cats
+            )
+            segments.append(f"{parts}偏离模型区间")
+
+        for f in flags:
+            if f.get("code") == "four_money_mismatch":
+                continue
+            hint = (f.get("hint") or f.get("label") or "").strip()
+            if hint:
+                segments.append(hint)
+
+        if not segments:
+            return (
+                "资产配置结构诊断：当前四笔钱占比与模型目标匹配良好，"
+                "各项财富健康指标正常，可维持现有配置并定期复盘。"
+            )
+
+        if mismatch_cats:
+            tail = "建议通过智能资配进行再平衡"
+            if any(f.get("code") != "four_money_mismatch" for f in flags):
+                tail += "，并针对上述健康关注项与客户沟通方案"
+        else:
+            tail = "建议结合智能资配与客户沟通调整方案"
+
+        return f"资产配置结构诊断：{'；'.join(segments)}，{tail}。"
+
+    def _score_context(
+        self,
+        flags: list[dict[str, Any]],
+        composite: int,
+        four_money: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        danger = sum(1 for f in flags if f.get("severity") == "danger")
+        warn = sum(1 for f in flags if f.get("severity") == "warn")
+        oob = sum(1 for x in four_money if not x["in_band"])
+        personalized = effective_personalized_flags(flags)
+        sop_count = sum(1 for f in flags if f.get("source") == "sop")
+
+        if not flags:
+            health_level = "healthy"
+            health_label = "配置健康"
+            summary = "当前无财富健康异常标志，综合评分主要反映资产配置结构与收益风险表现。"
+        elif danger:
+            health_level = "attention"
+            health_label = "需优先关注"
+            summary = (
+                f"检测到 {len(flags)} 项财富健康标志（含 {danger} 项高风险），"
+                f"综合评分 {composite} 分已相应下调。"
+            )
+        else:
+            health_level = "watch"
+            health_label = "待优化"
+            summary = (
+                f"检测到 {len(flags)} 项财富健康标志，"
+                f"综合评分 {composite} 分与行为评价维度已纳入相应调整。"
+            )
+
+        if oob and not any(f.get("code") == "four_money_mismatch" for f in flags):
+            summary += f" 另有 {oob} 类资产偏离模型区间。"
+
+        return {
+            "health_level": health_level,
+            "health_label": health_label,
+            "summary": summary,
+            "flag_count": len(flags),
+            "danger_count": danger,
+            "warn_count": warn,
+            "sop_flag_count": sop_count,
+            "oob_category_count": oob,
+            "personalized_flag_count": len(personalized),
+            "allocation_hint": personalized_allocation_block_message(flags),
+        }
 
     def _radar_dimensions(
         self,

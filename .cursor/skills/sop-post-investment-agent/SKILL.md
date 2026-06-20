@@ -1,157 +1,145 @@
 ---
 name: sop-post-investment-agent
 description: >-
-  Operates weathmanage SOP post-investment agent: 6.1 rule batch (event detection),
-  6.2 content pipeline (event description, product info, research, client script),
-  SOP product library, and ops admin pages. Use when implementing or debugging
-  SOP投后智能体, sop_agent, run-batch, SopAgentPipeline, sop_events.json,
-  rule strategy, or separating SOP products from allocation product_constraint.
+  Operates weathmanage post-investment SOP: rule batch, content generation,
+  Feishu push, scheduled tasks, and ops admin. Use when implementing or
+  debugging 投后SOP管理台, sop_agent, run-batch, SopAgentPipeline, sop_events.json,
+  rule strategy, or SOP product library.
 ---
 
-# SOP 投后智能体
+# 投后 SOP 管理
 
-## 一句话
+## 产品定位
 
-**6.1 判是否报警** → **6.2 报警后说什么**（事件描述 + 投研 + 对客话术）。不含飞书推送（6.2.5）与策略下发（6.3）。
+**把投后预警变成可执行、可触达的售后动作。**
+
+| 环节 | 业务价值 |
+|------|----------|
+| **事件识别** | 日终扫描产品，自动发现回撤、收益等异常 |
+| **内容生成** | 产出事件说明、投研分析、对客话术等完整材料 |
+| **经理触达** | 按持有关系，飞书一对一推送给客户经理 |
+| **定时运营** | 支持每晚自动跑批，也保留手动触发 |
 
 ```text
-规则跑批 → composite_event (agent_status=pending)
-         → SopAgentPipeline (621→622→623→624)
-         → content_package 写入 agent_outputs
+规则跑批 → 组合事件（待处理）
+         → 内容管道（描述 / 投研 / 话术）
+         → 可选飞书推送
 ```
 
-## 与资配 / 投后陪伴 / sop-SKILL.md 的边界
+## 与资配、产品库的边界
 
 | 域 | 配置/模块 | 用途 |
 |----|-----------|------|
-| **资配底层产品** | `config/product_constraint.yaml` | 调仓引擎 P000–P011，**SOP 不用** |
-| **SOP 产品库** | `config/sop_product_library.yaml` | 6.1 扫品 + 6.2 静态画像（A108 等） |
-| **6.1 规则** | `config/sop_rule_system.yaml` + 规则策略页 | 指标/规则/组合事件 |
-| **6.2 智能体** | `config/sop_agent_system.yaml` 等 | 描述模板、框架、话术、调度 |
-| **运行时事件** | `data/sop_events.json` | 跑批日志 + 组合事件 + 智能体输出（**gitignore**） |
+| **资配底层产品** | `product_constraint.yaml` | 调仓引擎专用，**投后 SOP 不使用** |
+| **投后产品库** | `product_library.yaml` / SOP 产品页 | 跑批扫描 + 产品静态画像 |
+| **预警规则** | `sop_rule_system.yaml` + 规则策略页 | 指标、规则、组合事件 |
+| **智能体与调度** | `sop_agent_system.yaml` | 描述模板、话术、定时任务、推送 |
+| **运行时事件** | `data/sop_events.json` | 跑批日志 + 事件 + 生成内容（**gitignore**） |
 
-- 已删除 **投后陪伴**（`aftercare_*`），SOP 独立实现。
-- 根目录 `sop-SKILL.md` 是 OpenClaw/Excel 外链技能说明，**不是**本仓库运行时；本 skill 描述 **Web + API 实现**。
+- 已删除旧版「投后陪伴」模块，SOP 为独立实现。
+- 根目录 `sop-SKILL.md` 为外链/Excel 说明，**非**本仓库 Web 运行时。
 
-## 6.2 四步管道
+## 内容生成管道（四步）
 
-| 步骤 | 配置/代码 | 输出 |
-|------|-----------|------|
-| **6.2.1** 事件描述 | `sop_agent_system.yaml` → `event_description`；`SopAgentPipeline.step_621_*` | Skill Step 3 风格 Markdown |
-| **6.2.2** 产品信息 | `SopProductInfoService`；降级：`sop_product_library` + `mock_product_metrics` | `static` + `performance` + `degraded[]` |
-| **6.2.3** 投研分析 | `sop_research_frameworks.yaml` + `sop_rule_system.strategy_frameworks`；可选 LLM | 300–350 字结构化结论 |
-| **6.2.4** 对客话术 | `sop_script_templates.yaml` + `sop_banned_words.yaml` | 200–250 字 + 合规替换 |
+| 步骤 | 产出 | 说明 |
+|------|------|------|
+| **事件描述** | Markdown 结构化说明 | 按模板列展示产品、回撤、触发状态等 |
+| **产品信息** | 静态 + 业绩 | 产品库为主，业绩可 mock 降级 |
+| **投研分析** | 300–350 字结论 | 按策略框架；可选大模型增强 |
+| **对客话术** | 200–250 字 | 模板 + 禁用词合规替换 |
 
-编排入口：`core/sop_agent_pipeline.py` → `SopAgentService.run_for_event()`。
+编排入口：`core/sop_agent_pipeline.py` → `SopAgentService.run_for_event()`
 
-**LLM 策略：**
+**生成策略：**
 
-- 单条 `POST /api/sop/agent/run`：配置 Key 时 6.2.3 可 LLM 增强（`source: llm`）。
-- 批量 `POST /api/sop/agent/run-batch`：默认 `use_llm: false`，规则模板快速模式，**每批最多 20 条**。
+- 单条生成：配置大模型 Key 时可 LLM 增强投研
+- 批量生成：默认规则模板快速模式，**每批最多 20 条**
+
+## 定时任务与推送
+
+| 能力 | 入口 |
+|------|------|
+| 定时跑批 | `运营管理 → 批量任务` 或 `sop_agent_system.batch_schedule` |
+| 链式自动化 | 可配置：跑批 → 智能生成 → 飞书推送 |
+| 飞书账号 | `advisor_directory.yaml` 配手机/邮箱/工号，自动解析 open_id |
+| 手动触发 | 投后SOP管理台 + `POST /api/sop/events/scheduled-batch` |
 
 ## 核心模块
 
 | 模块 | 路径 |
 |------|------|
-| 6.1 规则引擎 | `core/sop_rule_engine.py` |
-| 事件持久化 | `core/sop_event_store.py`（原子写入 + 文件锁） |
-| 6.2 管道 | `core/sop_agent_pipeline.py` |
-| 6.2 服务 | `core/sop_agent_service.py` |
-| SOP 产品库 CRUD | `core/sop_product_library_service.py` |
-| 定时跑批 | `core/sop_batch_scheduler.py`（默认 21:00） |
-| 话术/禁用词 | `core/sop_script_builder.py` |
+| 规则引擎 | `core/sop_rule_engine.py` |
+| 事件持久化 | `core/sop_event_store.py` |
+| 内容管道 | `core/sop_agent_pipeline.py` |
+| 智能体服务 | `core/sop_agent_service.py` |
+| 飞书推送 | `core/sop_push_service.py` |
+| 定时调度 | `core/sop_batch_scheduler.py` |
+| 产品库 | `core/sop_product_library_service.py` |
 
 ## 前端入口
 
 | 页面 | 路径 |
 |------|------|
-| SOP 投后智能体 | `frontend/sop_agent.html` |
+| 投后SOP管理台 | `frontend/sop_agent.html` |
+| 批量任务 | `frontend/admin/sop_batch_trigger.html` |
 | 规则策略 | `frontend/admin/rule_strategy.html` |
-| SOP 产品信息库 | `frontend/admin/sop_product_library.html` |
-
-演示：跑批触发 → 查询事件 / 批量运行 6.2 → 单条「运行智能体」→ **三块展示**（事件描述 / 投研 / 话术）。
+| 产品信息库 | `frontend/admin/sop_product_library.html` |
 
 ## API 速查
 
 ```text
-GET  /api/sop/system                    # 6.1 规则配置
-POST /api/sop/events/run-batch          # 6.1 跑批
-GET  /api/sop/events                    # 组合事件列表
-POST /api/sop/agent/query               # 自然语言查事件
-POST /api/sop/agent/run                 # 单条 6.2
-POST /api/sop/agent/run-batch           # 批量 6.2 { all_pending, limit, use_llm }
-GET  /api/sop/agent/output?event_id=    # 读取已生成内容包
-GET  /api/sop/agent/config              # 6.2 配置
-GET  /api/sop/agent/schedule/status     # 定时任务状态
-POST /api/sop/events/scheduled-batch    # 手动触发 21:00 流程
-
-/api/sop/info-products/  /managers/     # SOP 产品库（独立 router）
+POST /api/sop/events/run-batch          # 规则跑批
+GET  /api/sop/events                    # 事件列表
+POST /api/sop/agent/run                 # 单条内容生成
+POST /api/sop/agent/run-batch           # 批量生成
+POST /api/sop/agent/push                # 飞书推送
+PUT  /api/sop/agent/schedule/config     # 定时任务配置
+POST /api/sop/events/scheduled-batch    # 手动触发定时流程
+GET  /api/sop/agent/schedule/status     # 调度状态
 ```
 
-## 配置决策树
+## 配置决策
+
+| 要改什么 | 改哪里 |
+|----------|--------|
+| 预警阈值 / 规则 | `sop_rule_system.yaml` + 规则策略页 |
+| 投后产品信息 | 产品信息库页 / `product_library.yaml` |
+| 事件描述模板 | `sop_agent_system.event_description` |
+| 投研框架 | `sop_research_frameworks.yaml` |
+| 话术 / 禁用词 | `sop_script_templates` / `sop_banned_words` |
+| 定时跑批 / 自动推送 | 批量任务页 / `batch_schedule` |
+
+## 事件状态
 
 ```text
-改阈值/表达式/组合事件？     → sop_rule_system.yaml + 规则策略页（不动 6.2）
-改 SOP 产品静态信息？         → sop_product_library.yaml + SOP产品信息库页
-改事件描述模板列？            → sop_agent_system.event_description
-改投研框架维度？              → sop_research_frameworks.yaml
-改策略类型→框架映射？         → sop_rule_system.strategy_frameworks
-改话术模板/禁用词？           → sop_script_templates / sop_banned_words
-改定时跑批时间？              → sop_agent_system.batch_schedule
+待生成 → 生成中 → 已完成 | 失败
+推送：待推送 → 已推送 / 部分推送 / 失败
 ```
-
-改 YAML 后：`reload_all_configs()` 或重启服务；`save_sop_*` 写入函数会自动 reload。
-
-## 数据降级（当前无评价库/知识库）
-
-| 数据 | 现状 | 将来接入点 |
-|------|------|------------|
-| 静态产品 | `SopProductLibraryService` | 替换 `data_sources.product_static` |
-| 业绩指标 | `mock_product_metrics()` | 评价 API → `product_performance` |
-| 研报 | 无，`report_note` 标注降级 | 知识库 → `product_reports` |
-
-**禁止**用 `product_constraint.yaml` 充当 SOP 产品源。
-
-## agent_status 状态机
-
-```text
-pending → running → done | failed
-```
-
-- 跑批新建事件：`agent_status: pending`
-- 中断遗留 `running`：批量前 `reset_stale_running()` 重置为 pending
-- 完成后写入 `data/sop_events.json` 的 `agent_outputs[event_id]`
-
-清空事件库：重置 `data/sop_events.json` 为默认空结构后重新跑批。
 
 ## 开发与调试
 
 ```bash
-# 测试
-.venv/bin/python -m pytest tests/test_sop.py tests/test_sop_agent_pipeline.py tests/test_sop_product_library.py -q
+pytest tests/test_sop.py tests/test_sop_agent_pipeline.py tests/test_sop_feishu_push.py -q
 
-# 本地 API 冒烟
 curl -X POST localhost:8000/api/sop/events/run-batch -H 'Content-Type: application/json' -d '{}'
-curl -X POST localhost:8000/api/sop/agent/run-batch -H 'Content-Type: application/json' \
-  -d '{"all_pending":true,"limit":5}'
+curl -X PUT localhost:8000/api/sop/agent/schedule/config -H 'Content-Type: application/json' \
+  -d '{"enabled":true,"hour":20,"minute":0,"run_agent_after_batch":true,"push_feishu_after_agent":false}'
 ```
 
 **常见坑：**
 
-1. 批量 6.2「无反应」→ 事件过多 + 单条 LLM 慢；用 `limit` + `use_llm:false`，前端需即时 loading。
-2. `sop_events.json` 膨胀 → 运行时数据，勿提交 git；可定期清空。
-3. 并发写 JSON 损坏 → 已用 tmp 原子替换；勿多进程同时写同一文件。
-4. 6.1 产品 ID 与资配 P 码混用 → 跑批扫描 `SopProductLibraryService.get_product_map()`。
+1. 批量生成慢 → 用 `limit` + 关闭 LLM
+2. `sop_events.json` 膨胀 → 运行时数据，勿提交 git
+3. 投后产品 ID 与资配 P 码混用 → 跑批扫描 SOP 产品库
 
 ## 改动检查清单
 
-- [ ] SOP 产品改动只动 `sop_product_library.yaml`，未改 `product_constraint`
-- [ ] 6.2 管道四步输出字段与前端三块展示一致
-- [ ] 批量 API 默认 limit ≤ 20、use_llm=false
-- [ ] 新增配置已接入 `config_loader` / `reload_all_configs`
+- [ ] 投后产品改动不动 `product_constraint`
+- [ ] 管道输出与前端三块展示一致
+- [ ] 批量 API 默认 limit ≤ 20
+- [ ] 定时任务配置与批量任务页一致
 - [ ] 相关 pytest 通过
 
 ## 延伸阅读
 
-- 配置与输出字段详情 → [reference.md](reference.md)
-- 外链 Excel/飞书全流程 → 仓库根目录 `sop-SKILL.md`（非本实现）
+- 配置与字段详情 → [reference.md](reference.md)

@@ -29,6 +29,8 @@ risk_levels:
     description: 追求长期高收益，最大可承受本金亏损约15%
 
 # 演示客户数据（demo_test 及 API 默认读取）
+default_advisor_id: RM_CCD
+
 demo_customers:
   - customer_id: C20250602001
     name: 张女士

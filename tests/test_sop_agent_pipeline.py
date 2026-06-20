@@ -77,6 +77,9 @@ class TestSopAgentPipeline:
         assert out["research_analysis"].get("framework") == "固收（纯债/债券型）"
         assert "近60日收益率" in out["event_description"]
         assert "单日最大回撤" not in out["event_description"]
+        assert "建议与客户" not in script
+        assert "与客户沟通" not in script
+        assert "您" in script
 
     def test_product_info_degraded(self):
         pkg = SopProductInfoService().fetch_info_package("A108", "2026-06-02")
@@ -99,7 +102,7 @@ class TestSopAgentAPI:
         resp = client.get("/api/sop/agent/config")
         assert resp.status_code == 200
         data = resp.json()["data"]
-        assert data["batch_schedule"]["hour"] == 21
+        assert data["batch_schedule"]["hour"] == 20
 
     def test_schedule_status(self):
         resp = client.get("/api/sop/agent/schedule/status")

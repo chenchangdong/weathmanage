@@ -1,12 +1,16 @@
 version: '1.0'
 page:
-  title: SOP投后智能体
+  title: 投后SOP管理台
   subtitle: 6.2 事件描述 · 产品信息 · 投研分析 · 对客话术
 batch_schedule:
   enabled: true
-  hour: 21
+  hour: 20
   minute: 0
   run_agent_after_batch: true
+  push_feishu_after_agent: false
+  trigger_name: 投后SOP事件跑批
+  trigger_type: CRON
+  description: 每日按 SOP 产品库与规则扫描，识别组合事件并写入事件库；可选自动运行智能体管道
   timezone_note: 服务器本地时区
 event_retention:
   enabled: true
@@ -20,7 +24,7 @@ mock_performance:
   alert_ratio_pct: 12
   note: 约 12% 产品在单日跑批中触发告警（18 个产品约 2 条事件），其余为正常业绩
 event_description:
-  header: '【{data_date} 售后提醒】'
+  header: 【{data_date} 售后提醒】
   detail_columns:
   - key: product_name
     label: 产品名称
@@ -69,3 +73,9 @@ script:
   word_count_min: 200
   word_count_max: 250
   default_template_key: drawdown
+feishu_push:
+  enabled: true
+  push_after_agent: false
+  retry: 2
+  card_title: 【售后提醒】{scenario} · {product_name}
+  app_base_url: http://localhost:8000

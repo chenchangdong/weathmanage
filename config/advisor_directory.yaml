@@ -1,0 +1,33 @@
+# 客户经理名录 — 6.2.5 飞书一对一推送
+# 与 SOP 产品库中的 manager（基金管理人）无关。
+#
+# 【无需逐个配置 feishu_open_id】三种对齐方式（任选）：
+#   A. 每位经理只填 mobile 或 email → 推送时自动解析并写入 data/advisor_feishu_cache.json
+#   B. 调用 POST /api/sop/agent/feishu/sync-advisors 批量预热全部经理
+#   C. 配置 feishu_sync.department_id → 从飞书部门整库同步（按工号/手机/邮箱/姓名匹配）
+version: "1.0"
+
+default_advisor_id: RM_CCD
+
+feishu_sync:
+  # 理财经理所在飞书部门 open_department_id（填则优先走部门同步；留空则按 mobile/email 批量解析）
+  department_id: ""
+  sync_before_push: true
+
+advisors:
+  - id: RM_CCD
+    name: 陈长东
+    title: 客户经理
+    employee_no: ""
+    mobile: "18822800945"
+    email: ""
+    # open_id 可选；不填也会自动解析并缓存
+    feishu_open_id: ""
+  - id: RM_NOODLES
+    name: noodles
+    title: 客户经理
+    employee_no: ""
+    mobile: "18515460218"
+    email: ""
+    # open_id 可选；不填也会自动解析并缓存
+    feishu_open_id: ""

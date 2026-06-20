@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from core.config_loader import load_sop_banned_words, load_sop_script_templates
+from core.sop_client_voice import contains_advisor_voice, to_client_voice
 
 
 class SopScriptBuilder:
@@ -37,7 +38,12 @@ class SopScriptBuilder:
         rec = research.get("recommendation") or ""
         structured = research.get("structured") or {}
         composite = event.get("composite_code") or ""
-        research_summary = rec or structured.get("outlook") or research.get("conclusion") or ""
+        research_summary = (
+            research.get("recommendation_client")
+            or to_client_voice(research.get("recommendation") or "")
+            or to_client_voice(structured.get("outlook") or "")
+            or to_client_voice(research.get("conclusion") or "")
+        )
         if composite == "EVT_YIELD" and research_summary:
             research_summary = research_summary.replace("回撤收敛", "收益修复").replace(
                 "最大回撤继续扩大", "收益继续走弱"
@@ -86,6 +92,11 @@ class SopScriptBuilder:
     ) -> dict[str, Any]:
         raw = self.build_from_template(event, product_info, research)
         script, warnings = self.sanitize(raw)
+        if contains_advisor_voice(script):
+            cleaned = to_client_voice(script)
+            if cleaned != script:
+                warnings.append("已将对客话术中的经理向表述转为客户端口吻")
+                script = cleaned
         return {
             "text": script,
             "template_key": self.pick_template_key(event),

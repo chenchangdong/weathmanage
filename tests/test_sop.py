@@ -177,6 +177,37 @@ class TestSopRuleEngine:
         assert removed["composite_events"] == 1
         assert not store.list_composite_events()
 
+    def test_stats_data_date_range(self, tmp_path):
+        store = SopEventStore(path=tmp_path / "sop_events.json")
+        store.append_composite_events([
+            {"event_id": "E1", "data_date": "2026-06-18"},
+            {"event_id": "E2", "data_date": "2026-06-20"},
+        ])
+        s = store.stats()
+        assert s["data_date_min"] == "2026-06-18"
+        assert s["data_date_max"] == "2026-06-20"
+        assert s["latest_data_date"] == "2026-06-20"
+
+    def test_save_agent_output_status_label(self, tmp_path):
+        store = SopEventStore(path=tmp_path / "sop_events.json")
+        store.append_composite_events([
+            {"event_id": "E1", "data_date": "2026-06-18", "status_label": "待生成"},
+        ])
+        store.save_agent_output("E1", {"agent_status": "done", "event_description": "x"})
+        evt = store.list_composite_events()[0]
+        assert evt["status_label"] == "已生成"
+        assert evt["agent_status"] == "done"
+
+    def test_save_push_result_status_label(self, tmp_path):
+        store = SopEventStore(path=tmp_path / "sop_events.json")
+        store.append_composite_events([
+            {"event_id": "E1", "data_date": "2026-06-18", "agent_status": "done"},
+        ])
+        store.save_push_result("E1", "sent", [{"status": "sent"}])
+        evt = store.list_composite_events()[0]
+        assert evt["status_label"] == "已推送"
+        assert evt["push_status"] == "sent"
+
     def test_query_yesterday_filter(self, tmp_path):
         from core.sop_query_parser import build_query_filters
 

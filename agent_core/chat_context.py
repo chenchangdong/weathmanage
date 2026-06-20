@@ -145,6 +145,7 @@ def build_diagnosis_context(diagnosis: dict[str, Any] | None) -> dict[str, Any]:
         },
         "four_money": four_money,
         "flags": flags,
+        "score_context": diagnosis.get("score_context"),
         "dimensions": diagnosis.get("dimensions"),
         "conclusions": diagnosis.get("conclusions"),
     }

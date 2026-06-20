@@ -222,6 +222,10 @@
       document.getElementById('diagnosisConclusion').textContent =
         d.conclusions[0] || '暂无异常，建议定期复盘。';
 
+      const scoreBadge = document.getElementById('compositeScore');
+      const level = (d.score_context && d.score_context.health_level) || 'healthy';
+      scoreBadge.className = `diagnosis-score-badge diagnosis-score-badge--${level}`;
+
       document.getElementById('radarWrap').innerHTML = WealthJourney.renderRadar(d.dimensions);
       document.getElementById('fourMoneyCompare').innerHTML =
         WealthJourney.renderCompareBars(d.four_money);

@@ -1611,6 +1611,8 @@ const PlanEditor = {
     });
     return this.sortPlanProductDeltas(merged);
   },
+
+  updatePlanCardSummaries(rb) {
     rb.category_summary.forEach(s => {
       const card = document.querySelector(`.plan-card.${s.category}`);
       if (!card) return;

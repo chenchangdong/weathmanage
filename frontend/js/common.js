@@ -67,6 +67,17 @@ async function apiPost(path, body) {
   return json;
 }
 
+async function apiPut(path, body) {
+  const res = await fetch(API_BASE + path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.detail || '请求失败');
+  return json;
+}
+
 function getCustomerId() {
   const sel = document.getElementById('customerSelect');
   if (sel && sel.value) return sel.value;
@@ -202,7 +213,7 @@ function renderNav(active) {
     { href: 'result.html', label: '配置方案', hidden: true },
   ];
   const sopPages = [
-    { href: 'sop_agent.html', label: '智能体工作台', key: 'sop_agent' },
+    { href: 'sop_agent.html', label: '投后SOP管理台', key: 'sop_agent' },
     { href: 'admin/rule_strategy.html', label: '规则策略', key: 'rule_strategy' },
     { href: 'admin/sop_product_library.html', label: '产品信息库', key: 'sop_product_library' },
   ];

@@ -2792,6 +2792,131 @@ button.journey-step.link {
   box-shadow: 0 4px 16px rgba(255, 77, 79, 0.35);
 }
 
+.diagnosis-score-badge--healthy {
+  background: linear-gradient(135deg, #73d13d, #52c41a);
+  box-shadow: 0 4px 16px rgba(82, 196, 26, 0.35);
+}
+
+.diagnosis-score-badge--watch {
+  background: linear-gradient(135deg, #ffc53d, #faad14);
+  box-shadow: 0 4px 16px rgba(250, 173, 20, 0.35);
+}
+
+.diagnosis-score-badge--attention {
+  background: linear-gradient(135deg, #ff7875, #ff4d4f);
+  box-shadow: 0 4px 16px rgba(255, 77, 79, 0.35);
+}
+
+.diagnosis-score-health {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--bg-secondary, #fafafa);
+  border: 1px solid var(--border-color, #f0f0f0);
+}
+
+.diagnosis-score-health--healthy {
+  border-color: #b7eb8f;
+  background: #f6ffed;
+}
+
+.diagnosis-score-health--watch {
+  border-color: #ffe58f;
+  background: #fffbe6;
+}
+
+.diagnosis-score-health--attention {
+  border-color: #ffccc7;
+  background: #fff2f0;
+}
+
+.diagnosis-score-health-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.diagnosis-score-health-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.diagnosis-score-health-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
+}
+
+.diagnosis-score-source-tag {
+  font-size: 11px;
+  color: #1677ff;
+  background: #e6f4ff;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.diagnosis-score-health-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.diagnosis-score-health-chips .flag-badge {
+  font-size: 12px;
+}
+
+.diagnosis-score-health-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+
+.diagnosis-flag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.diagnosis-flag-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.diagnosis-flag-item-hint {
+  flex: 1 1 100%;
+  color: var(--text-secondary);
+  padding-left: 2px;
+}
+
+.diagnosis-flag-item-source {
+  font-size: 10px;
+  color: #1677ff;
+  background: #e6f4ff;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.diagnosis-score-alloc-hint {
+  font-size: 12px;
+  color: #ad6800;
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
 .diagnosis-beat {
   font-size: 14px;
   font-weight: 600;

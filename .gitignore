@@ -7,3 +7,5 @@ __pycache__/
 .env
 data/sop_events.json
 data/sop_events.json.*
+data/advisor_feishu_cache.json
+data/advisor_feishu_cache.json.*

@@ -21,7 +21,7 @@
     {
       divider: 'SOP 投后',
       items: [
-        { id: 'sop_agent', label: '智能体工作台', href: 'sop_agent.html', leaf: true },
+        { id: 'sop_agent', label: '投后SOP管理台', href: 'sop_agent.html', leaf: true },
         { id: 'rule_strategy', label: '规则策略', href: 'admin/rule_strategy.html', leaf: true },
         { id: 'sop_product_library', label: '产品信息库', href: 'admin/sop_product_library.html', leaf: true },
       ],
@@ -33,6 +33,7 @@
           id: 'ops',
           label: '运营管理',
           items: [
+            { id: 'sop_batch_trigger', label: '批量任务', href: 'admin/sop_batch_trigger.html', leaf: true },
             { id: 'data_dict', label: '数据字典', href: 'admin/data_dict.html' },
             { id: 'model_config', label: '模型建立', href: 'admin/model_config.html' },
             { id: 'portfolio_mapping', label: '模型指派', href: 'admin/portfolio_mapping.html' },
@@ -114,18 +115,66 @@
     const norm = normalizePage(page);
     if (norm === itemId || page === itemId) return true;
     if (itemId === 'smart_allocation_setup' && SMART_ALLOC_PAGES.has(page)) return true;
+    if (!href) return false;
     const base = href.replace(/^admin\//, '').replace('.html', '');
     return page === base || page.replace('.html', '') === base;
   }
 
   function groupHasActive(page, group) {
-    return (group.items || []).some((item) => isPageActive(page, item.id, item.href));
+    return (group.items || []).some((item) => itemLeafActive(page, item));
+  }
+
+  function itemLeafActive(page, item) {
+    if (item.leaf || item.href) {
+      return isPageActive(page, item.id, item.href);
+    }
+    return groupHasActive(page, item);
   }
 
   function sectionHasActive(page, section) {
-    return section.items.some((item) => item.leaf
-      ? isPageActive(page, item.id, item.href)
-      : groupHasActive(page, item));
+    return section.items.some((item) => itemLeafActive(page, item));
+  }
+
+  function buildNavItem(item, page, admin, depth = 0) {
+    if (item.leaf || (item.href && !(item.items || []).length)) {
+      return buildLeaf(item, page, admin);
+    }
+
+    const open = groupHasActive(page, item);
+    const group = document.createElement('div');
+    group.className = 'nav-group' + (depth > 0 ? ' nav-group-nested' : '');
+
+    const label = document.createElement('div');
+    label.className = 'nav-group-label' + (open ? ' open' : '') + (groupHasActive(page, item) ? ' is-active' : '');
+    label.innerHTML =
+      '<span style="display:flex;align-items:center;flex:1;min-width:0">' +
+      esc(item.label) +
+      '</span><span class="chev">▶</span>';
+
+    const itemsWrap = document.createElement('div');
+    itemsWrap.className = 'nav-items';
+    if (!open) itemsWrap.hidden = true;
+
+    (item.items || []).forEach((child) => {
+      if (child.leaf || (child.href && !(child.items || []).length)) {
+        const link = document.createElement('a');
+        link.className = 'nav-item' + (isPageActive(page, child.id, child.href) ? ' active' : '');
+        link.href = resolveHref(child.href, admin);
+        link.textContent = child.label;
+        itemsWrap.appendChild(link);
+        return;
+      }
+      itemsWrap.appendChild(buildNavItem(child, page, admin, depth + 1));
+    });
+
+    label.addEventListener('click', () => {
+      const isOpen = label.classList.toggle('open');
+      itemsWrap.hidden = !isOpen;
+    });
+
+    group.appendChild(label);
+    group.appendChild(itemsWrap);
+    return group;
   }
 
   function buildSidebar(page, admin) {
@@ -155,42 +204,11 @@
       nav.appendChild(divider);
 
       section.items.forEach((item) => {
-        if (item.leaf) {
+        if (item.leaf || (item.href && !(item.items || []).length)) {
           nav.appendChild(buildLeaf(item, page, admin));
           return;
         }
-
-        const open = groupHasActive(page, item) || sectionHasActive(page, section);
-        const group = document.createElement('div');
-        group.className = 'nav-group';
-
-        const label = document.createElement('div');
-        label.className = 'nav-group-label' + (open ? ' open' : '') + (groupHasActive(page, item) ? ' is-active' : '');
-        label.innerHTML =
-          '<span style="display:flex;align-items:center;flex:1;min-width:0">' +
-          esc(item.label) +
-          '</span><span class="chev">▶</span>';
-
-        const itemsWrap = document.createElement('div');
-        itemsWrap.className = 'nav-items';
-        if (!open) itemsWrap.hidden = true;
-
-        (item.items || []).forEach((child) => {
-          const link = document.createElement('a');
-          link.className = 'nav-item' + (isPageActive(page, child.id, child.href) ? ' active' : '');
-          link.href = resolveHref(child.href, admin);
-          link.textContent = child.label;
-          itemsWrap.appendChild(link);
-        });
-
-        label.addEventListener('click', () => {
-          const isOpen = label.classList.toggle('open');
-          itemsWrap.hidden = !isOpen;
-        });
-
-        group.appendChild(label);
-        group.appendChild(itemsWrap);
-        nav.appendChild(group);
+        nav.appendChild(buildNavItem(item, page, admin));
       });
     });
 
@@ -300,7 +318,11 @@
       return;
     }
 
-    if (document.body.classList.contains('has-app-shell')) return;
+    if (document.body.classList.contains('has-app-shell') && document.querySelector('.app.app-shell')) return;
+
+    if (document.body.classList.contains('has-app-shell')) {
+      document.body.classList.remove('has-app-shell');
+    }
 
     document.body.classList.add('has-app-shell');
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -333,7 +333,9 @@ class SopEventStore:
                     evt["agent_status"] = output.get("agent_status", "done")
                     if output.get("agent_status") == "done":
                         evt["status"] = 1
-                        evt["status_label"] = "1 已确认"
+                        evt["status_label"] = "已生成"
+                    elif output.get("agent_status") == "failed":
+                        evt["status_label"] = "生成失败"
                     break
 
         self._mutate(_update)
@@ -341,7 +343,65 @@ class SopEventStore:
     def get_agent_output(self, event_id: str) -> dict[str, Any] | None:
         return self._load()["agent_outputs"].get(event_id)
 
-    def stats(self) -> dict[str, int]:
+    def list_pushable_event_ids(self, *, limit: int = 20) -> list[str]:
+        """agent 已完成且尚未成功推送的事件。"""
+        data = self._load()
+        outputs = data.get("agent_outputs") or {}
+        rows = []
+        for evt in data["composite_events"]:
+            eid = evt.get("event_id")
+            if not eid:
+                continue
+            out = outputs.get(eid)
+            if not out or out.get("agent_status") != "done":
+                continue
+            if evt.get("push_status") == "sent":
+                continue
+            rows.append(evt)
+        rows.sort(key=lambda e: e.get("trigger_time", ""), reverse=True)
+        ids = [e["event_id"] for e in rows if e.get("event_id")]
+        if limit > 0:
+            return ids[:limit]
+        return ids
+
+    def save_push_result(
+        self,
+        event_id: str,
+        status: str,
+        deliveries: list[dict[str, Any]],
+        *,
+        note: str | None = None,
+    ) -> None:
+        def _update(data: dict[str, Any]) -> None:
+            for evt in data["composite_events"]:
+                if evt.get("event_id") != event_id:
+                    continue
+                evt["push_status"] = status
+                evt["push_deliveries"] = deliveries
+                evt["push_note"] = note
+                evt["push_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                if deliveries:
+                    evt["push_sent_count"] = sum(
+                        1 for d in deliveries if d.get("status") == "sent"
+                    )
+                    evt["push_failed_count"] = sum(
+                        1 for d in deliveries if d.get("status") == "failed"
+                    )
+                if status == "sent":
+                    evt["status_label"] = "已推送"
+                elif status == "partial":
+                    evt["status_label"] = "部分推送"
+                elif status == "failed":
+                    evt["status_label"] = "推送失败"
+                break
+            out = data["agent_outputs"].get(event_id)
+            if out is not None:
+                out["push_status"] = status
+                out["push_deliveries"] = deliveries
+
+        self._mutate(_update)
+
+    def stats(self) -> dict[str, Any]:
         data = self._load()
         events = data["composite_events"]
         pending = sum(
@@ -349,9 +409,20 @@ class SopEventStore:
             for e in events
             if e.get("agent_status") in (None, "pending", "failed", "running")
         )
+        dates = sorted(
+            {
+                (e.get("data_date") or (e.get("trigger_time") or "")[:10])
+                for e in events
+                if e.get("data_date") or e.get("trigger_time")
+            }
+        )
+        dates = [d for d in dates if d]
         return {
             "composite_events": len(events),
             "rule_logs": len(data["rule_logs"]),
             "agent_outputs": len(data.get("agent_outputs") or {}),
             "pending": pending,
+            "data_date_min": dates[0] if dates else None,
+            "data_date_max": dates[-1] if dates else None,
+            "latest_data_date": dates[-1] if dates else None,
         }

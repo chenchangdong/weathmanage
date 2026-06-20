@@ -140,3 +140,15 @@ def save_sop_rule_system(config: Dict[str, Any], version: str = "1.0") -> None:
     payload["version"] = version
     _dump_yaml(CONFIG_DIR / "sop_rule_system.yaml", payload)
     reload_all_configs()
+
+
+def save_sop_agent_batch_schedule(schedule: Dict[str, Any]) -> None:
+    """更新 sop_agent_system.yaml 中的 batch_schedule 段。"""
+    path = CONFIG_DIR / "sop_agent_system.yaml"
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    current = dict(data.get("batch_schedule") or {})
+    current.update(schedule)
+    data["batch_schedule"] = current
+    _dump_yaml(path, data)
+    reload_all_configs()

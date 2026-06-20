@@ -240,7 +240,7 @@ class SopRuleEngine:
                     "trigger_time": ts,
                     "metrics": metrics,
                     "status": 0,
-                    "status_label": "0 初始",
+                    "status_label": "待生成",
                 }
                 key = self.store.rule_log_key(hit)
                 if key in existing_rule_keys:
@@ -288,7 +288,7 @@ class SopRuleEngine:
                     "trigger_time": ts,
                     "data_date": data_date,
                     "status": 0,
-                    "status_label": "0 初始",
+                    "status_label": "待生成",
                     "agent_status": "pending",
                 })
 

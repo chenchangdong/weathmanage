@@ -13,6 +13,7 @@ from core.config_loader import (
     load_sop_rule_system,
 )
 from core.sop_product_info_service import SopProductInfoService
+from core.sop_client_voice import to_client_voice
 from core.sop_script_builder import SopScriptBuilder
 
 _ASSET_TYPE_FRAMEWORK: dict[str, str] = {
@@ -248,9 +249,18 @@ class SopAgentPipeline:
                 or fw.get("recommendation_default")
                 or "建议与客户沟通收益不达预期原因，短期以持有观察为主。"
             )
+            recommendation_client = (
+                fw.get("yield_recommendation_client")
+                or fw.get("recommendation_client")
+                or to_client_voice(recommendation)
+            )
             if event.get("level") == "高":
                 recommendation = (
                     "建议与客户充分沟通收益偏离原因，短期以安抚为主，暂不主动建议大幅调仓。"
+                )
+                recommendation_client = (
+                    "当前收益偏离较明显，建议您先保持持有观察；"
+                    "我们会及时向您说明原因及后续跟踪安排，如有需要再与您沟通调仓方案。"
                 )
         else:
             product_part = (
@@ -262,9 +272,16 @@ class SopAgentPipeline:
             market_part = fw.get("market_prompt") or "关注宏观与市场波动对产品的传导。"
             market_part = f"市场层面：{market_part}"
             recommendation = fw.get("recommendation_default") or "建议持有观察。"
+            recommendation_client = (
+                fw.get("recommendation_client") or to_client_voice(recommendation)
+            )
             if event.get("level") == "高":
                 recommendation = (
                     "建议与客户充分沟通回撤原因，短期以安抚为主，暂不主动建议大幅调仓。"
+                )
+                recommendation_client = (
+                    "近期波动有所加大，建议您先保持持有观察；"
+                    "我们会及时向您说明回撤原因及后续跟踪安排，如有需要再与您沟通调仓方案。"
                 )
 
         if static.get("conclusion"):
@@ -286,6 +303,7 @@ class SopAgentPipeline:
             "market_analysis": market_part,
             "conclusion": conclusion,
             "recommendation": recommendation,
+            "recommendation_client": recommendation_client,
             "structured": {
                 "phenomenon": phenomenon,
                 "cause": product_part,

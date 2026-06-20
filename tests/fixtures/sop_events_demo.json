@@ -1,0 +1,34 @@
+{
+  "next_event_seq": 100,
+  "rule_logs": [],
+  "composite_events": [
+    {
+      "event_id": "EVT91",
+      "composite_code": "EVT_DRAWDOWN",
+      "scenario": "最大回撤超阈值",
+      "product_code": "T305",
+      "product_name": "test-顶点-灵活T3",
+      "drawdown_detail": "近60日最大回撤达 -3.6%，超阈值 -3%",
+      "data_date": "2026-06-20"
+    },
+    {
+      "event_id": "EVT92",
+      "composite_code": "EVT_DRAWDOWN",
+      "scenario": "最大回撤超阈值",
+      "product_code": "P005",
+      "product_name": "进取组合（演示）",
+      "drawdown_detail": "近60日最大回撤达 -8.2%，超阈值 -6%",
+      "data_date": "2026-06-20"
+    },
+    {
+      "event_id": "EVT93",
+      "composite_code": "EVT_YIELD",
+      "scenario": "收益不达预期",
+      "product_code": "prd-ms-B5",
+      "product_name": "磐石3.0（演示产品）",
+      "drawdown_detail": "收益率低于 2%",
+      "data_date": "2026-06-20"
+    }
+  ],
+  "agent_outputs": {}
+}
