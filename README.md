@@ -1,6 +1,6 @@
 # 智能资配
 
-**人人都是专业财富顾问**
+**项目**：wealthmanagement · **人人都是专业财富顾问**
 
 面向理财经理的一站式智能投顾工作台：从**发现客户问题**、**给出专业诊断**，到**一键生成配仓方案**，再到**投后自动触达**，把复杂的专业能力封装成可操作的日常流程。
 
@@ -147,7 +147,7 @@
 ## 快速启动
 
 ```bash
-cd weathmanage
+cd wealthmanagement
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -198,7 +198,7 @@ python main.py
 ## 目录结构
 
 ```
-weathmanage/
+wealthmanagement/
 ├── config/                       # 业务规则与演示数据（YAML）
 │   ├── model_config.yaml         # 资产配置模型
 │   ├── portfolio_mapping.yaml    # 风险等级 → 模型

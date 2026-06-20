@@ -1,7 +1,7 @@
 ---
 name: sop-post-investment-agent
 description: >-
-  Operates weathmanage post-investment SOP: rule batch, content generation,
+  Operates wealthmanagement post-investment SOP: rule batch, content generation,
   Feishu push, scheduled tasks, and ops admin. Use when implementing or
   debugging 投后SOP管理台, sop_agent, run-batch, SopAgentPipeline, sop_events.json,
   rule strategy, or SOP product library.

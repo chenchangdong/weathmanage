@@ -1,7 +1,7 @@
 ---
 name: four-money-rules
 description: >-
-  Configures 四笔钱 (four-money) business rules for the weathmanage wealth-advisor
+  Configures 四笔钱 (four-money) business rules for the wealthmanagement wealth-advisor
   workbench via YAML. Covers risk-to-model mapping, asset thresholds, product
   constraints, solver flags, and UI/permission rules. Use when changing 四笔钱
   thresholds, risk mapping, model config, product limits, health badge rules,

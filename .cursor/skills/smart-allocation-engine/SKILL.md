@@ -1,7 +1,7 @@
 ---
 name: smart-allocation-engine
 description: >-
-  Operates the weathmanage smart allocation engine: one-click optimal rebalance,
+  Operates the wealthmanagement smart allocation engine: one-click optimal rebalance,
   single-category optimize, manual tweak, product-level edits, and smart
   allocation page UX. Use when implementing or debugging 一键智能配仓,
   auto_rebalance, smart_allocation.html, or allocation results.
