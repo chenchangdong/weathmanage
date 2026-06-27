@@ -14,8 +14,34 @@ const AdvisorChat = {
   _inflightPartialReasoning: '',
   _inflightPartialContent: '',
   _abortController: null,
+  _preloaded: null,
+  _mounted: false,
+  _pageDockOptions: null,
+  _lastPageCustomerId: null,
+  NUDGE_KEY_PREFIX: 'advisorNudgeShown:v1:',
 
   QUICK_SERVICES: [
+    {
+      icon: '🚀',
+      title: '全流程服务',
+      desc: '盘点→诊断→配仓',
+      promptKey: 'full_service',
+      agent: true,
+    },
+    {
+      icon: '🧭',
+      title: '下一步建议',
+      desc: '旅程进度指引',
+      prompt: '我接下来该做什么？',
+      agent: true,
+    },
+    {
+      icon: '📡',
+      title: '投后跟进',
+      desc: 'SOP事件与话术',
+      prompt: '该客户有哪些投后事件需要处理？',
+      agent: true,
+    },
     {
       icon: '💚',
       title: '健康度解读',
@@ -49,8 +75,11 @@ const AdvisorChat = {
   ],
 
   mountShell() {
-    if (document.getElementById('advisorChatPanel')) return;
-    const anchor = document.getElementById('toast') || document.body;
+    const existingPanel = document.getElementById('advisorChatPanel');
+    if (existingPanel) {
+      this._moveShellToBody();
+      return;
+    }
     const wrap = document.createElement('div');
     wrap.innerHTML = `
       <div id="advisorChatBackdrop" class="advisor-chat-backdrop" aria-hidden="true"></div>
@@ -69,6 +98,7 @@ const AdvisorChat = {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
           </button>
         </header>
+        <div id="advisorChatJourney" class="advisor-chat-journey" aria-label="服务进度"></div>
         <div id="advisorChatMessages" class="advisor-chat-messages"></div>
         <footer class="advisor-chat-footer">
           <div class="advisor-chat-input-wrap">
@@ -90,9 +120,49 @@ const AdvisorChat = {
         <span class="advisor-chat-fab-label">智能顾问</span>
       </button>`;
     while (wrap.firstChild) {
-      anchor.parentNode.insertBefore(wrap.firstChild, anchor);
+      document.body.appendChild(wrap.firstChild);
     }
     this._applyPendingOpenShell();
+  },
+
+  _moveShellToBody() {
+    ['advisorChatBackdrop', 'advisorChatPanel', 'advisorChatToggle'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement !== document.body) {
+        document.body.appendChild(el);
+      }
+    });
+  },
+
+  _rerenderUiMessages() {
+    const box = document.getElementById('advisorChatMessages');
+    if (!box) return;
+    box.innerHTML = '';
+    this._uiMessages.forEach((m) => {
+      if (m.kind === 'welcome') {
+        this.showWelcome({ skipPersist: true, time: m.time });
+      } else {
+        this.appendMessage(m.role, m.content, m.meta || {}, {
+          skipPersist: true,
+          time: m.time,
+        });
+      }
+    });
+  },
+
+  _ensureShellOnBody() {
+    if (document.getElementById('advisorChatPanel')) {
+      this._moveShellToBody();
+      return false;
+    }
+    const wasOpen = this._open;
+    this.mountShell();
+    this.bindUI();
+    this._rerenderUiMessages();
+    if (wasOpen) {
+      this.setOpen(true, { skipPersist: true, skipFocus: true, skipAnimation: true });
+    }
+    return true;
   },
 
   _applyPendingOpenShell() {
@@ -111,16 +181,167 @@ const AdvisorChat = {
   },
 
   PAGE_DOCK_CONTAINERS:
-    '.container-smart-allocation, .container-wealth, .container-diagnosis, .container',
+    '.container-smart-allocation, .container-wealth, .container-diagnosis, .container-sop, .container',
 
   async init(options = {}) {
+    if (this._mounted && this._isDockedLayout()) {
+      return this.onPageEnter({ ...this._pageDockOptions, ...options, dock: true });
+    }
+    this._pageDockOptions = { ...options };
     this.mountShell();
     this.setupPageDock(options.dock);
+    if (typeof syncCustomerContextFromUrl === 'function') {
+      syncCustomerContextFromUrl();
+    }
+    const initCid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    if (initCid && typeof loadCustomerList === 'function') {
+      try {
+        await loadCustomerList();
+      } catch (e) {
+        /* fallback CUSTOMERS */
+      }
+    }
+    if (this._isDockedLayout()) {
+      document.body.classList.add('advisor-chat-instant-layout');
+    }
     this.bindUI();
     this._restoreSessionState();
     await this._resumeInflightIfNeeded();
     this.bindPageLinkedActions(options);
     await this.refreshStatus();
+    await this.preloadContext();
+    this.renderJourneyProgress(this._lastJourney || this._journeyFromPreload());
+    if (this._isDockedLayout()) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          document.body.classList.remove('advisor-chat-instant-layout');
+        });
+      });
+    }
+    this._mounted = true;
+    this._lastPageCustomerId = (typeof getCustomerId === 'function' ? getCustomerId() : '') || '_none';
+  },
+
+  /** 软导航换页：不重建侧栏，只更新上下文与页面联动 */
+  async onPageEnter(options = {}) {
+    if (!this._mounted) return this.init(options);
+    this._pageDockOptions = { ...(this._pageDockOptions || {}), ...options };
+    this._ensureShellOnBody();
+    this.setupPageDock(true);
+    if (typeof syncCustomerContextFromUrl === 'function') {
+      syncCustomerContextFromUrl();
+    }
+    const prevCid = this._lastPageCustomerId;
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    const cidKey = cid || '_none';
+    if (prevCid && cidKey && prevCid !== cidKey && prevCid !== '_none' && cidKey !== '_none') {
+      await this.reloadForCustomer();
+    } else if (prevCid !== cidKey) {
+      await this.switchCustomerSession();
+    }
+    this._lastPageCustomerId = cidKey;
+    this.bindPageLinkedActions(this._pageDockOptions);
+    await this.refreshStatus();
+    await this.preloadContext();
+    this.renderJourneyProgress(this._lastJourney || this._journeyFromPreload());
+    if (this._open) {
+      this.setOpen(true, { skipPersist: true, skipFocus: true, skipAnimation: true });
+    }
+    this._persistSession();
+  },
+
+  /** 盘点 hub ↔ 客户页切换：换会话但不关闭侧栏 */
+  async switchCustomerSession() {
+    if (this._abortController) this._abortController.abort();
+    this._clearInflight();
+    this._history = [];
+    this._uiMessages = [];
+    this._welcomed = false;
+    this._sending = false;
+    const box = document.getElementById('advisorChatMessages');
+    if (box) box.innerHTML = '';
+    this.hideTyping();
+    this._restoreSessionState();
+    if (typeof JourneyState !== 'undefined') {
+      const activeCid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+      if (activeCid) this.renderJourneyProgress(JourneyState.get(activeCid));
+    }
+    await this._resumeInflightIfNeeded();
+    this._syncSendBtn();
+  },
+
+  _journeyFromPreload() {
+    if (this._preloaded && this._preloaded.journey) return this._preloaded.journey;
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    return (typeof JourneyState !== 'undefined' && cid) ? JourneyState.get(cid) : null;
+  },
+
+  _nudgeStorageKey() {
+    const page = location.pathname.split('/').pop() || '';
+    const onHub = typeof isCustomerHubPage === 'function' && isCustomerHubPage();
+    if (onHub) {
+      return `${this.NUDGE_KEY_PREFIX}hub:_none`;
+    }
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    // 同一客户旅程内只提示一次，换页不重复弹
+    return `${this.NUDGE_KEY_PREFIX}customer:${cid || '_none'}`;
+  },
+
+  async preloadContext() {
+    if (!this._useAgentMode()) return null;
+    const page = location.pathname.split('/').pop() || '';
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    const hubOrSop = page === 'sop_agent.html' || page === 'wealth_inventory.html';
+    if (!cid && !hubOrSop) return null;
+    try {
+      const q = new URLSearchParams();
+      if (cid) q.set('customer_id', cid);
+      q.set('page', page);
+      const res = await apiGet(`/api/ai/context?${q.toString()}`);
+      this._preloaded = res.data;
+      if (res.data.diagnosis && typeof diagnosisData !== 'undefined') {
+        diagnosisData = res.data.diagnosis;
+      }
+      if (res.data.overview && typeof overviewData !== 'undefined') {
+        overviewData = res.data.overview;
+      }
+      if (res.data.journey) this._applyJourney(res.data.journey);
+      return res.data;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async maybeShowProactiveNudge() {
+    if (!this._useAgentMode() || !this._open) return;
+    const hasConversation = this._uiMessages.some(
+      m => m.role === 'user' || (m.role === 'assistant' && !(m.meta && m.meta.nudge))
+    );
+    if (hasConversation) return;
+    if (this._uiMessages.some(m => m.meta && m.meta.nudge)) return;
+    try {
+      if (sessionStorage.getItem(this._nudgeStorageKey())) return;
+    } catch (e) {
+      return;
+    }
+    const page = location.pathname.split('/').pop() || '';
+    const onHub = typeof isCustomerHubPage === 'function' && isCustomerHubPage();
+    const cid = onHub ? '' : (typeof getCustomerId === 'function' ? getCustomerId() : '');
+    try {
+      const q = new URLSearchParams({ page });
+      if (cid) q.set('customer_id', cid);
+      const res = await apiGet(`/api/ai/nudge?${q.toString()}`);
+      const nudge = res.data && res.data.nudge;
+      if (!nudge || !nudge.message) return;
+      sessionStorage.setItem(this._nudgeStorageKey(), '1');
+      this.appendMessage('assistant', nudge.message, {
+        source: 'agent',
+        actions: nudge.actions || [],
+        nudge: true,
+      });
+    } catch (e) {
+      /* ignore nudge errors */
+    }
   },
 
   _defaultOpenOnDock() {
@@ -137,12 +358,13 @@ const AdvisorChat = {
     return `${this.INFLIGHT_KEY_PREFIX}${cid || '_none'}`;
   },
 
-  _beginInflight({ message, userLabel, historyBefore, linkedParams }) {
+  _beginInflight({ message, userLabel, historyBefore, linkedParams, useLlm }) {
     this._inflight = {
       message,
       userLabel,
       historyBefore: Array.isArray(historyBefore) ? historyBefore : [],
       linkedParams: linkedParams || {},
+      useLlm: !!useLlm,
     };
     this._inflightPartialReasoning = '';
     this._inflightPartialContent = '';
@@ -212,33 +434,55 @@ const AdvisorChat = {
 
     const { message, historyBefore, linkedParams } = inflight;
     const cid = getCustomerId();
-    const { overview, plan, diagnosis } = this.getContextPayload();
+    const { overview, plan, diagnosis: ctxDiagnosis } = this.getContextPayload();
+    let diagnosis = ctxDiagnosis;
+    if (this._useAgentMode() && cid && !diagnosis) {
+      diagnosis = (this._preloaded && this._preloaded.diagnosis)
+        || await this._preloadDiagnosis(cid)
+        || ctxDiagnosis;
+    }
     const hooks = this._createStreamHooks();
 
     let result = null;
+    const useLlm = !!(inflight.useLlm || (linkedParams && linkedParams.useLlm));
     try {
-      result = await this._fetchStream(
-        message,
-        cid,
-        overview,
-        plan,
-        diagnosis,
-        historyBefore || [],
-        hooks
-      );
-      if (!result) {
-        result = await this._fetchFallback(
+      if (this._useAgentMode() && !useLlm) {
+        result = await this._fetchAgent(
           message,
           cid,
           overview,
           plan,
           diagnosis,
           historyBefore || [],
-          linkedParams || {}
         );
+      } else {
+        result = await this._fetchStream(
+          message,
+          cid,
+          overview,
+          plan,
+          diagnosis,
+          historyBefore || [],
+          hooks
+        );
+        if (!result) {
+          result = await this._fetchFallback(
+            message,
+            cid,
+            overview,
+            plan,
+            diagnosis,
+            historyBefore || [],
+            linkedParams || {}
+          );
+        }
       }
       this.hideTyping();
-      this._appendAssistantFromResult(message, result);
+      if (result && result.agent) {
+        this._appendAssistantFromAgentResult(message, result);
+      } else {
+        this._appendAssistantFromResult(message, result);
+      }
       if (options.onComplete) options.onComplete(result);
       return result;
     } catch (e) {
@@ -416,8 +660,143 @@ const AdvisorChat = {
     if (fab) fab.classList.remove('hidden');
     this.hideTyping();
     this._restoreSessionState();
+    if (typeof JourneyState !== 'undefined') {
+      const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+      if (cid) this.renderJourneyProgress(JourneyState.get(cid));
+    }
     await this._resumeInflightIfNeeded();
     this._syncSendBtn();
+  },
+
+  _useAgentMode() {
+    return this._isDockedLayout();
+  },
+
+  _resolveQuickPrompt(svc) {
+    if (!svc) return '';
+    if (svc.promptKey === 'full_service') {
+      const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+      if (!cid) return '';
+      const name = typeof getCustomerShortName === 'function'
+        ? getCustomerShortName(cid)
+        : '当前客户';
+      return `帮我完整服务${name}`;
+    }
+    return svc.prompt || '';
+  },
+
+  _welcomeHintHtml() {
+    if (typeof isCustomerHubPage === 'function' && isCustomerHubPage()) {
+      return '您好，我是您的<strong>智能投顾顾问</strong>。请从左侧客户清单点选客户开始服务；我会根据清单给出优先关注建议。';
+    }
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    let name = typeof getCustomerShortName === 'function' ? getCustomerShortName(cid) : '';
+    if ((!name || name === cid) && typeof diagnosisData !== 'undefined' && diagnosisData && diagnosisData.name) {
+      name = String(diagnosisData.name).split('（')[0].trim();
+    }
+    if (cid && name && name !== '未选择客户' && name !== cid) {
+      return `您好，我将继续为<strong>${this._escapeHtml(name)}</strong>服务。可说「帮我完整服务${this._escapeHtml(name)}」串联诊断→配仓，或点击下方快捷服务。`;
+    }
+    return '您好，我是您的<strong>智能投顾顾问</strong>。请从财富盘点选择客户后，我将同步为该客户提供服务。';
+  },
+
+  renderJourneyProgress(journey) {
+    const el = document.getElementById('advisorChatJourney');
+    if (!el) return;
+    const steps = (typeof JourneyState !== 'undefined' && JourneyState.STEPS) || [];
+    if (!journey || !steps.length) {
+      el.innerHTML = '';
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = '';
+    const stage = journey.stage || 'inventory';
+    const done = new Set(journey.completed_steps || []);
+    el.innerHTML = steps.map((s, i) => {
+      const active = s.id === stage;
+      const completed = done.has(s.id) || steps.findIndex(x => x.id === stage) > i;
+      const cls = completed ? 'done' : (active ? 'active' : '');
+      const arrow = i < steps.length - 1 ? '<span class="journey-pip-arrow">→</span>' : '';
+      return `<span class="journey-pip ${cls}" data-journey-href="${s.href}" title="${s.label}">${s.label}</span>${arrow}`;
+    }).join('');
+    el.querySelectorAll('[data-journey-href]').forEach(node => {
+      node.onclick = () => {
+        const href = node.getAttribute('data-journey-href');
+        if (href) this._navigateTo(href);
+      };
+    });
+  },
+
+  _applyJourney(journey) {
+    if (!journey) return;
+    this._lastJourney = journey;
+    const cid = journey.customer_id || (typeof getCustomerId === 'function' ? getCustomerId() : '');
+    if (cid && typeof JourneyState !== 'undefined') {
+      JourneyState.save(cid, journey);
+    }
+    this.renderJourneyProgress(journey);
+  },
+
+  _navigateTo(href, options = {}) {
+    if (!href) return;
+    const base = href.split('?')[0];
+    const file = base.split('/').pop() || base;
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    if (cid && typeof setSelectedCustomerId === 'function') {
+      setSelectedCustomerId(cid);
+    }
+    const openPlan = options.openPlan
+      || (file === 'smart_allocation.html' && this._hasCachedPlan());
+    if (file === 'smart_allocation.html' && openPlan) {
+      try {
+        sessionStorage.setItem('smartAllocOpenPlan', '1');
+      } catch (e) { /* ignore */ }
+    }
+    if (typeof navigateWithCustomer === 'function' && cid) {
+      navigateWithCustomer(base, cid);
+      return;
+    }
+    window.location.href = cid
+      ? `${base}?customer_id=${encodeURIComponent(cid)}`
+      : base;
+  },
+
+  _hasCachedPlan() {
+    try {
+      if (typeof loadResult !== 'function') return false;
+      const plan = loadResult();
+      return !!(plan && plan.rebalance);
+    } catch (e) {
+      return false;
+    }
+  },
+
+  async _preloadDiagnosis(cid) {
+    if (typeof diagnosisData !== 'undefined' && diagnosisData) return diagnosisData;
+    try {
+      const res = await apiGet(`/api/wealth/diagnosis?customer_id=${encodeURIComponent(cid)}`);
+      if (typeof diagnosisData !== 'undefined') {
+        diagnosisData = res.data;
+      }
+      return res.data;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  getAgentPayload() {
+    const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+    const { overview, plan, diagnosis } = this.getContextPayload();
+    const journey = (typeof JourneyState !== 'undefined' && cid)
+      ? JourneyState.buildPayload(cid)
+      : null;
+    return {
+      overview,
+      plan,
+      diagnosis,
+      journey,
+      page: location.pathname.split('/').pop() || '',
+    };
   },
 
   /** 侧栏停靠页统一初始化（点击外部不关闭、主内容自适应） */
@@ -471,12 +850,13 @@ const AdvisorChat = {
       }
     }
     const svc = serviceTitle ? this.getQuickService(serviceTitle) : null;
-    const prompt = options.prompt || (svc && svc.prompt);
+    let prompt = options.prompt || (svc && (svc.promptKey ? this._resolveQuickPrompt(svc) : svc.prompt));
     if (!prompt) return null;
     const userLabel = options.userLabel || serviceTitle || prompt || 'AI辅助生成';
     return this.sendPrompt(prompt || userLabel, {
       userLabel,
       linkedParams: options.linkedParams,
+      useLlm: options.useLlm,
       onComplete: options.onComplete,
     });
   },
@@ -499,6 +879,7 @@ const AdvisorChat = {
       getPrompt,
       getLinkedParams,
       onComplete,
+      useLlm = false,
     } = config;
 
     const elements = [];
@@ -526,6 +907,7 @@ const AdvisorChat = {
             validate,
             prompt: effectivePrompt,
             linkedParams,
+            useLlm,
           });
           if (onComplete && result) onComplete(result, btn);
         } finally {
@@ -557,6 +939,7 @@ const AdvisorChat = {
         serviceTitle: '健康度解读',
         userLabel: 'AI资配解读',
         busyLabel: '解读中…',
+        useLlm: true,
       });
     }
     if (bindAssetDiagnose && document.getElementById('btnAiAssetDiagnose')) {
@@ -565,6 +948,7 @@ const AdvisorChat = {
         serviceTitle: '资产诊断解读',
         userLabel: 'AI资产诊断',
         busyLabel: '诊断中…',
+        useLlm: true,
         validate: () => {
           if (typeof diagnosisData === 'undefined') return null;
           if (!diagnosisData) return assetDiagnoseEmptyMessage;
@@ -578,6 +962,7 @@ const AdvisorChat = {
         serviceTitle: '方案解读',
         userLabel: 'AI深度解读',
         busyLabel: '解读中…',
+        useLlm: true,
         validate: () => {
           if (typeof planData === 'undefined') return null;
           if (!planData) return planExplainEmptyMessage;
@@ -606,9 +991,11 @@ const AdvisorChat = {
     if (this._status.configured) {
       if (label) label.textContent = `在线 · ${this._status.model || 'AI'}`;
       el.className = 'advisor-chat-status online';
+      el.title = `${this._status.provider || 'LLM'} · ${this._status.base_url || ''}`;
     } else {
-      if (label) label.textContent = '规则兜底模式';
+      if (label) label.textContent = '规则兜底 · 未配置 Key';
       el.className = 'advisor-chat-status offline';
+      el.title = '请在 .env 中设置 LLM_API_KEY 后重启服务，即可启用大模型解读';
     }
   },
 
@@ -649,7 +1036,18 @@ const AdvisorChat = {
         if (!item) return;
         const text = item.dataset.chatPrompt || '';
         const serviceTitle = item.dataset.serviceTitle || '';
-        if (serviceTitle) {
+        const promptKey = item.dataset.promptKey || '';
+        if (promptKey === 'full_service' || serviceTitle === '全流程服务') {
+          const cid = typeof getCustomerId === 'function' ? getCustomerId() : '';
+          if (!cid) {
+            showToast('请先从左侧客户清单选择客户');
+            return;
+          }
+          this.sendLinkedQuickService('全流程服务', {
+            userLabel: `全流程服务·${typeof getCustomerShortName === 'function' ? getCustomerShortName(getCustomerId()) : '当前客户'}`,
+            prompt: this._resolveQuickPrompt(this.getQuickService('全流程服务')),
+          });
+        } else if (serviceTitle) {
           this.sendLinkedQuickService(serviceTitle, { userLabel: serviceTitle, prompt: text });
         } else {
           this.sendPrompt(text);
@@ -705,6 +1103,9 @@ const AdvisorChat = {
         window.AppShell.collapseForAdvisor();
       }
       if (!this._welcomed) this.showWelcome();
+      if (this._useAgentMode()) {
+        this.maybeShowProactiveNudge();
+      }
       if (!options.skipFocus) {
         const input = document.getElementById('advisorChatInput');
         if (input) setTimeout(() => input.focus(), 320);
@@ -724,12 +1125,15 @@ const AdvisorChat = {
   },
 
   _serviceGridHtml() {
-    return this.QUICK_SERVICES.map(s => `
-      <button type="button" class="advisor-service-item" data-chat-prompt="${this._escapeAttr(s.prompt)}" data-service-title="${this._escapeAttr(s.title)}">
+    return this.QUICK_SERVICES.map(s => {
+      const prompt = this._resolveQuickPrompt(s) || s.prompt || '';
+      return `
+      <button type="button" class="advisor-service-item" data-chat-prompt="${this._escapeAttr(prompt)}" data-service-title="${this._escapeAttr(s.title)}" data-prompt-key="${this._escapeAttr(s.promptKey || '')}">
         <span class="advisor-service-icon">${s.icon}</span>
         <span class="advisor-service-title">${s.title}</span>
         <span class="advisor-service-desc">${s.desc}</span>
-      </button>`).join('');
+      </button>`;
+    }).join('');
   },
 
   showWelcome(options = {}) {
@@ -753,7 +1157,7 @@ const AdvisorChat = {
       </div>
       <div class="advisor-chat-row advisor-chat-row-assistant">
         <div class="advisor-chat-bubble advisor-chat-bubble-assistant">
-          <p>您好，我是您的<strong>智能投顾顾问</strong>。我已读取当前客户的资产检视与配置方案，可为您解答健康度、调仓逻辑与合规替代思路等问题。</p>
+          <p>${this._welcomeHintHtml()}</p>
         </div>
         <div class="advisor-chat-time">${time}</div>
       </div>`;
@@ -816,9 +1220,10 @@ const AdvisorChat = {
     const time = options.time || this._nowLabel();
     const row = document.createElement('div');
     row.className = `advisor-chat-row advisor-chat-row-${isUser ? 'user' : 'assistant'}`;
+    if (meta.nudge) row.classList.add('advisor-chat-nudge-row');
 
     const sourceBadge = !isUser && meta.source
-      ? `<span class="advisor-chat-source ${meta.source}">${meta.source === 'llm' ? 'AI 生成' : '规则兜底'}</span>`
+      ? `<span class="advisor-chat-source ${meta.source}">${meta.source === 'llm' ? 'AI 生成' : meta.source === 'agent' ? 'Agent 编排' : '规则兜底'}</span>`
       : '';
 
     const reasoningHtml = !isUser && meta.reasoning
@@ -828,14 +1233,30 @@ const AdvisorChat = {
         </details>`
       : '';
 
+    const actionsHtml = !isUser && meta.actions && meta.actions.length
+      ? `<div class="advisor-chat-actions">${meta.actions.map((a, i) =>
+          `<button type="button" class="advisor-action-btn" data-action-index="${i}">${this._escapeHtml(a.label || '执行')}</button>`
+        ).join('')}</div>`
+      : '';
+
     row.innerHTML = isUser
       ? `<div class="advisor-chat-bubble advisor-chat-bubble-user">${this._formatContent(content)}</div>`
       : `<div class="advisor-chat-bubble advisor-chat-bubble-assistant">
           ${reasoningHtml}
-          ${this._formatContent(content)}
+          ${this._formatRichContent(content)}
+          ${actionsHtml}
           ${sourceBadge}
         </div>
         <div class="advisor-chat-time">${time}</div>`;
+
+    if (!isUser && meta.actions && meta.actions.length) {
+      row.querySelectorAll('[data-action-index]').forEach(btn => {
+        btn.onclick = () => {
+          const idx = Number(btn.getAttribute('data-action-index'));
+          this._handleAction(meta.actions[idx], btn);
+        };
+      });
+    }
     box.appendChild(row);
     if (!options.skipPersist) this._scrollToBottom();
     else if (typeof options.scrollTop === 'number') {
@@ -849,6 +1270,7 @@ const AdvisorChat = {
         meta: {
           source: meta.source || '',
           reasoning: meta.reasoning || '',
+          actions: meta.actions || [],
         },
       });
       this._persistSession();
@@ -858,6 +1280,18 @@ const AdvisorChat = {
   _formatContent(text) {
     const escaped = this._escapeHtml(text);
     return escaped
+      .replace(/\n{2,}/g, '</p><p>')
+      .replace(/\n/g, '<br>')
+      .replace(/^/, '<p>')
+      .replace(/$/, '</p>')
+      .replace(/<p><\/p>/g, '');
+  },
+
+  _formatRichContent(text) {
+    const allowed = this._escapeHtml(text)
+      .replace(/&lt;strong&gt;/g, '<strong>')
+      .replace(/&lt;\/strong&gt;/g, '</strong>');
+    return allowed
       .replace(/\n{2,}/g, '</p><p>')
       .replace(/\n/g, '<br>')
       .replace(/^/, '<p>')
@@ -896,9 +1330,16 @@ const AdvisorChat = {
   },
 
   getContextPayload() {
-    const overview = typeof overviewData !== 'undefined' ? overviewData : null;
-    const plan = typeof planData !== 'undefined' ? planData : null;
-    const diagnosis = typeof diagnosisData !== 'undefined' ? diagnosisData : null;
+    let overview = typeof overviewData !== 'undefined' ? overviewData : null;
+    let plan = typeof planData !== 'undefined' ? planData : null;
+    let diagnosis = typeof diagnosisData !== 'undefined' ? diagnosisData : null;
+    if (this._preloaded) {
+      if (!diagnosis && this._preloaded.diagnosis) diagnosis = this._preloaded.diagnosis;
+      if (!overview && this._preloaded.overview) overview = this._preloaded.overview;
+    }
+    if (!plan && typeof loadResult === 'function') {
+      plan = loadResult();
+    }
     return { overview, plan, diagnosis };
   },
 
@@ -910,7 +1351,8 @@ const AdvisorChat = {
 
     const cid = getCustomerId();
     if (!cid) {
-      showToast('请先选择客户');
+      const hub = typeof isCustomerHubPage === 'function' && isCustomerHubPage();
+      showToast(hub ? '请先从左侧客户清单选择客户' : '请先选择客户');
       return null;
     }
 
@@ -920,7 +1362,7 @@ const AdvisorChat = {
 
     this._sending = true;
     this._syncSendBtn();
-    this._beginInflight({ message: historyText, userLabel, historyBefore, linkedParams });
+    this._beginInflight({ message: historyText, userLabel, historyBefore, linkedParams, useLlm: options.useLlm });
 
     const input = document.getElementById('advisorChatInput');
     if (input) input.value = '';
@@ -936,6 +1378,252 @@ const AdvisorChat = {
     const message = (input && input.value || '').trim();
     if (!message) return;
     await this.sendPrompt(message);
+  },
+
+  _appendAssistantFromAgentResult(message, result) {
+    const reply = (result && result.reply) || '';
+    const reasoning = ((result && result.reasoning) || '').trim();
+    this._history.push({ role: 'user', content: message });
+    this._history.push({ role: 'assistant', content: reply });
+    if (this._history.length > 12) this._history = this._history.slice(-12);
+
+    if (result.customer_id && typeof setSelectedCustomerId === 'function') {
+      setSelectedCustomerId(result.customer_id);
+    }
+    if (result.journey) this._applyJourney(result.journey);
+    if (result.tool_results) {
+      const dx = result.tool_results.find(t => t.diagnosis);
+      if (dx && dx.diagnosis && typeof diagnosisData !== 'undefined') {
+        diagnosisData = dx.diagnosis;
+      }
+    }
+
+    if (!reply.trim()) {
+      this.appendMessage('assistant', '顾问未返回内容，请重试。', { source: 'agent' });
+      return;
+    }
+    this.appendMessage('assistant', reply, {
+      source: result.source || 'agent',
+      reasoning,
+      actions: result.actions || [],
+    });
+  },
+
+  async _handleAction(action, btn) {
+    if (!action) return;
+    const label = btn && btn.textContent;
+    if (btn) {
+      btn.disabled = true;
+      if (action.confirm !== false) btn.textContent = '处理中…';
+    }
+    try {
+      if (action.type === 'navigate') {
+        if (action.step && typeof JourneyState !== 'undefined') {
+          const cid = getCustomerId();
+          if (cid) JourneyState.markStep(cid, action.step);
+        }
+        if (action.plan) {
+          this._applyPlanToSession(action.plan);
+        }
+        this._navigateTo(action.href, {
+          openPlan: /smart_allocation\.html/.test(action.href || ''),
+        });
+        return;
+      }
+      if (action.type === 'set_customer') {
+        if (action.customer_id && typeof navigateWithCustomer === 'function') {
+          navigateWithCustomer('asset_diagnosis.html', action.customer_id);
+          return;
+        }
+        if (typeof setSelectedCustomerId === 'function') {
+          setSelectedCustomerId(action.customer_id);
+        }
+        await this.reloadForCustomer();
+        return;
+      }
+      if (action.type === 'tool') {
+        if (action.confirm) {
+          const ok = window.confirm(action.confirm_text || `确认执行：${action.label}？`);
+          if (!ok) return;
+        }
+        await this._executeToolAction(action);
+        return;
+      }
+      if (action.type === 'agent_prompt') {
+        if (action.customer_id && typeof setSelectedCustomerId === 'function') {
+          setSelectedCustomerId(action.customer_id);
+          if (typeof syncCustomerSelectTo === 'function') syncCustomerSelectTo(action.customer_id);
+        }
+        await this.sendPrompt(action.prompt || action.label, {
+          userLabel: action.label || action.prompt,
+        });
+        return;
+      }
+      if (action.type === 'copy') {
+        const text = action.text || '';
+        if (text && navigator.clipboard) {
+          await navigator.clipboard.writeText(text);
+          showToast('已复制到剪贴板');
+        }
+        return;
+      }
+      if (action.type === 'view_plan' || action.type === 'apply_plan') {
+        if (action.plan) this._applyPlanToSession(action.plan);
+        showToast('已打开智能资配工作台');
+        this._navigateTo('smart_allocation.html', { openPlan: true });
+        return;
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        if (label) btn.textContent = label;
+      }
+    }
+  },
+
+  _isCompletePlanPayload(payload) {
+    const rb = payload?.rebalance || payload;
+    if (!rb?.category_summary?.length) return false;
+    const deltas = rb.product_deltas || [];
+    if (!deltas.length) return false;
+    if (typeof PlanEditor !== 'undefined' && typeof PlanEditor.isCompletePlanCache === 'function') {
+      return PlanEditor.isCompletePlanCache({ rebalance: rb });
+    }
+    return deltas.some((d) => d.category != null && d.current_amount != null);
+  },
+
+  _applyPlanToSession(plan) {
+    if (!plan) return;
+    const payload = {
+      rebalance: plan.rebalance || plan,
+      explanation: plan.explanation || {},
+    };
+    const existing = typeof loadResult === 'function' ? loadResult() : null;
+    if (
+      existing?.rebalance
+      && this._isCompletePlanPayload(existing)
+      && !this._isCompletePlanPayload(payload)
+    ) {
+      return;
+    }
+    if (typeof saveResult === 'function') {
+      saveResult(payload);
+    } else {
+      sessionStorage.setItem('rebalanceResult', JSON.stringify(payload));
+    }
+    if (typeof planData !== 'undefined') {
+      planData = payload;
+    }
+  },
+
+  async _executeToolAction(action) {
+    const cid = getCustomerId();
+    if (!cid) {
+      showToast('请先选择客户');
+      return;
+    }
+    this.showTyping();
+    try {
+      const res = await apiPost('/api/ai/agent/tool', {
+        customer_id: cid,
+        tool: action.tool,
+        params: action.params || {},
+      });
+      const data = res.data || {};
+      const tr = data.tool_result || {};
+      this.hideTyping();
+      if (!tr.ok) {
+        this.appendMessage('assistant', `执行失败：${tr.error || '未知错误'}`, { source: 'agent' });
+        return;
+      }
+      let summary = '';
+      if (action.tool === 'generate_sop_content' && tr.ok) {
+        if (tr.batch) {
+          summary = (
+            `批量生成完成：成功 ${tr.processed || 0} 条，失败 ${tr.failed || 0} 条。` +
+            (tr.remaining_pending ? ` 仍有 ${tr.remaining_pending} 条待处理。` : '')
+          );
+        } else {
+          const out = tr.output || {};
+          const script = out.client_script || '';
+          summary = `话术包已生成（${out.source || 'rule_template'}）。\n\n${(script || out.event_description || '').slice(0, 280)}`;
+          if (script) {
+            data.actions = (data.actions || []).concat([{
+              type: 'copy',
+              label: '复制对客话术',
+              text: script,
+            }]);
+          }
+        }
+      } else if (action.tool === 'run_rebalance' && tr.ok) {
+        const mode = (action.params && action.params.mode) || tr.mode || 'smart_one_click';
+        const full = await apiPost('/api/allocation/auto_rebalance', {
+          customer_id: cid,
+          mode,
+          product_category: '投资规划',
+        });
+        this._applyPlanToSession(full.data);
+        const rb = full.data.rebalance || {};
+        summary = (
+          `配仓方案已生成（${tr.mode_label || mode}）。\n\n` +
+          `总资产 ${Number(rb.total_assets || 0).toLocaleString()} 元。\n` +
+          (rb.validation_notes || []).slice(0, 3).map(n => `· ${n}`).join('\n')
+        );
+        const cid2 = getCustomerId();
+        if (cid2 && typeof JourneyState !== 'undefined') {
+          JourneyState.markStep(cid2, 'allocation_work');
+          this.renderJourneyProgress(JourneyState.get(cid2));
+        }
+
+        const currentPage = location.pathname.split('/').pop() || '';
+        if (currentPage === 'smart_allocation.html') {
+          if (typeof refreshPlanView === 'function') {
+            refreshPlanView(full.data);
+            const planSection = document.getElementById('planSection');
+            const globalActions = document.getElementById('globalActions');
+            if (planSection) planSection.style.display = 'block';
+            if (globalActions) globalActions.style.display = 'none';
+          } else if (typeof planData !== 'undefined') {
+            planData = full.data;
+            location.reload();
+          }
+        }
+      } else {
+        summary = `工具 ${action.tool} 执行完成。`;
+      }
+      this.appendMessage('assistant', summary, {
+        source: 'agent',
+        actions: data.actions || [],
+      });
+    } catch (e) {
+      this.hideTyping();
+      this.appendMessage('assistant', '工具执行失败：' + e.message, { source: 'agent' });
+    }
+  },
+
+  async _fetchAgent(message, cid, overview, plan, diagnosis, history) {
+    const agentPayload = this.getAgentPayload();
+    const res = await apiPost('/api/ai/agent', {
+      customer_id: cid,
+      message,
+      history,
+      overview: overview || agentPayload.overview,
+      plan: plan || agentPayload.plan,
+      diagnosis: diagnosis || agentPayload.diagnosis,
+      journey: agentPayload.journey,
+      page: agentPayload.page,
+    });
+    const data = res.data || {};
+    return {
+      agent: true,
+      reply: data.reply || '',
+      reasoning: data.reasoning || '',
+      source: data.source || 'agent',
+      actions: data.actions || [],
+      journey: data.journey,
+      customer_id: data.customer_id,
+      tool_results: data.tool_results,
+    };
   },
 
   _appendAssistantFromResult(message, result) {

@@ -9,7 +9,10 @@
       "product_code": "T305",
       "product_name": "test-顶点-灵活T3",
       "drawdown_detail": "近60日最大回撤达 -3.6%，超阈值 -3%",
-      "data_date": "2026-06-20"
+      "data_date": "2026-06-20",
+      "agent_status": "done",
+      "status": 1,
+      "status_label": "已生成"
     },
     {
       "event_id": "EVT92",
@@ -30,5 +33,200 @@
       "data_date": "2026-06-20"
     }
   ],
-  "agent_outputs": {}
+  "agent_outputs": {
+    "EVT91": {
+      "event_id": "EVT91",
+      "pipeline_version": "1.0",
+      "generated_at": "2026-06-21 18:03:56",
+      "agent_status": "done",
+      "source": "rule_template",
+      "steps": {
+        "621_event_description": {
+          "step": "6.2.1",
+          "text": "【2026-06-20 售后提醒】\n\n- 最大回撤超阈值\n\n- 结论:\n  test-顶点-灵活T3近60日最大回撤达 -3.6%，超阈值 -3%。\n\n- 明细:\n  产品名称 | 风险属性 | 资产类型 | 单日最大回撤 | 单周最大回撤 | 回撤开始日期 | 回撤持续天数 | 数据采集时间 | 触发状态\n  --- | --- | --- | --- | --- | --- | --- | --- | ---\n  test-顶点-灵活T3 | 稳健型 | 另类及其他 | 0.21% | 0.26% | 2026-06-16 | 1天 | 2026-06-20 | 已触发",
+          "structured": {
+            "header": "【2026-06-20 售后提醒】",
+            "scenario": "最大回撤超阈值",
+            "conclusion": [
+              "test-顶点-灵活T3近60日最大回撤达 -3.6%，超阈值 -3%。"
+            ],
+            "metrics_row": {
+              "holding_amount": 1000000,
+              "holding_cost": 1050000,
+              "current_pnl": -50000,
+              "holding_days": 180,
+              "max_drawdown": 1.65,
+              "weekly_drawdown": 0.26,
+              "daily_drawdown": 0.21,
+              "yield_rate": 5.56,
+              "drawdown_start_date": "2026-06-16",
+              "drawdown_days": 1,
+              "data_date": "2026-06-20",
+              "product_name": "test-顶点-灵活T3",
+              "category_label": "稳健型",
+              "asset_type_label": "另类及其他",
+              "trigger_status": "已触发"
+            }
+          }
+        },
+        "622_product_info": {
+          "step": "6.2.2",
+          "static": {
+            "product_id": "T305",
+            "product_name": "test-顶点-灵活T3",
+            "product_code": "DD-T305",
+            "product_type": "稳健型",
+            "category": "low",
+            "category_label": "稳健型",
+            "asset_type": "alternative",
+            "asset_type_label": "另类及其他",
+            "strategy_type": "—",
+            "fund_manager": "衍复投资",
+            "investment_strategy": "对冲策略有效，风险控制优秀",
+            "benchmark": "中证800",
+            "management_org": "衍复投资",
+            "risk_level": "S",
+            "setup_date": "2026-05-25",
+            "risk_note": "对冲失效风险、模型风险",
+            "score": 0.8,
+            "conclusion": "对冲策略有效，风险控制优秀"
+          },
+          "performance": {
+            "holding_amount": 1000000,
+            "holding_cost": 1050000,
+            "current_pnl": -50000,
+            "holding_days": 180,
+            "max_drawdown": 1.65,
+            "weekly_drawdown": 0.26,
+            "daily_drawdown": 0.21,
+            "yield_rate": 5.56,
+            "drawdown_start_date": "2026-06-16",
+            "drawdown_days": 1,
+            "data_date": "2026-06-20"
+          },
+          "reports": null,
+          "source_note": "静态信息：统一产品库 product_library.yaml · 业绩指标：mock_product_metrics 模拟（无评价 API） · 未检索到该产品专项研报（知识库未接入）",
+          "degraded": [
+            "evaluation_db",
+            "product_reports"
+          ],
+          "data_source": {
+            "product_static": "product_library",
+            "product_performance": "mock"
+          }
+        },
+        "623_research_analysis": {
+          "step": "6.2.3",
+          "source": "rule_template",
+          "framework_key": "量化策略",
+          "analysis": {
+            "framework": "量化策略",
+            "framework_label": "量化策略",
+            "dimensions": [
+              "现象描述",
+              "因子暴露变化",
+              "指增/中性超额",
+              "市场流动性与基差"
+            ],
+            "product_analysis": "产品层面（量化策略）：test-顶点-灵活T3采用对冲策略有效，风险控制优秀。分析量化因子失效、模型拥挤度及指增超额回撤是否超出历史波动区间。 近一周回撤 0.26%，最大回撤 1.65%。 产品库结论：对冲策略有效，风险控制优秀。",
+            "market_analysis": "市场层面：关注指数成分调整、成交量萎缩、基差走阔对量化产品的同步影响。",
+            "conclusion": "1. 现象描述：近60日最大回撤达 -3.6%，超阈值 -3%\n2. 原因分析：产品层面（量化策略）：test-顶点-灵活T3采用对冲策略有效，风险控制优秀。分析量化因子失效、模型拥挤度及指增超额回撤是否超出历史波动区间。 近一周回撤 0.26%，最大回撤 1.65%。 产品库结论：对冲策略有效，风险控制优秀。…\n3. 前瞻判断及建议：市场层面：关注指数成分调整、成交量萎缩、基差走阔对量化产品的同步影响。… 建议持有观察，重点跟踪超额回撤是否收敛及策略容量变化。",
+            "recommendation": "建议持有观察，重点跟踪超额回撤是否收敛及策略容量变化。",
+            "recommendation_client": "建议您保持持有观察，重点跟踪超额回撤是否收敛及策略容量变化。",
+            "structured": {
+              "phenomenon": "近60日最大回撤达 -3.6%，超阈值 -3%",
+              "cause": "产品层面（量化策略）：test-顶点-灵活T3采用对冲策略有效，风险控制优秀。分析量化因子失效、模型拥挤度及指增超额回撤是否超出历史波动区间。 近一周回撤 0.26%，最大回撤 1.65%。 产品库结论：对冲策略有效，风险控制优秀。",
+              "outlook": "市场层面：关注指数成分调整、成交量萎缩、基差走阔对量化产品的同步影响。 建议持有观察，重点跟踪超额回撤是否收敛及策略容量变化。"
+            },
+            "source_refs": [
+              "SOP产品信息库",
+              "分析框架：量化策略"
+            ],
+            "report_note": "未检索到该产品专项研报（知识库未接入，已降级为基础画像）"
+          }
+        },
+        "624_client_script": {
+          "step": "6.2.4",
+          "text": "尊敬的客户，您好。关于您持有的test-顶点-灵活T3，近期近60日最大回撤达 -3.6%，超阈值 -3%。\n从持仓表现看，近一周回撤约0.26%，最大回撤约1.65%。\n建议您保持持有观察，重点跟踪超额回撤是否收敛及策略容量变化。如有疑问欢迎随时联系您的理财经理，我们将持续为您跟踪产品表现。",
+          "template_key": "drawdown",
+          "word_count": 147,
+          "compliance_warnings": []
+        }
+      },
+      "event_description": "【2026-06-20 售后提醒】\n\n- 最大回撤超阈值\n\n- 结论:\n  test-顶点-灵活T3近60日最大回撤达 -3.6%，超阈值 -3%。\n\n- 明细:\n  产品名称 | 风险属性 | 资产类型 | 单日最大回撤 | 单周最大回撤 | 回撤开始日期 | 回撤持续天数 | 数据采集时间 | 触发状态\n  --- | --- | --- | --- | --- | --- | --- | --- | ---\n  test-顶点-灵活T3 | 稳健型 | 另类及其他 | 0.21% | 0.26% | 2026-06-16 | 1天 | 2026-06-20 | 已触发",
+      "product_info": {
+        "step": "6.2.2",
+        "static": {
+          "product_id": "T305",
+          "product_name": "test-顶点-灵活T3",
+          "product_code": "DD-T305",
+          "product_type": "稳健型",
+          "category": "low",
+          "category_label": "稳健型",
+          "asset_type": "alternative",
+          "asset_type_label": "另类及其他",
+          "strategy_type": "—",
+          "fund_manager": "衍复投资",
+          "investment_strategy": "对冲策略有效，风险控制优秀",
+          "benchmark": "中证800",
+          "management_org": "衍复投资",
+          "risk_level": "S",
+          "setup_date": "2026-05-25",
+          "risk_note": "对冲失效风险、模型风险",
+          "score": 0.8,
+          "conclusion": "对冲策略有效，风险控制优秀"
+        },
+        "performance": {
+          "holding_amount": 1000000,
+          "holding_cost": 1050000,
+          "current_pnl": -50000,
+          "holding_days": 180,
+          "max_drawdown": 1.65,
+          "weekly_drawdown": 0.26,
+          "daily_drawdown": 0.21,
+          "yield_rate": 5.56,
+          "drawdown_start_date": "2026-06-16",
+          "drawdown_days": 1,
+          "data_date": "2026-06-20"
+        },
+        "reports": null,
+        "source_note": "静态信息：统一产品库 product_library.yaml · 业绩指标：mock_product_metrics 模拟（无评价 API） · 未检索到该产品专项研报（知识库未接入）",
+        "degraded": [
+          "evaluation_db",
+          "product_reports"
+        ],
+        "data_source": {
+          "product_static": "product_library",
+          "product_performance": "mock"
+        }
+      },
+      "research_analysis": {
+        "framework": "量化策略",
+        "framework_label": "量化策略",
+        "dimensions": [
+          "现象描述",
+          "因子暴露变化",
+          "指增/中性超额",
+          "市场流动性与基差"
+        ],
+        "product_analysis": "产品层面（量化策略）：test-顶点-灵活T3采用对冲策略有效，风险控制优秀。分析量化因子失效、模型拥挤度及指增超额回撤是否超出历史波动区间。 近一周回撤 0.26%，最大回撤 1.65%。 产品库结论：对冲策略有效，风险控制优秀。",
+        "market_analysis": "市场层面：关注指数成分调整、成交量萎缩、基差走阔对量化产品的同步影响。",
+        "conclusion": "1. 现象描述：近60日最大回撤达 -3.6%，超阈值 -3%\n2. 原因分析：产品层面（量化策略）：test-顶点-灵活T3采用对冲策略有效，风险控制优秀。分析量化因子失效、模型拥挤度及指增超额回撤是否超出历史波动区间。 近一周回撤 0.26%，最大回撤 1.65%。 产品库结论：对冲策略有效，风险控制优秀。…\n3. 前瞻判断及建议：市场层面：关注指数成分调整、成交量萎缩、基差走阔对量化产品的同步影响。… 建议持有观察，重点跟踪超额回撤是否收敛及策略容量变化。",
+        "recommendation": "建议持有观察，重点跟踪超额回撤是否收敛及策略容量变化。",
+        "recommendation_client": "建议您保持持有观察，重点跟踪超额回撤是否收敛及策略容量变化。",
+        "structured": {
+          "phenomenon": "近60日最大回撤达 -3.6%，超阈值 -3%",
+          "cause": "产品层面（量化策略）：test-顶点-灵活T3采用对冲策略有效，风险控制优秀。分析量化因子失效、模型拥挤度及指增超额回撤是否超出历史波动区间。 近一周回撤 0.26%，最大回撤 1.65%。 产品库结论：对冲策略有效，风险控制优秀。",
+          "outlook": "市场层面：关注指数成分调整、成交量萎缩、基差走阔对量化产品的同步影响。 建议持有观察，重点跟踪超额回撤是否收敛及策略容量变化。"
+        },
+        "source_refs": [
+          "SOP产品信息库",
+          "分析框架：量化策略"
+        ],
+        "report_note": "未检索到该产品专项研报（知识库未接入，已降级为基础画像）"
+      },
+      "client_script": "尊敬的客户，您好。关于您持有的test-顶点-灵活T3，近期近60日最大回撤达 -3.6%，超阈值 -3%。\n从持仓表现看，近一周回撤约0.26%，最大回撤约1.65%。\n建议您保持持有观察，重点跟踪超额回撤是否收敛及策略容量变化。如有疑问欢迎随时联系您的理财经理，我们将持续为您跟踪产品表现。",
+      "compliance_warnings": []
+    }
+  }
 }

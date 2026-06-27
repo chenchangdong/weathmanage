@@ -1705,10 +1705,28 @@ body.advisor-chat-open { overflow: hidden; }
 html.advisor-chat-pending-open body[data-advisor-dock] {
   --advisor-panel-width: 380px;
   padding-right: var(--advisor-panel-width);
+  transition: none !important;
 }
 
 html.advisor-chat-pending-open body[data-advisor-dock] .advisor-chat-panel {
   transform: translateX(0);
+  transition: none !important;
+}
+
+html.advisor-chat-pending-open body[data-advisor-dock] .container-advisor-dock {
+  transition: none !important;
+}
+
+/* 页面初始化恢复侧栏时禁用主内容区滑入 */
+body[data-advisor-dock].advisor-chat-instant-layout {
+  transition: none !important;
+}
+
+body[data-advisor-dock].advisor-chat-instant-layout .container-advisor-dock {
+  transition: none !important;
+}
+
+body[data-advisor-dock].advisor-chat-instant-layout .advisor-chat-panel {
   transition: none !important;
 }
 
@@ -2184,6 +2202,93 @@ body[data-advisor-dock] .advisor-chat-panel.open {
   margin: 0;
 }
 
+.advisor-chat-journey {
+  display: none;
+  flex-shrink: 0;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.advisor-chat-journey .journey-pip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: #8a94a6;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.advisor-chat-journey .journey-pip.active {
+  background: rgba(74, 144, 226, 0.15);
+  color: #2b6cb0;
+  font-weight: 600;
+}
+
+.advisor-chat-journey .journey-pip.done {
+  color: #52a06a;
+}
+
+.advisor-chat-journey .journey-pip-arrow {
+  display: inline-block;
+  margin: 0 2px;
+  color: #c5cad3;
+  font-size: 10px;
+}
+
+.advisor-chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.advisor-action-btn {
+  padding: 6px 12px;
+  border: 1px solid rgba(74, 144, 226, 0.45);
+  border-radius: 16px;
+  background: #fff;
+  color: #2b6cb0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.advisor-action-btn:hover:not(:disabled) {
+  background: rgba(74, 144, 226, 0.08);
+  border-color: #4a90e2;
+}
+
+.advisor-action-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.advisor-chat-source.agent {
+  background: #eef6ff;
+  color: #2b6cb0;
+}
+
+.advisor-chat-nudge-row .advisor-chat-bubble-assistant {
+  border-left: 3px solid #4a90e2;
+  background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
+}
+
+.advisor-chat-nudge-row .advisor-chat-bubble-assistant::before {
+  content: '主动提示';
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #4a90e2;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
 /* 浮动入口 */
 .advisor-chat-fab {
   position: fixed;
@@ -2494,6 +2599,10 @@ button.journey-step.link {
 .inventory-row:focus {
   background: var(--primary-light);
   outline: none;
+}
+
+.inventory-row-active {
+  background: rgba(74, 144, 226, 0.12);
 }
 
 .inventory-flags {

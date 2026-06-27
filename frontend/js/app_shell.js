@@ -360,6 +360,31 @@
       .replace(/"/g, '&quot;');
   }
 
+  function updatePage(opts) {
+    const options = opts || {};
+    const page = options.page || '';
+    const title = options.title || SYSTEM_NAME;
+    const crumb = options.crumb || title;
+
+    document.querySelectorAll('.nav-leaf, .nav-item').forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      const base = href.replace(/^admin\//, '').replace('.html', '').replace(/^\.\.\//, '');
+      const active = page === base || page.replace('.html', '') === base
+        || (base === 'smart_allocation_setup' && SMART_ALLOC_PAGES.has(page));
+      link.classList.toggle('active', active);
+    });
+
+    const left = document.querySelector('.topbar-left');
+    if (left) {
+      const crumbEl = left.querySelector('.crumbs span:last-child');
+      if (crumbEl) crumbEl.textContent = crumb || title;
+      const titleEl = left.querySelector('.page-title');
+      if (titleEl) {
+        titleEl.innerHTML = esc(title) + '<span class="tag">实时</span>';
+      }
+    }
+  }
+
   window.initAppShell = initAppShell;
   window.AppShell = {
     isCollapsed,
@@ -367,5 +392,6 @@
     toggleSidebar,
     collapseForAdvisor,
     restoreAfterAdvisor,
+    updatePage,
   };
 })();

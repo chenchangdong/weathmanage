@@ -140,6 +140,13 @@ const SetupPage = {
         if (sel) {
           sel.value = id;
           setSelectedCustomerId(id);
+          try {
+            const url = new URL(location.href);
+            url.searchParams.set('customer_id', id);
+            history.replaceState(null, '', url);
+          } catch (err) {
+            /* ignore */
+          }
           sel.dispatchEvent(new Event('change'));
         }
       };

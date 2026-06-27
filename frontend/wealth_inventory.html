@@ -54,62 +54,18 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/common.js"></script>
+  <script src="js/journey_soft_nav.js"></script>
   <script src="js/app_shell.js"></script>
   <script src="js/wealth_journey.js"></script>
-  <script src="js/advisor_chat.js?v=20260614b"></script>
+  <script src="js/journey_state.js"></script>
+  <script src="js/pages/wealth_inventory_page.js"></script>
+  <script src="js/pages/asset_diagnosis_page.js"></script>
+  <script src="js/advisor_chat.js?v=20260622b"></script>
   <script>
     initAppShell({ page: 'wealth_inventory', title: '财富盘点', crumb: '财富盘点' });
+    if (typeof syncCustomerContextFromUrl === 'function') syncCustomerContextFromUrl();
     WealthJourney.initAdvisor();
-
-    async function loadInventory() {
-      document.getElementById('loading').style.display = 'block';
-      document.getElementById('content').style.display = 'none';
-      try {
-        const res = await apiGet('/api/wealth/inventory');
-        renderTable(res.data.customers || []);
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('content').style.display = 'block';
-      } catch (e) {
-        document.getElementById('loading').textContent = '加载失败: ' + e.message;
-      }
-    }
-
-    function renderTable(customers) {
-      const needCare = customers.filter(c => c.flag_count > 0).length;
-      document.getElementById('inventorySummary').textContent =
-        `共 ${customers.length} 位客户 · ${needCare} 位建议介入`;
-
-      const tbody = document.getElementById('inventoryBody');
-      tbody.innerHTML = customers.map(c => {
-        const p = c.performance;
-        const annCls = WealthJourney.pctClass(p.annual_return_pct);
-        const monCls = WealthJourney.pctClass(p.month_return_pct);
-        const lossExceeded = p.principal_loss_pct < -c.loss_threshold_pct;
-        const lossCls = lossExceeded ? 'metric-down' : (p.principal_loss_pct < -0.05 ? 'metric-flat' : '');
-        return `
-          <tr class="inventory-row" data-customer-id="${c.customer_id}" tabindex="0">
-            <td><strong>${c.name}</strong></td>
-            <td>${c.risk_profile_name}</td>
-            <td>${formatMoney(c.total_assets)}</td>
-            <td class="${annCls}">${WealthJourney.formatSignedPct(p.annual_return_pct)}</td>
-            <td class="${monCls}">${WealthJourney.formatSignedPct(p.month_return_pct)}<span class="cell-sub">${formatMoney(p.month_return_amount)}</span></td>
-            <td>${p.volatility_pct.toFixed(1)}%</td>
-            <td class="${lossCls}">${p.principal_loss_pct.toFixed(2)}%</td>
-            <td class="inventory-flags">${WealthJourney.renderFlags(c.flags)}</td>
-          </tr>`;
-      }).join('');
-
-      tbody.querySelectorAll('.inventory-row').forEach(row => {
-        const go = () => navigateWithCustomer('asset_diagnosis.html', row.dataset.customerId);
-        row.addEventListener('click', go);
-        row.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
-        });
-      });
-      WealthJourney.bindFlagTooltips(tbody);
-    }
-
-    loadInventory();
+    WealthInventoryPage.boot();
   </script>
 </body>
 </html>

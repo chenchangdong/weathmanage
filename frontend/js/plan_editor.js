@@ -240,6 +240,15 @@ const PlanEditor = {
     return true;
   },
 
+  /** 方案缓存是否含完整 product_deltas（顾问工具 compact 版不含 category 等字段） */
+  isCompletePlanCache(cached) {
+    const rb = cached?.rebalance;
+    if (!rb?.category_summary?.length) return false;
+    const deltas = rb.product_deltas || [];
+    if (!deltas.length) return false;
+    return deltas.some((d) => d.category != null && d.current_amount != null);
+  },
+
   discardPlanCacheIfWrongContext() {
     if (typeof loadResult !== 'function') return false;
     const cached = loadResult();

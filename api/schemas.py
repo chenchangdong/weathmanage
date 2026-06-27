@@ -80,6 +80,25 @@ class AdvisorChatRequest(BaseModel):
     overview: Optional[Dict[str, Any]] = None
     plan: Optional[Dict[str, Any]] = None
     diagnosis: Optional[Dict[str, Any]] = None
+    journey: Optional[Dict[str, Any]] = None
+    page: Optional[str] = None
+
+
+class AdvisorAgentRequest(BaseModel):
+    customer_id: str
+    message: str
+    history: List[ChatMessage] = Field(default_factory=list)
+    overview: Optional[Dict[str, Any]] = None
+    plan: Optional[Dict[str, Any]] = None
+    diagnosis: Optional[Dict[str, Any]] = None
+    journey: Optional[Dict[str, Any]] = None
+    page: Optional[str] = None
+
+
+class AdvisorToolExecuteRequest(BaseModel):
+    customer_id: str
+    tool: str
+    params: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AllocationReportExportRequest(BaseModel):

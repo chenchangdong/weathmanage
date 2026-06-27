@@ -129,112 +129,19 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/common.js"></script>
+  <script src="js/journey_soft_nav.js"></script>
   <script src="js/app_shell.js"></script>
   <script src="js/wealth_journey.js"></script>
-  <script src="js/advisor_chat.js?v=20260614b"></script>
+  <script src="js/journey_state.js"></script>
+  <script src="js/pages/wealth_inventory_page.js"></script>
+  <script src="js/pages/asset_diagnosis_page.js"></script>
+  <script src="js/advisor_chat.js?v=20260622b"></script>
   <script>
     initAppShell({ page: 'asset_diagnosis', title: '资产诊断', crumb: '资产诊断' });
-    let diagnosisData = null;
+    var diagnosisData = null;
+    syncCustomerContextFromUrl();
     AdvisorChat.initDockPage({ bindAssetDiagnose: true, bindHealthDiagnose: false, bindPlanExplain: false });
-
-    const customerId = getSelectedCustomerId();
-
-    const linkSmartAllocStep = document.getElementById('linkSmartAllocStep');
-    if (linkSmartAllocStep) {
-      linkSmartAllocStep.onclick = (e) => {
-        e.preventDefault();
-        if (!customerId) {
-          showToast('请先选择客户');
-          return;
-        }
-        sessionStorage.setItem(PRODUCT_CATEGORY_KEY, '投资规划');
-        navigateWithCustomer('smart_allocation_setup.html', customerId);
-      };
-    }
-
-    document.getElementById('btnSmartAllocation').onclick = () => {
-      if (!customerId) {
-        showToast('请先选择客户');
-        return;
-      }
-      sessionStorage.setItem(PRODUCT_CATEGORY_KEY, '投资规划');
-      navigateWithCustomer('smart_allocation_setup.html', customerId);
-    };
-
-    async function loadDiagnosis() {
-      if (!customerId) {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('emptyState').style.display = 'block';
-        return;
-      }
-      try {
-        const res = await apiGet(`/api/wealth/diagnosis?customer_id=${encodeURIComponent(customerId)}`);
-        renderDiagnosis(res.data);
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('content').style.display = 'block';
-      } catch (e) {
-        document.getElementById('loading').textContent = '加载失败: ' + e.message;
-      }
-    }
-
-    function renderDiagnosis(d) {
-      diagnosisData = d;
-      document.getElementById('diagnosisSubtitle').textContent =
-        `${d.name} · ${d.risk_profile_name} · 投资规划`;
-      document.getElementById('customerName').textContent = d.name;
-      document.getElementById('customerMeta').textContent =
-        `${d.risk_profile_name} · 客户编号 ${d.customer_id}`;
-      document.getElementById('metricTotal').textContent =
-        `${WealthJourney.formatWan(d.total_assets)} 万`;
-      document.getElementById('metricDate').textContent = `数据日期 ${d.diagnosis_date}`;
-
-      const flagsEl = document.getElementById('metricFlags');
-      if (d.flags && d.flags.length) {
-        flagsEl.innerHTML = WealthJourney.renderFlags(d.flags, { interactive: true });
-        WealthJourney.bindFlagTooltips(flagsEl);
-      } else {
-        flagsEl.innerHTML = '<span class="diagnosis-flags-empty">暂无标志</span>';
-      }
-
-      const p = d.performance;
-      const m = d.model_benchmark;
-      const annEl = document.getElementById('metricAnnual');
-      annEl.textContent = `${WealthJourney.formatSignedPct(p.annual_return_pct)} · ${formatMoney(p.annual_return_amount || 0)}`;
-      annEl.className = WealthJourney.pctClass(p.annual_return_pct);
-
-      const monEl = document.getElementById('metricMonth');
-      monEl.textContent = `${WealthJourney.formatSignedPct(p.month_return_pct)} · ${formatMoney(p.month_return_amount || 0)}`;
-      monEl.className = WealthJourney.pctClass(p.month_return_pct);
-
-      document.getElementById('metricExpectRet').textContent = `${m.expect_annual_return_pct}%`;
-
-      const lossEl = document.getElementById('metricLoss');
-      lossEl.textContent = `${p.principal_loss_pct.toFixed(2)}%`;
-      lossEl.className = p.principal_loss_pct < -d.loss_threshold_pct ? 'metric-down' : '';
-
-      document.getElementById('metricVol').textContent = `${p.volatility_pct}%`;
-      document.getElementById('metricExpectRisk').textContent =
-        `波动 ${m.expect_volatility_pct}% · 损失阈值 ${d.loss_threshold_pct}%`;
-
-      document.getElementById('compositeScore').textContent = `${d.composite_score} 分`;
-      document.getElementById('beatInvestors').textContent =
-        `综合评分 ${d.composite_score} 分，跑赢约 ${d.beat_investors_pct}% 的同风险投资者`;
-      document.getElementById('diagnosisConclusion').textContent =
-        d.conclusions[0] || '暂无异常，建议定期复盘。';
-
-      const scoreBadge = document.getElementById('compositeScore');
-      const level = (d.score_context && d.score_context.health_level) || 'healthy';
-      scoreBadge.className = `diagnosis-score-badge diagnosis-score-badge--${level}`;
-
-      document.getElementById('radarWrap').innerHTML = WealthJourney.renderRadar(d.dimensions);
-      document.getElementById('fourMoneyCompare').innerHTML =
-        WealthJourney.renderCompareBars(d.four_money);
-
-      document.getElementById('conclusionList').innerHTML =
-        d.conclusions.map(t => `<li>${t}</li>`).join('');
-    }
-
-    loadDiagnosis();
+    AssetDiagnosisPage.boot();
   </script>
 </body>
 </html>

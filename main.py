@@ -1,5 +1,6 @@
 """四笔钱资产配置智能体 — 应用入口."""
 
+import os
 from pathlib import Path
 
 try:
@@ -53,4 +54,22 @@ if FRONTEND_DIR.exists():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    reload = os.getenv("DEV_RELOAD", "1") != "0"
+    kwargs = {
+        "host": "0.0.0.0",
+        "port": int(os.getenv("PORT", "8000")),
+        "reload": reload,
+    }
+    if reload:
+        # 前端静态资源变更无需重启 Python 进程，显著加快开发迭代
+        kwargs["reload_excludes"] = [
+            "frontend/*",
+            "tests/*",
+            ".venv/*",
+            "data/*",
+            "config/*.yaml",
+            "*.json",
+            ".git/*",
+            ".cursor/*",
+        ]
+    uvicorn.run("main:app", **kwargs)

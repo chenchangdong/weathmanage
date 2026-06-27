@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="css/app-shell.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="page-sop-agent page-wealth-journey">
+<body class="page-sop-agent page-wealth-journey" data-advisor-dock>
   <div class="container container-sop">
     <div class="page-header page-header-compact">
       <h1>投后SOP管理台</h1>
@@ -365,6 +365,9 @@
   <script src="js/common.js"></script>
   <script src="js/app_shell.js"></script>
   <script src="js/sop_journey.js"></script>
+  <script src="js/advisor_chat_bootstrap.js"></script>
+  <script src="js/journey_state.js"></script>
+  <script src="js/advisor_chat.js?v=20260614d"></script>
   <script>
     initAppShell({ page: 'sop_agent', title: '投后SOP管理台', crumb: '投后SOP管理台' });
 
@@ -985,6 +988,9 @@
     });
 
     showStep(SopJourney.parseStepFromHash());
+    if (typeof AdvisorChat !== 'undefined') {
+      AdvisorChat.initDockPage({ bindHealthDiagnose: false, bindPlanExplain: false });
+    }
   </script>
 </body>
 </html>

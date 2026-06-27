@@ -229,14 +229,16 @@
   <div id="flagTooltip" class="flag-tooltip" style="display:none" role="tooltip"></div>
   <div id="toast" class="toast"></div>
 
-  <script src="js/common.js"></script>
+  <script src="js/common.js?v=20260622c"></script>
+  <script src="js/journey_soft_nav.js"></script>
   <script src="js/app_shell.js"></script>
   <script src="js/wealth_journey.js"></script>
   <script src="js/model_selector.js"></script>
   <script src="js/smart_allocation_addon.js"></script>
-  <script src="js/plan_editor.js"></script>
+  <script src="js/plan_editor.js?v=20260622c"></script>
   <script src="js/allocation_report_export.js"></script>
-  <script src="js/advisor_chat.js?v=20260614b"></script>
+  <script src="js/journey_state.js"></script>
+  <script src="js/advisor_chat.js?v=20260622c"></script>
   <script>
     let overviewData = null;
     let diagnosisData = null;
@@ -325,7 +327,58 @@
       return true;
     }
 
-    async function maybeConfirmRestorePersonalizedPlan() {
+    function shouldOpenPlanView() {
+      const planFlagKey = typeof SMART_ALLOC_OPEN_PLAN_KEY !== 'undefined'
+        ? SMART_ALLOC_OPEN_PLAN_KEY
+        : 'smartAllocOpenPlan';
+      try {
+        if (sessionStorage.getItem(planFlagKey) === '1') {
+          sessionStorage.removeItem(planFlagKey);
+          return true;
+        }
+      } catch (e) { /* ignore */ }
+      return new URLSearchParams(location.search).get('view') === 'plan';
+    }
+
+    function isCachedPlanComplete(cached) {
+      if (typeof PlanEditor.isCompletePlanCache === 'function') {
+        return PlanEditor.isCompletePlanCache(cached);
+      }
+      const rb = cached?.rebalance;
+      const deltas = rb?.product_deltas || [];
+      return !!(rb?.category_summary?.length
+        && deltas.length
+        && deltas.some((d) => d.category != null && d.current_amount != null));
+    }
+
+    async function restoreCachedPlanIfAny() {
+      let cached = loadResult();
+      if (!cached?.rebalance) return false;
+      if (!PlanEditor.isPlanCacheForCurrentContext(cached)) return false;
+      if (PlanEditor.isPersonalizedPlanCache(cached)) return false;
+
+      if (!isCachedPlanComplete(cached)) {
+        try {
+          const rb = cached.rebalance;
+          const res = await apiPost('/api/allocation/auto_rebalance', withLossKey({
+            customer_id: getSelectedCustomerId(),
+            product_category: getProductCategory(),
+            mode: rb.mode || 'smart_one_click',
+            idle_cash: syncAddonToOverviewData(),
+          }));
+          cached = res.data;
+          savePlanResult(cached);
+        } catch (e) {
+          showToast('方案加载失败: ' + e.message);
+          return false;
+        }
+      }
+
+      renderPlan(cached);
+      return true;
+    }
+
+    async function maybeConfirmRestorePersonalizedPlan(forceRestore = false) {
       if (!PlanEditor.hasSavedPersonalizedPlan()) return false;
 
       const cached = loadResult();
@@ -333,6 +386,10 @@
       if (!PlanEditor.isSavedPrescriptionRestorable(cached, addon, holdingsBaseTotal)) {
         discardStalePersonalizedPlan('追加持仓已关闭或不足，原处方已失效，请重新发起个性化配仓');
         return false;
+      }
+
+      if (forceRestore) {
+        return restorePersonalizedPlanIfAny();
       }
 
       const oldTotal = cached?.categoryPrescription?.frozenAtTotal ?? cached?.rebalance?.total_assets;
@@ -438,7 +495,11 @@
         updateContextSummary(overviewData);
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
-        await maybeConfirmRestorePersonalizedPlan();
+        const openPlanView = shouldOpenPlanView();
+        await maybeConfirmRestorePersonalizedPlan(openPlanView);
+        if (viewMode !== 'plan' && openPlanView) {
+          await restoreCachedPlanIfAny();
+        }
         syncViewOverviewClass();
       } catch (e) {
         document.getElementById('loading').textContent = '加载失败: ' + e.message;
@@ -711,6 +772,9 @@
     PlanEditor.initIdleCashGuideModal(onIdleCashSynced);
     PlanEditor.initIdleCashRevertModal(onIdleCashSynced);
     AllocationReportExport.bind();
+    window.singleOptimize = singleOptimize;
+    window.toggleProducts = toggleProducts;
+    window.openTweak = openTweak;
   </script>
 </body>
 </html>

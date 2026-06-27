@@ -7,10 +7,15 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from agent_core.advisor_agent import AdvisorAgentService
+from agent_core.advisor_nudge import build_proactive_nudge
+from agent_core.context_preload import build_context_bundle
 from agent_core.explain_agent import ExplainAgent
 from api.schemas import (
     AllocationReportExportRequest,
+    AdvisorAgentRequest,
     AdvisorChatRequest,
+    AdvisorToolExecuteRequest,
     AutoRebalanceRequest,
     FlagCategorySuggestRequest,
     ManualAdjustRequest,
@@ -625,6 +630,80 @@ def advisor_chat_stream(req: AdvisorChatRequest) -> StreamingResponse:
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/ai/agent")
+def advisor_agent_turn(req: AdvisorAgentRequest) -> Dict[str, Any]:
+    """顾问 Agent 回合：意图路由 + 工具编排 + 行动卡片。"""
+    customer = get_demo_customer(req.customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail=f"Customer not found: {req.customer_id}")
+
+    svc = AdvisorAgentService()
+    try:
+        result = svc.turn(
+            customer_id=req.customer_id,
+            message=req.message,
+            history=[h.model_dump() for h in req.history],
+            journey=req.journey,
+            page=req.page,
+            overview=req.overview,
+            plan=req.plan,
+            diagnosis=req.diagnosis,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"code": 0, "message": "ok", "data": result}
+
+
+@router.post("/ai/agent/tool")
+def advisor_agent_tool(req: AdvisorToolExecuteRequest) -> Dict[str, Any]:
+    """执行顾问 Agent 行动卡片中的工具（需用户确认后调用）。"""
+    customer = get_demo_customer(req.customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail=f"Customer not found: {req.customer_id}")
+
+    allowed = {"get_diagnosis", "recommend_mode", "run_rebalance", "list_sop_events", "generate_sop_content"}
+    if req.tool not in allowed:
+        raise HTTPException(status_code=400, detail=f"Unsupported tool: {req.tool}")
+
+    svc = AdvisorAgentService()
+    try:
+        result = svc.execute_confirmed_tool(req.customer_id, req.tool, req.params)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"code": 0, "message": "ok", "data": result}
+
+
+@router.get("/ai/context")
+def advisor_context_bundle(
+    customer_id: str = Query(..., description="客户ID"),
+    page: Optional[str] = Query(None, description="当前页面文件名"),
+) -> Dict[str, Any]:
+    """预加载顾问 grounding 上下文 bundle（诊断/检视/投后/旅程）。"""
+    try:
+        data = build_context_bundle(customer_id, page=page)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"code": 0, "message": "ok", "data": data}
+
+
+@router.get("/ai/nudge")
+def advisor_proactive_nudge(
+    customer_id: str = Query("", description="客户ID，盘点页可留空"),
+    page: Optional[str] = Query(None, description="当前页面文件名"),
+) -> Dict[str, Any]:
+    """进入页面时的主动提示（Proactive Nudge）。"""
+    page_name = (page or "").split("/")[-1].lower()
+    if page_name in ("wealth_inventory.html", "sop_agent.html"):
+        nudge = build_proactive_nudge("", page=page)
+        return {"code": 0, "message": "ok", "data": {"nudge": nudge}}
+    if not customer_id or not get_demo_customer(customer_id):
+        raise HTTPException(status_code=404, detail="请提供有效 customer_id")
+    nudge = build_proactive_nudge(customer_id, page=page)
+    return {"code": 0, "message": "ok", "data": {"nudge": nudge}}
 
 
 @router.get("/allocation/report_chapters")

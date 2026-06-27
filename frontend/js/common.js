@@ -5,6 +5,16 @@ let CUSTOMERS = [];
 const PLANNING_TYPES = ['投资规划', '综合规划'];
 const PRODUCT_CATEGORY_KEY = 'productCategory';
 const SELECTED_CUSTOMER_KEY = 'selectedCustomerId';
+const SMART_ALLOC_OPEN_PLAN_KEY = 'smartAllocOpenPlan';
+const CUSTOMER_HUB_PAGES = new Set(['wealth_inventory.html']);
+
+function getCurrentPageName() {
+  return location.pathname.split('/').pop() || '';
+}
+
+function isCustomerHubPage() {
+  return CUSTOMER_HUB_PAGES.has(getCurrentPageName());
+}
 
 const RISK_PROFILE_LABELS = {
   conservative: '保守型',
@@ -78,12 +88,67 @@ async function apiPut(path, body) {
   return json;
 }
 
+function getCustomerShortName(customerId) {
+  if (!customerId) return '未选择客户';
+  const c = CUSTOMERS.find(x => x.id === customerId);
+  if (!c) return customerId;
+  if (c.displayName) return c.displayName;
+  const name = c.name || '';
+  return name.split('（')[0].trim() || customerId;
+}
+
+function syncCustomerSelectTo(customerId) {
+  if (!customerId) return;
+  const sel = document.getElementById('customerSelect');
+  if (sel && sel.value !== customerId) {
+    sel.value = customerId;
+  }
+}
+
 function getCustomerId() {
   const sel = document.getElementById('customerSelect');
   if (sel && sel.value) return sel.value;
   const selected = getSelectedCustomerId();
   if (selected) return selected;
+  if (isCustomerHubPage()) return '';
   return CUSTOMERS[0] && CUSTOMERS[0].id;
+}
+
+function getSelectedCustomerId() {
+  const fromUrl = new URLSearchParams(window.location.search).get('customer_id');
+  if (fromUrl) return fromUrl;
+  if (isCustomerHubPage()) return '';
+  return sessionStorage.getItem(SELECTED_CUSTOMER_KEY) || '';
+}
+
+/** 从 URL 同步客户上下文（旅程页进入时调用） */
+function syncCustomerContextFromUrl() {
+  const fromUrl = new URLSearchParams(window.location.search).get('customer_id');
+  if (fromUrl) {
+    setSelectedCustomerId(fromUrl);
+    syncCustomerSelectTo(fromUrl);
+    return fromUrl;
+  }
+  if (isCustomerHubPage()) return '';
+  return sessionStorage.getItem(SELECTED_CUSTOMER_KEY) || '';
+}
+
+function setSelectedCustomerId(customerId) {
+  if (customerId) sessionStorage.setItem(SELECTED_CUSTOMER_KEY, customerId);
+}
+
+function navigateWithCustomer(path, customerId, extraParams) {
+  setSelectedCustomerId(customerId);
+  const base = path.split('?')[0];
+  const params = new URLSearchParams(path.includes('?') ? path.split('?')[1] : '');
+  if (customerId) params.set('customer_id', customerId);
+  if (extraParams && typeof extraParams === 'object') {
+    Object.entries(extraParams).forEach(([k, v]) => {
+      if (v != null && v !== '') params.set(k, v);
+    });
+  }
+  const qs = params.toString();
+  window.location.href = qs ? `${base}?${qs}` : base;
 }
 
 function getProductCategory() {
@@ -93,21 +158,6 @@ function getProductCategory() {
     return sel.value;
   }
   return sessionStorage.getItem(PRODUCT_CATEGORY_KEY) || '投资规划';
-}
-
-function setSelectedCustomerId(customerId) {
-  if (customerId) sessionStorage.setItem(SELECTED_CUSTOMER_KEY, customerId);
-}
-
-function getSelectedCustomerId() {
-  const fromUrl = new URLSearchParams(window.location.search).get('customer_id');
-  if (fromUrl) return fromUrl;
-  return sessionStorage.getItem(SELECTED_CUSTOMER_KEY) || '';
-}
-
-function navigateWithCustomer(path, customerId) {
-  setSelectedCustomerId(customerId);
-  window.location.href = `${path}?customer_id=${encodeURIComponent(customerId)}`;
 }
 
 function formatModelMetrics(ret, vol) {
@@ -193,6 +243,13 @@ function initCustomerSelect(onChange, options = {}) {
     }
     sel.addEventListener('change', () => {
       setSelectedCustomerId(sel.value);
+      try {
+        const url = new URL(location.href);
+        if (sel.value) url.searchParams.set('customer_id', sel.value);
+        history.replaceState(null, '', url);
+      } catch (e) {
+        /* ignore URL sync errors */
+      }
       if (onChange) onChange();
     });
     if (!options.skipPlanningType) {
@@ -209,8 +266,6 @@ function renderNav(active) {
     { href: 'wealth_inventory.html', label: '财富盘点' },
     { href: 'asset_diagnosis.html', label: '资产诊断' },
     { href: 'smart_allocation_setup.html', label: '智能资配' },
-    { href: 'index.html', label: '客户资产', hidden: true },
-    { href: 'result.html', label: '配置方案', hidden: true },
   ];
   const sopPages = [
     { href: 'sop_agent.html', label: '投后SOP管理台', key: 'sop_agent' },

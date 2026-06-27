@@ -151,15 +151,68 @@ def build_diagnosis_context(diagnosis: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def build_sop_context(sop: dict[str, Any] | None) -> dict[str, Any]:
+    if not sop or not sop.get("ok"):
+        return {"available": False}
+    events = sop.get("events") or []
+    return {
+        "available": True,
+        "data_date": sop.get("data_date"),
+        "event_count": len(events),
+        "pending_count": sop.get("pending_count", 0),
+        "events": [
+            {
+                "event_id": e.get("event_id"),
+                "product_name": e.get("product_name"),
+                "scenario": e.get("scenario"),
+                "agent_status": e.get("agent_status"),
+                "has_output": e.get("has_output"),
+            }
+            for e in events[:8]
+        ],
+    }
+
+
+from agent_core.journey_state import build_journey_context
+
+
+def build_journey_context_for_chat(
+    customer_id: str,
+    *,
+    journey: dict[str, Any] | None = None,
+    page: str | None = None,
+    diagnosis: dict[str, Any] | None = None,
+    plan: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return build_journey_context(
+        customer_id,
+        journey=journey,
+        page=page,
+        diagnosis=diagnosis,
+        plan=plan,
+    )
+
+
 def build_chat_grounding(
     customer_id: str,
     overview: dict[str, Any] | None = None,
     plan: dict[str, Any] | None = None,
     diagnosis: dict[str, Any] | None = None,
+    journey: dict[str, Any] | None = None,
+    page: str | None = None,
+    sop: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "customer": build_customer_context(customer_id),
         "asset_overview": build_overview_context(customer_id, overview),
         "allocation_plan": build_plan_context(plan),
         "asset_diagnosis": build_diagnosis_context(diagnosis),
+        "sop_post_investment": build_sop_context(sop),
+        "journey": build_journey_context(
+            customer_id,
+            journey=journey,
+            page=page,
+            diagnosis=diagnosis,
+            plan=plan,
+        ),
     }
